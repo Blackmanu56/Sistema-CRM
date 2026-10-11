@@ -1,0 +1,66 @@
+INDICACIONES PARA CADA ÁREA
+(proyecto: C:\xampp\htdocs\Sistema-crm\Sistema-CRM)
+
+Esto ya está pensado para todas. Cada área prueba su carpeta
+(public/SU_AREA) y no toca includes/ ni config/.
+
+
+QUÉ PROBAR AHORA (prioridad)
+1) Recepción → Clientes → Nuevo cliente (nota del turno opcional).
+2) Turnos: siempre con fecha visible. Derivar a Emprendedores → campanita.
+3) Emprendedores: abrir turno, cerrar o dejar tarea.
+4) Programas (pasos): Objetivo (checks de áreas) → Tareas → Programa (checks)
+   → Anotar cliente.
+
+
+CÓMO ENTRA UN CLIENTE
+- Recepción, un área o la web. Una sola ficha.
+- Recepción carga datos básicos y de dónde vino (web / presencial / WhatsApp).
+- Cada visita es un TURNO (antes se decía “atención”).
+  Puede ser “atender ahora” o con fecha a futuro.
+- Al derivar, el área destino ve el aviso en la CAMPANITA.
+- El cliente no “pertenece” a un área: se ve donde hubo turno o tarea.
+
+
+TAREAS
+- Solo OBJETIVO (ya no hay eje: Ulises confirmó que es lo mismo).
+- La fecha de cierre es ESTIMADA. Al terminar queda la fecha real.
+- Avances: link y/o comentario juntos (al menos uno).
+- Una tarea puede quedar sin responsable: el coordinador del área la asigna.
+
+
+NOTIFICACIONES
+- Una sola campanita arriba a la derecha, con el número.
+- Incluye: turnos para atender + tareas asignadas.
+- OK saca el aviso; Abrir entra al turno o a la tarea.
+
+
+PROGRAMAS (Coordinación general / Sistemas)
+- Pack de tareas prearmadas por área + objetivo.
+- Al crear el programa se marcan con checks cuáles van.
+- Anotar cliente = se crean esas tareas en cada área y avisos.
+
+
+ACTIVIDADES
+- No son tareas. Son un evento: reunión, capacitación, ronda.
+- Pueden generar tareas. No mezclar con el historial de la tarea.
+
+
+RRHH / SISTEMAS / COORDINACIÓN GENERAL
+- Sin cambios de esta ronda. Ver bloques anteriores si hace falta.
+
+
+QUÉ NO TOCAR
+- includes/acceso.php, includes/init.php, includes/crm_extra.php
+  (salvo quien coordina el proyecto)
+- config/conexion.php (apunta a crm_prueba)
+- sql/crm_prueba.sql
+
+
+OTRAS ÁREAS (empresas, comercio, marketing, vinculaciones…)
+Todavía no se rediseñó el menú de Turnos en todas.
+Cuando Recepción + Emprendedores funcionen bien:
+- Copiar el patrón de public/emprendedores/atencion.php
+  y atenciones.php (usan includes compartidos).
+- Cambiar el botón del menú de “Atenciones” a “Turnos”.
+- Probar deriva recepción → esa área y la campanita.

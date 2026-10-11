@@ -1,0 +1,143 @@
+﻿RELEVAMIENTO DE PROCESOS — FUNDACIÓN ADEMI
+1. INICIO Y PREPARACIÓN TÉCNICA DE LA SESIÓN
+Intervinientes: Equipo de pasantes de Análisis de Sistemas.
+Acuerdo metodológico: Realizar el relevamiento módulo por módulo, abordando primero las preguntas específicas de Recepción y Emprendedores con Ulises y Claudia, para luego convocar individualmente a los responsables de cada sector.
+BLOQUE I: ÁREA DE RECEPCIÓN Y ATENCIÓN AL PÚBLICO
+Interventores: Pasantes de Análisis de Sistemas (Entrevistadores) / Claudia (Administración y Recepción) y Ulises (Coordinador General) (Entrevistados).
+1. Funciones y alcance del puesto de Recepción
+Pregunta / Tema: ¿Qué funciones y alcance tiene actualmente la recepción en el sistema?
+Respuesta y detalle: Recepción es el punto de entrada institucional para cualquier persona que acude a la fundación. Atiende a emprendedores, empresas, consultas generales, vinculación académica, comercio exterior y gestiona el punto de venta de Origen Misiones. El sistema básico actual gestiona la alta y edición de clientes (personas y empresas), asignación de área, tipos de tareas (atención, consultas, altas) y agenda/turnos.
+2. Protocolo de atención con y sin turno agendado
+Pregunta / Tema: ¿Cómo se procede cuando una persona llega a recepción con o sin turno?
+Respuesta y detalle: La recepción suele trabajar con turnos previa agendamiento. Al llegar un visitante, se verifica si ya posee un turno. Si no lo tiene, se consulta al área correspondiente si hay disponibilidad inmediata para atenderlo. Si el área está en capacitaciones o sin disponibilidad, o si la persona proviene de otra localidad y no puede esperar, se registran sus datos y se le agendan una entrevista posterior vía WhatsApp o canal oficial.
+3. Datos obligatorios de registro diario
+Pregunta / Tema: ¿Qué datos deben registrarse de cada visitante en recepción?
+Respuesta y detalle: "Queremos que cada persona que llega, no importa el motivo que llega, se registre con su DNI, con el asunto que vino a hacer, si fue atendido o fue derivado y a qué área". Se requiere obligatorio: Nombre y Apellido, DNI, Asunto/Motivo, Localidad de origen (Posadas u otra), Estado (Atendido / Derivado) y Área de destino. Esto alimentará reportes semanales y mensuales obligatorios de concurrencia e impacto institucional.
+4. Canales de comunicación institucionales (E-mail y WhatsApp)
+Pregunta / Tema: ¿Cómo se gestionan el correo institucional y el WhatsApp?
+Respuesta y detalle: Recepción revisa diariamente el correo e-mail y el WhatsApp institucional. Analiza el contenido y deriva los mensajes a las casillas de correo específicas de las áreas. Si el mensaje se dirige a Presidencia, se canaliza allí; si surgen dudas sobre el destino, se consulta al Coordinador General. El área de Emprendedores maneja un WhatsApp independiente. Todo ingreso debe asentarse en el cuadro de tareas diario de recepción.
+5. Punto de Venta y Recepción de Mercadería
+Pregunta / Tema: ¿Qué tareas físicas realiza recepción respecto a productos de emprendedores?
+Respuesta y detalle: Recepción administra el punto de venta del programa Origen Misiones registrando las ventas en un sistema específico. Además, recibe los productos físicos que entregan los emprendedores para los locales y confecciona los remitos de ingreso internos. En caso de capacitaciones u ocupación de recepción, se solicita asistencia al equipo de emprendedores para la descarga.
+BLOQUE II: ÁREA DE EMPRENDEDORES Y CUESTIONARIO DE ULISES (COORDINACIÓN GENERAL)
+Interventores: Pasantes de Análisis de Sistemas (Entrevistadores) / Ulises (Coordinador General) (Entrevistado, acompañado por Nati).
+Cuestionario Cronológico de Ulises (Secuencia exacta del Audio):
+1. Programas y Categorías de Emprendedores
+Pregunta formulada: ¿Origen Misiones, Código de Barras, Acelerar, Capacitaciones y Proyecto de Fondo de Crédito Misiones son todas las categorías/programas que maneja actualmente el área de Emprendedores o existen otras que no aparecen en la planilla de Excel?
+Respuesta de Ulises: Los programas/ejes centrales son Desarrollo de Ideas, Aceleración y Origen Misiones. Existen accesos directos específicos para Código de Barras (para quienes ya tienen producto y packaging listo y solo buscan tramitar el descuento/registro) y Entrenamiento/Capacitaciones.
+Ejemplo concreto: Todo el resto canalizamos a través de alguno de estos... todo lo hacemos entrar por acelerar y ahí vemos qué necesita dentro de eso, ahí puede ser no sé marketing, proyecto fondo de crédito ahí dentro de eso".
+2. Subtareas obligatorias y regla de baja/cancelación
+Pregunta formulada: *Cuando una tarea genera subtareas, ¿todas son obligatorias o algunas pueden no realizarse dependiendo del caso?
+Respuesta de Ulises: Si la tarea se genera, las subtareas son obligatorias, pero su ejecución depende de la respuesta del emprendedor].
+Ejemplo concreto (Regla de los 5 días): "Nosotros le mandamos una planilla al emprendedor para que complete. El emprendedor no nos completa... le damos tipo 5 días para que él complete. Si él no completa, le mandamos un recordatorio. Si no vuelve a completar, cancelamos la actividad".
+3. Permisos para modificar o eliminar subtareas (Empleado vs. Coordinador)
+Pregunta formulada: *¿El responsable debería poder agregar, eliminar o modificar las subtareas que genera el sistema?
+Respuesta de Ulises: El empleado no puede modificar ni editar la "bajada de línea" u orden de la tarea principal enviada por la coordinación. El empleado sí puede agregar comentarios o generar actividades/subtareas secundarias para reflejar reuniones o avances. Eliminar tareas o modificar la orden original es potestad exclusiva de los coordinadores.
+4. Subtareas dependientes (Secuenciales)
+Pregunta formulada: *¿Hay subtareas que necesariamente deben terminar antes de comenzar otra?
+Respuesta de Ulises: Sí. En algunos casos no se puede avanzar sin completar la tarea previa.
+Ejemplo concreto: "Nosotros no podemos terminar el diagnóstico si no nos pasan el modelo de negocio. Por ejemplo, en el programa de origen no podemos dar de alta si no completa el formulario".
+5. Subtareas simultáneas (Paralelas)
+Pregunta formulada: ¿También existen subtareas que pueden hacerse al mismo tiempo por diferentes personas?
+Respuesta de Ulises: Sí, ocurren sobre todo en actividades compartidas o capacitaciones.
+Ejemplo concreto (Reposición de locales de Origen Misiones): "Bajo una tarea que es reposición en los locales, mientras Joaquín prepara la logística para mirar los productos, Nati está cargando los productos y Claudia está haciendo el remito. Entonces hay tres tareas sobre la misma actividad".
+6. Cambio de responsable de una tarea
+Pregunta formulada: ¿La tarea puede cambiar de responsable?
+Respuesta de Ulises: Sí, la tarea puede reasignarse a otro miembro del equipo, pero la reasignación es atribución exclusiva de un coordinador.
+7. Cambio de prioridades y notificaciones del sistema
+Pregunta formulada: ¿Se pueden cambiar las prioridades de una tarea?
+Respuesta de Ulises: Sí. Las prioridades varían a medida que se acerca la fecha de vencimiento o surge una urgencia. El cambio debe realizarlo un coordinador y el sistema debe emitir un aviso automático al empleado asignado.
+8. Objetivos por área y unificación de Eje y Objetivo
+Pregunta formulada: ¿Los objetivos son iguales para todas las áreas? ¿Cuál es la diferencia entre un programa, un objetivo y un eje?
+Respuesta de Ulises: No son iguales; varían según la escala y el público objetivo. 
+Ejemplo concreto: "Emprendedores y empresas tienen como objetivo comercialización, o sea, vender productos... Pero emprendedores tiene objetivo vender producto en las tiendas, vender producto acá... y empresa su objetivo es vender productos a dietética, supermercado o mayorista, la escala es más alta".
+Unificación de Eje y Objetivo: Ulises explicó que el programa es la marca (Origen Misiones) y el objetivo/eje es lo que mueve al área (Comercialización). Propuso explícitamente unificar eje y objetivo en el sistema.
+9. Inscripción de clientes, datos requeridos y flujo por etapas
+Pregunta formulada: Cuando se inscribe a un cliente en un programa, ¿cómo se define cuál es el objetivo, ¿cuál es el eje y cuáles son las tareas que se deben realizar? ¿Qué datos se registran?
+Respuesta de Ulises: Se envía un formulario de registro inicial. Los datos obligatorios comunes son: Nombre, Apellido, Empresa/Marca y CUIT o DNI. En Origen Misiones el CUIT es obligatorio; en Aceleración no es excluyente.
+Flujo por etapas (Aceleración): Juan Pérez (Alfajores Misioneros) -> Formulario de diagnóstico -> Solicitud de modelo de negocio -> Plazo de 5 días con recordatorios -> Cancela la actividad si no responde.
+10. Reprogramación de fechas y aprobación de tareas vencidas
+Pregunta formulada: Cuando una tarea ya fue creada, ¿se puede cambiar su fecha? Y cuando una tarea supera su fecha prevista y todavía no está finalizada, ¿qué debería hacer el sistema?
+Respuesta de Ulises: La fecha se puede cambiar, pero con aviso y aprobación obligatoria del superior jerárquico. El empleado no puede postergar plazos sin control; debe enviar una solicitud al panel del coordinador para que este la apruebe. Si la tarea vence, el sistema debe disparar una alerta/notificación automática al coordinador.
+11. Registro de actividades y capacitaciones (Inscriptos OPCIONAL)
+Pregunta formulada: Cuando realizan una actividad —por ejemplo, una capacitación o una ronda de negocios—, ¿qué información necesitan registrar?
+Respuesta de Ulises: El coordinador genera la actividad introduciendo: Nombre de la actividad, Fecha, Hora, Lugar, Tema, Responsable a cargo e Instituciones participantes.
+Ejemplo de Inscriptos (Opcional): 
+Capacitación abierta (Banda de Costos): Sí lleva lista de inscriptos previos.
+Evento institucional/cerrado (Jornada gastronómica en la Cruz de Santa Ana): No lleva lista de inscriptos previa porque la comitiva y cocineros están cerrados de antemano. Por ello, el campo de inscriptos debe ser opcional en el sistema.
+12. Insumos al finalizar la actividad
+Pregunta formulada: Al finalizar una actividad, ¿qué información necesitan guardar?
+Respuesta de Ulises: Se guardan las listas definitivas de asistencia, resultados alcanzados, contactos generados, fotografías, videos, gacetillas publicadas, presentaciones y remitos de mercadería/insumos utilizados o devueltos.
+13. Actividades grandes divididas en tareas multidisciplinarias
+Pregunta formulada: *¿Hay actividades o casos grandes que se dividan en varias tareas más pequeñas?
+Respuesta de Ulises: Sí, una sola actividad spara tareas para múltiples áreas.
+Ejemplo concreto: Para un evento, Prensa hace la gacetilla y fotos, Comunicación diseña el flyer, Coordinación prepara la presentación/inscripciones y Emprendedores/Logística reúne y embala los productos.
+BLOQUE III: ÁREA DE COMERCIO EXTERIOR
+Interventores: Pasantes de Análisis de Sistemas (Entrevistadores) / Ulises (en representación inicial) y Cami (Coordinación) (Entrevistados).
+1. Tareas habituales y perfil de cliente
+Pregunta / Tema: ¿Qué tareas realiza el área de Comercio Exterior y con qué clientes trabaja?
+Respuesta y detalle: Acompañamiento técnico a empresas, gestiones de exportación, organización y participación en rondas de negocios, y vinculación comercial entre oferta y demanda. Funciona como un vinculador entre el que quiere comprar y el que quiere vender.
+Perfil y origen: Todos los beneficiarios son empresas radicadas en la Provincia de Misiones. Trabaja prioritariamente con empresas constituidas por el volumen de venta requerido. Se solicitó incorporar un campo específico: "Acompañamiento a Emprendedores.
+2. Registro de gestiones y regla de "Cuarentena"
+Pregunta / Tema: ¿Qué datos se registran y cómo se maneja el vencimiento?
+Respuesta y detalle: Se registra la empresa local, el trámite, el responsable, los contactos/compradores y los resultados de las rondas de negocios.
+Ejemplo concreto (Ronda en Santa Fe): Acompañamiento a 5 empresas misioneras ante 200 compradores en Santa Fe, concluyendo con un informe de resultados de contactos.
+Estado de Cuarentena: Si una empresa no registra movimientos ni responde en un lapso determinado, el sistema debe pasarla automáticamente a un estado de "cuarentena" o darla de baja.
+BLOQUE IV: ÁREA DE SISTEMAS
+Interventores: Pasantes de Análisis de Sistemas (Entrevistadores) / Cami (Coordinadora de Sistemas) y Ulises (Entrevistados).
+Respuestas al Cuestionario Estructurado de Sistemas:
+¿Las tareas de sistemas se relacionan a un cliente?
+(X) No, son internas. Sus tareas son requerimientos de los empleados de ADEMI. Solo se relacionan con clientes externos cuando desarrollan un sitio web para un tercero a través de la fundación.
+¿En el área de sistemas hay más gente aparte de la coordinadora?
+Respuesta: No, actualmente es solo la coordinadora.
+¿Trabajás en tareas junto con otros compañeros?
+(X) Sí, seguido pero con otras áreas. Colabora constantemente con Claudia, Nati, Joaquín y las demás áreas ajustando la web, servidores y el sistema de Origen Misiones.
+¿Cómo recibís tus tareas habitualmente?
+**(X) Las dos cosas (Autogenerated y Asignadas). Tareas autogeneradas por calendario técnico (renovación de hosting, dominios, mantenimiento de servidores) y asignaciones de la Coordinación General. Se requiere poder crear usuarios temporarios o practicantes/colaboradores a cargo.
+Un empleado, ¿necesita ver las tareas de sus compañeros?
+(X) Sí, de su equipo. Ver todas las tareas de toda la fundación generaría un bombardeo innecesario de información. Cada colaborador ve sus tareas y las de su área; solo los coordinadores ven todas las tareas de sus equipos.
+Propuestas de mejoras técnicas confirmadas:
+A. Módulo para gestionar PERMISOS Y ROLES (sin código): (X) SÍ. Panel de control para tildar/destildar permisos por rol.
+B. Sistema de NOTIFICACIONES (Campanilla): (X) SÍ. Alertas de asignación, término y vencimiento.
+C. DASHBOARD por Rol: (X) SÍ. Vistas con métricas de tareas pendientes, realizadas y demoradas.
+D. Recordatorio de BACKUPS y mantenimiento: (X) S.
+Permisos y Roles:
+A. Acceso a la configuración: (X) Solo el superadmin de Sistemas. (Recursos Humanos carga la ficha personal; Sistemas asigna roles y accesos).
+B. Controles desde el panel: (X) TODAS LAS OPCIONES (Pantallas, creación, edición, borrado, reportes y usuarios).
+Atribución exclusiva: Capacidad para crear NUEVAS ÁREAS en la plataforma y definir sus dependencias.
+
+BLOQUE V: ÁREA DE COMUNICACIÓN Y DISEÑO
+Interventores: Pasantes de Análisis de Sistemas (Entrevistadores) / Tobías Garrido (Coordinador del Área de Comunicación y Diseño) (Entrevistado).
+1. División entre Comunicación Interna y Externa
+Comunicación Interna / Institucional: Piezas que no se publican hacia afuera (cartelería de la fundación, gafetes/cucardas para eventos, avisos internos, piezas para capacitaciones o visitas de autoridades).
+Comunicación Externa / Diseño: Piezas exportadas hacia clientes/emprendedores mediante el programa ADEMI Diseña (identidad de marca, packaging, rotulado) y gestión de canales principales (Instagram y WhatsApp).
+2. Estructura de la Planilla Excel actual de pedidos
+El área utiliza un Excel interno estructurado con las siguientes columnas:
+Prioridad del Pedido: Tres niveles de urgencia (Urgente, No tan urgente, Planificado).
+Área Solicitante: Clasificación del origen (Presidencia, Empresas, Emprendedores, Sistemas, o Comunicación y Diseño para programas propios).
+Brief / Detalle: Descripción breve de un renglón del requerimiento.
+Profesional Asignado: Asignación según perfil técnico (Edición de Video para Belén, Diseño Gráfico o Coordinación General de Tobías).
+Tipo de Producto / Actividad: Diseño de Packaging, Flyer, Reel de Instagram, Carrusel, Cucardas/Gafetes, Diseños Varios.
+Estado del Pedido: En revisión, Aprobado, Terminado, Descartado, No utilizado (los más usados son En revisión, Terminado y Descartado).
+3. Solución a la distorsión en la medición de días de resolución
+Conflicto identificado: Discrepancia entre la fecha en que el diseñador finaliza el trabajo y la fecha en que el área solicitante decide publicarlo. Si un flyer se termina el lunes pero se publica 15 días después, la fórmula actual calcula 15 días de demora e imputa ineficiencia injustificada al diseñador.
+Requerimiento del nuevo sistema: Separar formalmente los campos "Fecha de Finalización del Diseño" y "Fecha de Implementación / Publicación", calculando el indicador de Días Reales de Elaboración.
+Herramientas empleadas: Google Drive (material crudo de fotos y videos), Paquete Adobe, Canva y Google Sheets.
+BLOQUE VI: ÁREA DE EMPRESAS
+Interventores: Pasantes de Análisis de Sistemas (Entrevistadores) / Victoria "Vicky" (Área de Empresas) (Entrevistada).
+1. Procesos y servicios principales
+Verificación de Marcas: Análisis de disponibilidad y viabilidad de marcas registradas.
+Armado de Carpetas para Financiamiento: Confección de expedientes estructurados para solicitar créditos ante el Fondo de Crédito Misiones o el CFI, ordenando los papeles que las pymes desconocen cómo armar.
+Planes de Trabajo e Indicadores de Impacto: Relevamiento inicial de la empresa, informe, propuesta de plan de trabajo y medición de indicadores a los 3 y 6 meses posteriores para evaluar si la intervención fue positiva, negativa o neutra.
+2. Seguimiento Post Rondas de Negocios
+Requerimiento del sistema: Subir el listado de empresas participantes de la ronda de negocios y programar alertas automáticas a los 3 y 6 meses para contactar a los compradores y verificar si se concretaron cierres comerciales.
+3. Diferenciación Empresa vs. Emprendedor
+Criterios de clasificación: Las empresas cuentan con Razón Social constituida (SRL, SAS), CUIT formal, registros sanitarios/establecimiento obligatorios (RNE, RNPA para alimentos), personal en relación de dependencia (pymes de 5 a 15 empleados) y mayor volumen operativo.
+BLOQUE VII: ÁREA DE RECURSOS HUMANOS Y CIERRE DE LA REUNIÓN
+Interventores: Pasantes de Análisis de Sistemas / Nati, Claudia y Ulises (Entrevistados).
+1. Ficha de Legajo de Personal
+Procedimiento: Recursos Humanos recopila la ficha de datos personales, antecedentes legajales y fotografía de cada nuevo colaborador o pasante que ingresa a la fundación.
+Articulación de alta: Recursos Humanos efectúa el alta de la persona en el sistema, lo que habilita a Sistemas a configurar su usuario, rol y permisos correspondientes.
+2. Cierre y próximos entregables
+El equipo de pasantes consolidará la información relevada para elaborar el Informe Diagnóstico de Relevamiento y el Plan de Implementación Técnica, los cuales serán presentados a la Coordinación General y a Administración para la aprobación final de los módulos
+

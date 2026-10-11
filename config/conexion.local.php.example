@@ -1,0 +1,10 @@
+<?php
+// Plantilla de configuración local de base de datos.
+// Copiá este archivo como 'conexion.local.php' y configurá las credenciales de tu entorno.
+return array(
+    'host'    => '127.0.0.1',
+    'usuario' => 'tu_usuario',
+    'clave'   => 'tu_contraseña',
+    'base'    => 'crm_prueba',
+    'puerto'  => 3306
+);

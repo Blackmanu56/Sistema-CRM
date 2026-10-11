@@ -1,0 +1,32 @@
+# Adaptaciones de base (instalación limpia)
+
+Fuente de verdad: `sql/crm_prueba.sql`  
+Conexión: `config/conexion.php` → base `crm_prueba`.
+
+Para entorno nuevo: **importar solo** `sql/crm_prueba.sql` (no hace falta el script de upgrade).
+
+## Cambios incluidos en el esquema actual
+
+### Clientes
+- `tipo_cliente`: `emprendedor` | `empresa` | `municipalidad` | `organismo`
+- Agrupación/listados por tipo (no por área de recepción)
+- `id_area_afectada` opcional (turno inicial; por defecto Recepción)
+- Responsable opcional en organización (empresa / municipalidad / organismo)
+- Extensión `cliente_persona` = emprendedor; `cliente_empresa` = organización
+
+### Roles
+- `presidencia`, `admin_tareas` además de superadmin / coord. general / coordinador / empleado
+- `empleado_rol_adicional` para roles múltiples por área
+
+### Áreas
+- `activo`, `creado_en` (alta de áreas desde Sistemas / Coord. general)
+
+### Informes Presidencia
+- `informe_plantilla` + `informe_publicado`
+- Plantillas seed: actividades por tipo/localidad, por tipo de cliente, rondas municipalidades, clientes por tipo
+
+### Eventos
+- `publico`: todos / emprendedor / empresa / municipalidad / organismo
+
+### Tareas / avisos
+- Subtareas, cancelada, `crm_aviso`, solicitudes de baja, vencimientos (ya en dump)

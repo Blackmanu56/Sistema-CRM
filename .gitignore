@@ -1,0 +1,72 @@
+# =========================================================================
+# Archivos de configuración local y credenciales de bases de datos
+# =========================================================================
+/config/conexion.local.php
+config/conexion.local.php
+*.local.php
+config.local.php
+local.php
+settings.local.php
+
+# =========================================================================
+# Archivos de entorno, claves, tokens y secretos
+# =========================================================================
+.env
+.env.*
+*.env
+*.key
+*.pem
+*.cert
+*.crt
+*.pfx
+*.p12
+*.pub
+id_rsa*
+*.secret
+secrets/
+
+# =========================================================================
+# Configuraciones y credenciales de Cloudflare Tunnel
+# =========================================================================
+.cloudflared/
+cloudflared/
+cloudflared.exe
+*tunnel*.json
+*tunnel*.yml
+*tunnel*.yaml
+cert.pem
+
+# =========================================================================
+# Archivos temporales, logs, respaldos y volcados privados
+# =========================================================================
+*.log
+logs/
+*.tmp
+*.temp
+tmp/
+temp/
+*.bak
+*.backup
+*.swp
+*.swo
+*~
+
+# =========================================================================
+# Cachés locales / datos de prueba
+# =========================================================================
+includes/tareas-avisos.json
+includes/tareas-tablero.json
+includes/actividades.json
+data/hitcounter.txt
+
+# =========================================================================
+# Sistema operativo y editores / IDEs
+# =========================================================================
+.cursor/
+.cursorignore
+.vscode/
+.idea/
+Thumbs.db
+ehthumbs.db
+.DS_Store
+Desktop.ini

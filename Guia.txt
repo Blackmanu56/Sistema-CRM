@@ -1,0 +1,209 @@
+================================================================================
+GUÍA DE EXPOSICIÓN
+PRÁCTICA PROFESIONALIZANTE EN ADEMI
+Sistema de seguimiento de clientes (CRM)
+================================================================================
+
+Carrera: Analista de Sistemas (3.er año)
+Institución educativa: Instituto Superior Combate de Mbororé [verificar grafía]
+Institución receptora: ADEMI - Agencia para el Desarrollo Económico de Misiones
+Período: 2 de septiembre al 2 de noviembre, modalidad horaria a demanda
+Tutora / referente: Marisa Da Silva
+Formato: 4 expositores · máx. 5 min c/u (≈20 min total)
+Tono: formal-académico · guion en primera persona plural
+[CORCHETES] = completar el equipo · no inventar
+
+Si se expone antes del 2/11: hablar del estado “a la fecha”, no como producto final.
+
+
+--------------------------------------------------------------------------------
+DISTRIBUCIÓN Y TIEMPOS (ensayar con cronómetro)
+--------------------------------------------------------------------------------
+
+1 · Presentación y contexto                         ~4 min 30 s
+2 · Problema, proyecto, alcance y metodología       ~4 min 30 s
+3 · Tecnologías y aspectos técnicos                 ~4 min 30 s
+4 · Aprendizajes, conclusiones y cierre             ~4 min 30 s
+
+
+================================================================================
+EXPOSITOR 1 · PRESENTACIÓN Y CONTEXTO
+================================================================================
+
+Diapositivas: portada · ADEMI · marco de la práctica · agenda
+
+--- Guion ---
+
+Buenos días. Somos estudiantes de tercer año de Analista de Sistemas del
+Instituto Superior Combate de Mbororé. Nos presentamos: [NOMBRE 1], [NOMBRE 2],
+[NOMBRE 3] y [NOMBRE 4]. Expondremos la Práctica Profesionalizante realizada
+en ADEMI.
+
+ADEMI, la Agencia para el Desarrollo Económico de Misiones, es una organización
+sin fines de lucro que articula sector público, privado y del conocimiento.
+Impulsa el desarrollo productivo provincial con asistencia técnica, innovación
+y vinculación. Atiende a emprendedores, PyMEs y municipios, con tres líneas
+fuertes: capacitación y asesoramiento; comercialización local (por ejemplo
+Origen Misiones); y vinculación entre actores, instituciones y mercados.
+
+La práctica se desarrolla del 2 de septiembre al 2 de noviembre, con modalidad
+horaria a demanda y tutora Marisa Da Silva. El objetivo fue un sistema de
+seguimiento de clientes: datos centralizados, historial de acciones y un canal
+de atención más preciso.
+
+En el equipo, cada integrante trabajó un área o módulo del CRM
+[INDICAR QUIÉN QUÉ]. El relevamiento se hizo en dos grupos: cuestionario
+abierto y cuestionario cerrado.
+
+Orden de la exposición: problema y proyecto; aspectos técnicos; aprendizajes
+y cierre.
+
+Ceder: “Continúa [NOMBRE 2] con el problema y el proyecto.”
+
+
+================================================================================
+EXPOSITOR 2 · PROBLEMA, PROYECTO, ALCANCE Y METODOLOGÍA
+================================================================================
+
+Diapositivas: problema · alcance · usuarios/perfiles · metodología · resultado
+
+--- Guion ---
+
+El problema: ADEMI no tenía un lugar único para la información de clientes.
+Los datos llegaban por formularios y no se registraba con claridad qué se
+hizo con cada uno ni en qué estado estaba cada acción.
+
+El proyecto: un CRM de seguimiento que centraliza clientes, tareas, turnos
+de atención y actividades.
+
+Alcance implementado (a la fecha):
+- Ficha de cliente e historial de atención por área.
+- Turnos: abrir, confirmar asistencia, atender, cerrar, derivar a otra área,
+  reagendar o agendar un nuevo turno desde la misma atención.
+- Tareas por área: responsables, objetivos, comentarios y links de avance,
+  estados (iniciar / pausar / terminar). Se pueden desglosar en subtareas;
+  el avance de la tarea padre se actualiza según las subtareas.
+- Programas: un programa agrupa tareas modelo de uno o más objetivos y áreas.
+  Al anotar un cliente se generan esas tareas. Objetivos y tareas modelo son
+  el mismo catálogo que se usa al crear tareas sueltas.
+- Actividades / capacitaciones: alta, inscripción y registro de asistencia
+  (con opción de autoinscripción).
+- Notificaciones y panel de resumen (dashboard).
+- Perfiles: empleado (su área / sus tareas); coordinador de área; coordinador
+  general (todas las áreas); y un perfil de máxima autoridad / administración
+  del sistema [AJUSTAR NOMBRE SI EN ADEMI SE PRESENTA COMO PRESIDENCIA].
+- Los clientes tienen espacio propio: turnos y actividades.
+
+Fuera de alcance: el área de Administración operativa de ADEMI
+[CONFIRMAR MOTIVO: plazo / no solicitado].
+
+Metodología: reunión semanal de avances y objetivos; entregas por GitHub.
+Etapas: planteo; relevamiento en dos fases; partida de un CRM preexistente;
+adaptaciones a ADEMI; entregas semanales.
+
+Resultado: base de clientes en línea, trabajo por áreas, turnos y programas
+operativos en el entorno de pruebas [ACLARAR: en pruebas / entregado / en uso].
+
+Ceder: “[NOMBRE 3] presentará lo técnico.”
+
+
+================================================================================
+EXPOSITOR 3 · TECNOLOGÍAS Y ASPECTOS TÉCNICOS
+================================================================================
+
+Diapositivas: stack · estructura (áreas–clientes–tareas–turnos–programas) ·
+herramientas · 2–3 capturas · una dificultad
+
+--- Guion ---
+
+Partimos de un CRM preexistente en PHP, JavaScript, CSS y Bootstrap, con MySQL.
+Las pruebas locales se hacen con XAMPP; el versionado, con GitHub.
+[MOTIVO DE PARTIR DE ESA BASE: plazo de ~2 meses / decisión con la institución.]
+Nuestro aporte fue adaptarlo al flujo real de ADEMI.
+
+Cómo se organiza el sistema:
+- Áreas (Emprendedores, Empresas, Comercio, Marketing, Vinculaciones, Sistemas,
+  RRHH, Recepción, Coordinación general, entre otras alcanzadas).
+- Clientes compartidos; turnos y tareas ligados al área y, cuando corresponde,
+  al cliente.
+- Objetivos en base de datos (por área): clasifican tareas y alimentan
+  programas. Los coordinadores pueden cargar objetivos desde tareas o desde
+  Programas; es un solo catálogo.
+- Roles y permisos en base de datos; validaciones de negocio (por ejemplo fechas
+  coherentes, no cargar avances sin iniciar la tarea, derivar turno solo eligiendo
+  área destino).
+- Credenciales protegidas [CONFIRMAR: hash de contraseñas].
+
+Herramientas: GitHub; Discord / Meet; seguimiento de tareas en Excel.
+
+Dificultad principal: poca información inicial del funcionamiento interno.
+Se resolvió con relevamiento en dos fases. En lo técnico, otra dificultad fue
+alinear módulos (turnos, programas, tareas) para que no se contradigan entre
+áreas; se unificaron pantallas compartidas y reglas comunes.
+
+Capturas sugeridas (máx. 3): ficha/turno; ver tarea con avances; programas o
+dashboard. Sin entrar en código.
+
+Ceder: “[NOMBRE 4] cierra con aprendizajes y conclusiones.”
+
+
+================================================================================
+EXPOSITOR 4 · APRENDIZAJES, CONCLUSIONES Y CIERRE
+================================================================================
+
+Diapositivas: carrera aplicada · competencias · aporte · continuidad · cierre
+
+--- Guion ---
+
+Aplicamos análisis y diseño, programación web y, cuando correspondió, apoyo
+de herramientas de IA en el desarrollo.
+
+Competencias: trabajo en equipo, distribución de módulos, comunicación y uso
+real de control de versiones. Frente a lo académico, pesaron más los tiempos
+compartidos con la institución y conciliar distintas miradas.
+
+A ADEMI le dejamos un CRM que ordena clientes, atención, tareas y programas.
+A nosotros, la posibilidad de medir en terreno lo aprendido en la carrera.
+
+Dificultades: información inicial limitada; adaptar un sistema heredado;
+integrar partes hechas en paralelo. Continuidad posible: área Administración;
+más pruebas con usuarios reales; ampliar informes; pulir el portal del cliente
+según el uso diario.
+
+Conclusión: trabajamos sobre una necesidad real de una institución de la
+provincia, en un entorno profesional. Agradecemos a ADEMI, a Marisa Da Silva
+y a los docentes del instituto. Quedamos a disposición para preguntas.
+
+
+================================================================================
+PREGUNTAS PROBABLES (respuestas cortas)
+================================================================================
+
+1. ¿Por qué un CRM preexistente?
+   Plazo corto; base usable; el esfuerzo fue adaptar flujos ADEMI.
+
+2. ¿Qué aportaron ustedes?
+   Turnos (atender, derivar, reagendar); programas con objetivos/tareas por
+   área; subtareas y avances; actividades; notificaciones; permisos por rol;
+   unificación de pantallas entre áreas.
+
+3. ¿Qué quedó fuera?
+   Administración [motivo]. Continuidad natural.
+
+4. ¿Datos personales?
+   Acceso por rol; sesión protegida; contraseñas con hash [confirmar];
+   criterio de mínima exposición (Ley 25.326).
+
+5. ¿Quién hizo qué?
+   Todos deben poder explicar el sistema entero, no solo “su” módulo.
+
+6. ¿Cómo se validó?
+   Reuniones semanales con tutora; pruebas en entorno local (XAMPP) sobre
+   base de prueba.
+
+7. ¿Qué harían distinto?
+   Relevamiento más temprano de flujos de atención y programas; menos
+   divergencia entre áreas desde el inicio.
+
+
+
