@@ -1,0 +1,8 @@
+.cursor/
+.cursorignore
+includes/tareas-avisos.json
+includes/tareas-tablero.json
+includes/actividades.json
+Thumbs.db
+.DS_Store
+/config/conexion.local.php
