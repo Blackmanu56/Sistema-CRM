@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // Botones de Coordinacion general: tareas propias. Las demas areas se ven en el menu izquierdo.
 if(!isset($menu_activo)) { $menu_activo='tareas'; }
 ?>
@@ -16,5 +16,9 @@ if(!isset($menu_activo)) { $menu_activo='tareas'; }
 	<?php } ?>
 	<?php if(acceso_es_coord_general() || acceso_es_super()) { ?>
 	<a href="<?php echo tareas_link('turnos-config.php'); ?>" class="btn <?php echo ($menu_activo=='turnos_config' ? 'btn-primary' : 'btn-white'); ?>">Agenda de atenciones</a>
+	<?php
+		$n_sol=function_exists('crm_solicitud_contar_pendientes') ? crm_solicitud_contar_pendientes() : 0;
+	?>
+	<a href="<?php echo tareas_link('solicitudes-alta.php'); ?>" class="btn <?php echo ($menu_activo=='solicitudes_alta' ? 'btn-primary' : 'btn-white'); ?>">Solicitudes alta<?php if($n_sol>0) { ?> <span class="badge"><?php echo intval($n_sol); ?></span><?php } ?></a>
 	<?php } ?>
 </div>

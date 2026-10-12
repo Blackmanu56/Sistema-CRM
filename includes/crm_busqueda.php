@@ -52,7 +52,10 @@ function crm_clientes_buscar($opts=array())
 
 	if($area!='' && $area!='recepcion' && $area!='sistemas' && $area!='general' && !crm_area_ve_todo($area))
 	{
-		$wheres[]="(EXISTS (
+		$extra_tipo='';
+		if($area==='emprendedores') { $extra_tipo="c.tipo_cliente='emprendedor' OR "; }
+		elseif($area==='empresas') { $extra_tipo="c.tipo_cliente='empresa' OR "; }
+		$wheres[]="(".$extra_tipo."EXISTS (
 			SELECT 1 FROM cliente_area ca INNER JOIN area a2 ON a2.id_area=ca.id_area
 			WHERE ca.id_cliente=c.id_cliente AND a2.clave=?
 		) OR EXISTS (
@@ -170,13 +173,20 @@ function crm_clientes_buscar_rapido($opts=array())
 
 	if($area!='' && $area!='recepcion' && $area!='sistemas' && $area!='general' && !(function_exists('crm_area_ve_todo') && crm_area_ve_todo($area)))
 	{
-		$wheres[]="EXISTS (
+		$extra_tipo='';
+		if($area==='emprendedores') { $extra_tipo="c.tipo_cliente='emprendedor' OR "; }
+		elseif($area==='empresas') { $extra_tipo="c.tipo_cliente='empresa' OR "; }
+		$wheres[]="(".$extra_tipo."EXISTS (
 			SELECT 1 FROM cliente_area ca
 			INNER JOIN area a2 ON a2.id_area=ca.id_area
 			WHERE ca.id_cliente=c.id_cliente AND a2.clave=?
-		)";
-		$types.='s';
-		$vals[]=$area;
+		) OR EXISTS (
+			SELECT 1 FROM atencion at
+			INNER JOIN area a3 ON a3.id_area=at.id_area
+			WHERE at.id_cliente=c.id_cliente AND a3.clave=?
+		))";
+		$types.='ss';
+		$vals[]=$area; $vals[]=$area;
 	}
 	if($id_loc>0)
 	{
@@ -835,6 +845,11 @@ function crm_dashboard_destino()
 	{
 		return url_crm('admin/informes-presidencia.php');
 	}
+	$area_act = function_exists('acceso_area_activa') ? acceso_area_activa() : (function_exists('acceso_area') ? acceso_area() : '');
+	if($area_act !== '' && $area_act !== 'general' && is_file(BASE_PATH.'/public/'.$area_act.'/dashboard.php'))
+	{
+		return url_crm($area_act.'/dashboard.php');
+	}
 	if(acceso_es_super())
 	{
 		return url_crm('admin/home.php');
@@ -843,10 +858,9 @@ function crm_dashboard_destino()
 	{
 		return url_crm('general/dashboard.php');
 	}
-	$area=acceso_area();
-	if($area=='')
+	if($area_act !== '' && is_file(BASE_PATH.'/public/'.$area_act.'/dashboard.php'))
 	{
-		return url_crm('admin/home.php');
+		return url_crm($area_act.'/dashboard.php');
 	}
-	return url_crm($area.'/dashboard.php');
+	return url_crm('admin/home.php');
 }

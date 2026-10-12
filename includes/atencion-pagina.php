@@ -25,6 +25,37 @@ if(function_exists('crm_notificacion_marcar_vista_por_entidad'))
 	crm_notificacion_marcar_vista_por_entidad('turno', $id);
 }
 
+if(!function_exists('crm_atencion_pantalla_redir'))
+{
+	function crm_atencion_pantalla_redir($url)
+	{
+		if(!headers_sent())
+		{
+			header('Location: '.$url);
+			exit();
+		}
+		echo "<script>window.location.href='".$url."'</script>";
+		exit();
+	}
+}
+
+if(isset($_POST['recibir_derivacion']))
+{
+	$modo=(isset($_POST['modo_recepcion']) && $_POST['modo_recepcion']==='en_atencion') ? 'en_atencion' : 'abierta';
+	$obs=isset($_POST['observacion_recepcion']) ? trim($_POST['observacion_recepcion']) : '';
+	$msg=crm_atencion_recibir($id, $obs, $modo);
+	$_SESSION['msgatencion']=($msg==='') ? 'Derivación recibida correctamente en el área.' : $msg;
+	crm_atencion_pantalla_redir('atencion.php?id='.$id);
+}
+
+if(isset($_POST['guardar_seguimiento']))
+{
+	$obs=isset($_POST['observacion_seguimiento']) ? trim($_POST['observacion_seguimiento']) : '';
+	$msg=crm_atencion_registrar_seguimiento($id, $obs);
+	$_SESSION['msgatencion']=($msg==='') ? 'Nota de seguimiento registrada con éxito.' : $msg;
+	crm_atencion_pantalla_redir('atencion.php?id='.$id);
+}
+
 if(isset($_POST['aceptar_solicitud']))
 {
 	$msg=crm_atencion_aceptar_solicitud(
@@ -33,36 +64,41 @@ if(isset($_POST['aceptar_solicitud']))
 		isset($_POST['hora']) ? $_POST['hora'] : ''
 	);
 	$_SESSION['msgatencion']=($msg=='') ? 'Solicitud aceptada y atención agendada.' : $msg;
-	echo "<script>window.location.href='atencion.php?id=".$id."'</script>";
-	exit();
+	crm_atencion_pantalla_redir('atencion.php?id='.$id);
 }
 if(isset($_POST['reabrir_atencion']))
 {
 	$msg=crm_atencion_reabrir($id);
 	$_SESSION['msgatencion']=($msg=='') ? 'La atención quedó reabierta.' : $msg;
-	echo "<script>window.location.href='atencion.php?id=".$id."'</script>";
-	exit();
+	crm_atencion_pantalla_redir('atencion.php?id='.$id);
 }
 if(isset($_POST['iniciar_atencion']))
 {
-	$msg=crm_atencion_iniciar_atencion($id);
+	$id_emp=isset($_POST['id_empleado']) ? intval($_POST['id_empleado']) : 0;
+	$msg=crm_atencion_iniciar_atencion($id, $id_emp);
 	$_SESSION['msgatencion']=($msg=='') ? 'Cliente presente: la atención está en curso. El área recibió aviso.' : $msg;
-	echo "<script>window.location.href='atencion.php?id=".$id."'</script>";
-	exit();
+	crm_atencion_pantalla_redir('atencion.php?id='.$id);
+}
+if(isset($_POST['asignar_empleado']))
+{
+	$id_emp=isset($_POST['id_empleado']) ? intval($_POST['id_empleado']) : 0;
+	$motivo_asig=isset($_POST['motivo_asignacion']) ? trim($_POST['motivo_asignacion']) : '';
+	$msg=crm_atencion_asignar_empleado($id, $id_emp, $motivo_asig);
+	$_SESSION['msgatencion']=($msg=='') ? 'Colaborador responsable asignado correctamente.' : $msg;
+	crm_atencion_pantalla_redir('atencion.php?id='.$id);
 }
 if(isset($_POST['cancelar_atencion']))
 {
 	$msg=crm_atencion_cancelar($id, isset($_POST['motivo_cancel']) ? $_POST['motivo_cancel'] : '');
 	$_SESSION['msgatencion']=($msg=='') ? 'Atención cancelada.' : $msg;
-	echo "<script>window.location.href='atencion.php?id=".$id."'</script>";
-	exit();
+	crm_atencion_pantalla_redir('atencion.php?id='.$id);
 }
 if(isset($_POST['reprogramar_atencion']))
 {
-	$msg=crm_atencion_reprogramar($id, isset($_POST['fecha']) ? $_POST['fecha'] : '', isset($_POST['hora']) ? $_POST['hora'] : '');
+	$motivo_rep=isset($_POST['motivo_reprogramacion']) ? trim($_POST['motivo_reprogramacion']) : '';
+	$msg=crm_atencion_reprogramar($id, isset($_POST['fecha']) ? $_POST['fecha'] : '', isset($_POST['hora']) ? $_POST['hora'] : '', $motivo_rep);
 	$_SESSION['msgatencion']=($msg=='') ? 'Atención reprogramada.' : $msg;
-	echo "<script>window.location.href='atencion.php?id=".$id."'</script>";
-	exit();
+	crm_atencion_pantalla_redir('atencion.php?id='.$id);
 }
 if(isset($_POST['agendar_otro_turno']))
 {
@@ -93,21 +129,18 @@ if(isset($_POST['agendar_otro_turno']))
 			{
 				$msg='';
 				$_SESSION['msgatencion']='Nueva atención #'.$id_nuevo.' agendada.';
-				echo "<script>window.location.href='atencion.php?id=".$id_nuevo."'</script>";
-				exit();
+				crm_atencion_pantalla_redir('atencion.php?id='.$id_nuevo);
 			}
 		}
 	}
 	$_SESSION['msgatencion']=$msg;
-	echo "<script>window.location.href='atencion.php?id=".$id."'</script>";
-	exit();
+	crm_atencion_pantalla_redir('atencion.php?id='.$id);
 }
 if(isset($_POST['cerrar_atencion']))
 {
 	$msg=crm_atencion_cerrar($id, isset($_POST['cierre_detalle']) ? $_POST['cierre_detalle'] : '');
 	$_SESSION['msgatencion']=($msg=='') ? 'Atención cerrada.' : $msg;
-	echo "<script>window.location.href='atencion.php?id=".$id."'</script>";
-	exit();
+	crm_atencion_pantalla_redir('atencion.php?id='.$id);
 }
 if(isset($_POST['derivar_atencion']))
 {
@@ -160,13 +193,14 @@ if(!$at)
 	exit();
 }
 $id_cliente=intval($at['id_cliente']);
-if(!crm_cliente_puede_ver($id_cliente, $area_cli) && !crm_puede_gestionar_atencion($at))
+if(!crm_atencion_puede_ver($at))
 {
 	header('Location: atenciones.php');
 	exit();
 }
 
 $puede=crm_atencion_puede_operar($at);
+$es_derivacion=(!empty($at['id_area_origen']) || !empty($at['area_origen_nombre']) || !empty($at['id_atencion_origen']));
 $pendiente=(isset($at['estado']) && $at['estado']=='pendiente');
 $espera=(isset($at['estado']) && $at['estado']=='abierta');
 $atendiendo=(isset($at['estado']) && $at['estado']=='en_atencion');
@@ -182,7 +216,8 @@ if($hora_act!='' && !in_array($hora_act, $horas_rep, true))
 {
 	array_unshift($horas_rep, $hora_act);
 }
-$areas_derivar=function_exists('recepcion_areas_cliente') ? recepcion_areas_cliente() : array();
+$areas_derivar=function_exists('crm_areas_destino_derivacion') ? crm_areas_destino_derivacion($at['area_clave']) : (function_exists('recepcion_areas_cliente') ? recepcion_areas_cliente() : array());
+$empleados_area=function_exists('crm_empleados_de_area_id') ? crm_empleados_de_area_id(intval($at['id_area'])) : array();
 $tareas_at=crm_tareas_de_atencion($id);
 $tareas_para_vincular=acceso_consulta(
 	"SELECT t.id_tarea, t.titulo, a.nombre AS area_nombre FROM tarea t INNER JOIN area a ON a.id_area=t.id_area
@@ -193,6 +228,7 @@ $tareas_para_vincular=acceso_consulta(
 );
 $cli=cliente_traer($id_cliente);
 $nombre_cli=$cli ? (isset($cli['name']) ? $cli['name'] : $at['cliente_nombre']) : $at['cliente_nombre'];
+$historial_seguimiento=function_exists('crm_atencion_seguimiento_historial') ? crm_atencion_seguimiento_historial($id) : array();
 ?>
 <!DOCTYPE html>
 <html>
@@ -241,23 +277,45 @@ $nombre_cli=$cli ? (isset($cli['name']) ? $cli['name'] : $at['cliente_nombre']) 
                             <div class="grid-body no-border">
                                 <p><strong>Cliente:</strong> <?php echo texto_mostrar($nombre_cli); ?>
                                     · <a href="editar-cliente.php?id=<?php echo $id_cliente; ?>">Ver ficha</a></p>
-                                <p><strong>Estado:</strong> <span class="label <?php
-                                	$est_lab='label-info';
-                                	if($at['estado']=='cerrada') { $est_lab='label-success'; }
-                                	else if($at['estado']=='cancelada') { $est_lab='label-important'; }
-                                	else if($at['estado']=='en_atencion') { $est_lab='label-warning'; }
-                                	else if($at['estado']=='pendiente') { $est_lab='label-inverse'; }
-                                	else if($at['estado']=='derivada') { $est_lab='label-inverse'; }
-                                	echo $est_lab;
-                                ?>"><?php echo texto_mostrar(crm_estado_texto($at['estado'])); ?></span></p>
-                                <p><strong>Área:</strong> <?php echo texto_mostrar($at['area_nombre']); ?></p>
+                                <p><strong>Estado:</strong> <span class="badge <?php echo function_exists('crm_estado_badge_class') ? crm_estado_badge_class($at['estado']) : 'label-info'; ?>"><?php echo texto_mostrar(function_exists('crm_estado_texto') ? crm_estado_texto($at['estado'], $es_derivacion) : $at['estado']); ?></span></p>
+                                <p><strong>Área destino:</strong> <?php echo texto_mostrar($at['area_nombre']); ?></p>
+                                <?php if($es_derivacion && !empty($at['area_origen_nombre'])) { ?>
+                                <p><strong>Derivado desde:</strong> <span class="text-info" style="font-weight:600;"><i class="fa fa-share"></i> <?php echo texto_mostrar($at['area_origen_nombre']); ?></span>
+                                    <?php if(!empty($at['empleado_origen_nombre'])) { ?> · Por: <?php echo texto_mostrar($at['empleado_origen_nombre']); ?><?php } ?>
+                                    <?php if(!empty($at['fecha_derivacion'])) { ?> · Fecha: <?php echo texto_mostrar($at['fecha_derivacion']); ?><?php } ?>
+                                </p>
+                                <?php } ?>
                                 <p><strong>Motivo:</strong> <?php echo texto_mostrar(crm_motivo_texto($at['motivo'])); ?>
                                     · <strong>Canal:</strong> <?php echo texto_mostrar($at['canal']); ?></p>
+                                <p><strong>Colaborador responsable:</strong> <?php
+                                    $emp_resp = !empty($at['empleado_nombre']) ? trim($at['empleado_nombre']) : '';
+                                    if($emp_resp !== '') {
+                                        echo '<span class="text-success" style="font-weight:600;"><i class="fa fa-user"></i> '.texto_mostrar($emp_resp).'</span>';
+                                    } else {
+                                        echo '<span class="muted"><i class="fa fa-user-times"></i> Sin asignar</span>';
+                                    }
+                                ?></p>
+                                <?php if($puede && !$cancelado && !$derivado && !empty($empleados_area)) { ?>
+                                <form method="post" action="atencion.php?id=<?php echo intval($id); ?>" style="margin-top:6px; margin-bottom:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:8px 12px;" class="form-inline">
+                                    <input type="hidden" name="id_atencion" value="<?php echo intval($id); ?>">
+                                    <label style="font-size:12px; margin-right:8px; color:#334155;"><strong>Reasignar colaborador:</strong></label>
+                                    <select name="id_empleado" class="form-control input-sm" style="max-width:210px; display:inline-block;">
+                                        <option value="0">-- Sin asignar --</option>
+                                        <?php foreach($empleados_area as $emp) {
+                                            $s_sel = (intval($at['id_empleado']) === intval($emp['id_empleado'])) ? 'selected' : '';
+                                            echo '<option value="'.intval($emp['id_empleado']).'" '.$s_sel.'>'.texto_mostrar($emp['name']).'</option>';
+                                        } ?>
+                                    </select>
+                                    <button type="submit" name="asignar_empleado" value="1" class="btn btn-white btn-sm" style="margin-left:6px;">
+                                        <i class="fa fa-check"></i> Asignar
+                                    </button>
+                                </form>
+                                <?php } ?>
                                 <p><strong>Fecha del turno:</strong> <?php
                                     $ft=isset($at['fecha_turno']) && $at['fecha_turno']!='' ? $at['fecha_turno'] : $at['fecha'];
                                     echo texto_mostrar(crm_turno_fecha_texto($ft));
                                 ?></p>
-                                <p><strong>Nota:</strong><br><?php
+                                <p><strong>Nota / Observación:</strong><br><?php
                                     $nota=isset($at['detalle']) ? trim($at['detalle']) : '';
                                     echo $nota!='' ? nl2br(texto_mostrar($nota)) : '<span class="muted">Sin nota</span>';
                                 ?></p>
@@ -266,11 +324,45 @@ $nombre_cli=$cli ? (isset($cli['name']) ? $cli['name'] : $at['cliente_nombre']) 
 
                         <?php if(!$puede && !$derivado && !$cancelado) { ?>
                         <div class="alert alert-info">
-                            <i class="fa fa-info-circle"></i> Turno derivado al área <strong><?php echo texto_mostrar($at['area_nombre']); ?></strong>. Modo consulta: la atención y gestión del turno corresponde al área de destino.
+                            <i class="fa fa-info-circle"></i> Derivación gestionada por el área <strong><?php echo texto_mostrar($at['area_nombre']); ?></strong>. Modo consulta: la atención y registro de intervenciones corresponde al área de destino.
                         </div>
                         <?php } ?>
 
-                        <?php if($puede && $pendiente) { ?>
+                        <?php if($puede && $pendiente && $es_derivacion) { ?>
+                        <div class="grid simple">
+                            <div class="grid-title no-border">
+                                <h4><i class="fa fa-inbox text-warning"></i> Derivación pendiente de recepción</h4>
+                            </div>
+                            <div class="grid-body no-border">
+                                <p>Esta derivación fue enviada desde <strong><?php echo texto_mostrar(!empty($at['area_origen_nombre']) ? $at['area_origen_nombre'] : 'Recepción / otra área'); ?></strong> y requiere ser recibida por el equipo de <strong><?php echo texto_mostrar($at['area_nombre']); ?></strong>.</p>
+                                <form method="post" action="atencion.php?id=<?php echo intval($id); ?>" style="margin-bottom:14px;">
+                                    <input type="hidden" name="id_atencion" value="<?php echo intval($id); ?>">
+                                    <div class="form-group">
+                                        <label>Observación al recibir (opcional)</label>
+                                        <input type="text" name="observacion_recepcion" class="form-control" placeholder="Ej: Recibido por el área para seguimiento...">
+                                    </div>
+                                    <div style="display:flex; gap:10px;">
+                                        <button type="submit" name="recibir_derivacion" value="1" class="btn btn-primary">
+                                            <i class="fa fa-check"></i> Recibir derivación (en espera)
+                                        </button>
+                                        <button type="submit" name="recibir_derivacion" value="1" onclick="document.getElementById('modo_rec').value='en_atencion';" class="btn btn-success">
+                                            <i class="fa fa-play"></i> Recibir y comenzar atención
+                                        </button>
+                                    </div>
+                                    <input type="hidden" name="modo_recepcion" id="modo_rec" value="en_espera">
+                                </form>
+                                <hr>
+                                <form method="post" action="atencion.php?id=<?php echo intval($id); ?>">
+                                    <input type="hidden" name="id_atencion" value="<?php echo intval($id); ?>">
+                                    <div class="form-group">
+                                        <label>Cancelar / Rechazar derivación</label>
+                                        <input type="text" name="motivo_cancel" class="form-control" placeholder="Motivo de cancelación (opcional)">
+                                    </div>
+                                    <button type="submit" name="cancelar_atencion" value="1" class="btn btn-danger"><i class="fa fa-times"></i> Cancelar derivación</button>
+                                </form>
+                            </div>
+                        </div>
+                        <?php } else if($puede && $pendiente) { ?>
                         <div class="grid simple">
                             <div class="grid-title no-border"><h4>Solicitud web pendiente</h4></div>
                             <div class="grid-body no-border">
@@ -305,19 +397,35 @@ $nombre_cli=$cli ? (isset($cli['name']) ? $cli['name'] : $at['cliente_nombre']) 
                                 <p>Cuando llegue, confirmá la asistencia para dar curso al área.</p>
                                 <form method="post" action="atencion.php?id=<?php echo intval($id); ?>" style="margin-bottom:14px;">
                                     <input type="hidden" name="id_atencion" value="<?php echo intval($id); ?>">
-                                    <button type="submit" name="iniciar_atencion" value="1" class="btn btn-success">Cliente presente · Atender</button>
+                                    <?php if(empty($at['id_empleado']) && !empty($empleados_area)) { ?>
+                                    <div class="form-group" style="margin-bottom:8px;">
+                                        <label>Colaborador que atiende:</label>
+                                        <select name="id_empleado" class="form-control" style="max-width:260px;">
+                                            <option value="0">-- Asignarme a mí / Por defecto --</option>
+                                            <?php foreach($empleados_area as $emp) { ?>
+                                            <option value="<?php echo intval($emp['id_empleado']); ?>"><?php echo texto_mostrar($emp['name']); ?></option>
+                                            <?php } ?>
+                                        </select>
+                                    </div>
+                                    <?php } ?>
+                                    <button type="submit" name="iniciar_atencion" value="1" class="btn btn-success"><i class="fa fa-play"></i> Cliente presente · Atender</button>
                                 </form>
                                 <hr>
                                 <form method="post" action="atencion.php?id=<?php echo intval($id); ?>" style="margin-bottom:14px;">
                                     <input type="hidden" name="id_atencion" value="<?php echo intval($id); ?>">
                                     <div class="form-group">
                                         <label>Reprogramar</label>
-                                        <input type="date" name="fecha" min="<?php echo date('Y-m-d'); ?>" class="form-control crm-turno-fecha" data-hora-target="#hora_reprogramar" data-excepto="<?php echo intval($id); ?>" value="<?php echo texto_mostrar($fecha_act); ?>" required style="max-width:180px; display:inline-block;">
-                                        <select name="hora" id="hora_reprogramar" class="form-control" required style="max-width:120px; display:inline-block;">
-                                            <?php foreach($horas_rep as $h) { ?>
-                                            <option value="<?php echo texto_mostrar($h); ?>" <?php if($h===$hora_act) echo 'selected'; ?>><?php echo texto_mostrar($h); ?></option>
-                                            <?php } ?>
-                                        </select>
+                                        <div>
+                                            <input type="date" name="fecha" min="<?php echo date('Y-m-d'); ?>" class="form-control crm-turno-fecha" data-hora-target="#hora_reprogramar" data-excepto="<?php echo intval($id); ?>" value="<?php echo texto_mostrar($fecha_act); ?>" required style="max-width:180px; display:inline-block;">
+                                            <select name="hora" id="hora_reprogramar" class="form-control" required style="max-width:120px; display:inline-block;">
+                                                <?php foreach($horas_rep as $h) { ?>
+                                                <option value="<?php echo texto_mostrar($h); ?>" <?php if($h===$hora_act) echo 'selected'; ?>><?php echo texto_mostrar($h); ?></option>
+                                                <?php } ?>
+                                            </select>
+                                        </div>
+                                        <div style="margin-top:6px;">
+                                            <input type="text" name="motivo_reprogramacion" class="form-control" placeholder="Motivo de reprogramación (opcional)" style="max-width:320px;">
+                                        </div>
                                     </div>
                                     <button type="submit" name="reprogramar_atencion" value="1" class="btn btn-white">Reprogramar</button>
                                 </form>
@@ -364,12 +472,17 @@ $nombre_cli=$cli ? (isset($cli['name']) ? $cli['name'] : $at['cliente_nombre']) 
                                     <input type="hidden" name="id_atencion" value="<?php echo intval($id); ?>">
                                     <div class="form-group">
                                         <label>Reagendar esta atención</label>
-                                        <input type="date" name="fecha" min="<?php echo date('Y-m-d'); ?>" class="form-control crm-turno-fecha" data-hora-target="#hora_reagendar" data-excepto="<?php echo intval($id); ?>" value="<?php echo texto_mostrar($fecha_act); ?>" required style="max-width:180px; display:inline-block;">
-                                        <select name="hora" id="hora_reagendar" class="form-control" required style="max-width:120px; display:inline-block;">
-                                            <?php foreach($horas_rep as $h) { ?>
-                                            <option value="<?php echo texto_mostrar($h); ?>" <?php if($h===$hora_act) echo 'selected'; ?>><?php echo texto_mostrar($h); ?></option>
-                                            <?php } ?>
-                                        </select>
+                                        <div>
+                                            <input type="date" name="fecha" min="<?php echo date('Y-m-d'); ?>" class="form-control crm-turno-fecha" data-hora-target="#hora_reagendar" data-excepto="<?php echo intval($id); ?>" value="<?php echo texto_mostrar($fecha_act); ?>" required style="max-width:180px; display:inline-block;">
+                                            <select name="hora" id="hora_reagendar" class="form-control" required style="max-width:120px; display:inline-block;">
+                                                <?php foreach($horas_rep as $h) { ?>
+                                                <option value="<?php echo texto_mostrar($h); ?>" <?php if($h===$hora_act) echo 'selected'; ?>><?php echo texto_mostrar($h); ?></option>
+                                                <?php } ?>
+                                            </select>
+                                        </div>
+                                        <div style="margin-top:6px;">
+                                            <input type="text" name="motivo_reprogramacion" class="form-control" placeholder="Motivo de reprogramación (opcional)" style="max-width:320px;">
+                                        </div>
                                     </div>
                                     <button type="submit" name="reprogramar_atencion" value="1" class="btn btn-white">Reagendar</button>
                                     <p class="muted" style="margin:6px 0 0;">Mueve esta atención a otra fecha/hora y vuelve a dejarla a la espera.</p>
@@ -441,6 +554,106 @@ $nombre_cli=$cli ? (isset($cli['name']) ? $cli['name'] : $at['cliente_nombre']) 
                             <div class="grid-body no-border"><p class="muted">Atención cancelada.</p></div>
                         </div>
                         <?php } ?>
+
+                        <div class="grid simple">
+                            <div class="grid-title no-border">
+                                <h4><i class="fa fa-history text-primary"></i> Intervenciones y Seguimiento</h4>
+                            </div>
+                            <div class="grid-body no-border">
+                                <?php if($puede && !$cancelado && !$derivado && !$pendiente) { ?>
+                                <form method="post" action="atencion.php?id=<?php echo intval($id); ?>" style="margin-bottom:18px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:12px 14px;">
+                                    <input type="hidden" name="id_atencion" value="<?php echo intval($id); ?>">
+                                    <div class="form-group" style="margin-bottom:8px;">
+                                        <label style="font-weight:600; color:#1e293b;"><i class="fa fa-commenting-o"></i> Registrar nueva nota de intervención / avance:</label>
+                                        <textarea name="observacion_seguimiento" rows="3" class="form-control" required placeholder="Escribí aquí las notas de la entrevista, avance con el cliente, acuerdos o detalles de la intervención..."></textarea>
+                                    </div>
+                                    <button type="submit" name="guardar_seguimiento" value="1" class="btn btn-primary btn-sm">
+                                        <i class="fa fa-save"></i> Registrar nota de seguimiento
+                                    </button>
+                                </form>
+                                <?php } ?>
+
+                                <?php if(empty($historial_seguimiento)) { ?>
+                                <p class="muted"><i class="fa fa-info-circle"></i> No hay intervenciones registradas en la línea de tiempo de esta atención.</p>
+                                <?php } else { ?>
+                                <div class="crm-timeline-intervenciones" style="position:relative; padding-left:18px; border-left:2px solid #cbd5e1; margin-left:10px; margin-top:14px;">
+                                    <?php foreach($historial_seguimiento as $item_seg) {
+                                        $f_seg = !empty($item_seg['fecha']) ? date('d/m/Y H:i', strtotime($item_seg['fecha'])) : '-';
+                                        $emp_seg = !empty($item_seg['empleado_nombre']) ? trim($item_seg['empleado_nombre']) : 'Sistema / Automático';
+                                        $area_seg = !empty($item_seg['area_nombre']) ? $item_seg['area_nombre'] : 'Área';
+                                        $accion_tipo = !empty($item_seg['accion']) ? $item_seg['accion'] : 'intervencion';
+
+                                        $dot_color = '#3b82f6';
+                                        $badge_accion = 'badge-info';
+                                        $accion_titulo = 'Intervención';
+                                        if($accion_tipo === 'alta_turno') {
+                                            $dot_color = '#0284c7';
+                                            $badge_accion = 'badge-info';
+                                            $accion_titulo = 'Turno agendado';
+                                        } else if($accion_tipo === 'alta_atencion') {
+                                            $dot_color = '#059669';
+                                            $badge_accion = 'badge-success';
+                                            $accion_titulo = 'Atención espontánea';
+                                        } else if($accion_tipo === 'inicio_atencion') {
+                                            $dot_color = '#10b981';
+                                            $badge_accion = 'badge-success';
+                                            $accion_titulo = 'Inicio de atención';
+                                        } else if($accion_tipo === 'asignacion_responsable') {
+                                            $dot_color = '#6366f1';
+                                            $badge_accion = 'badge-info';
+                                            $accion_titulo = 'Asignación colaborador';
+                                        } else if($accion_tipo === 'reprogramacion') {
+                                            $dot_color = '#f59e0b';
+                                            $badge_accion = 'badge-warning';
+                                            $accion_titulo = 'Reprogramación';
+                                        } else if($accion_tipo === 'derivacion') {
+                                            $dot_color = '#f59e0b';
+                                            $badge_accion = 'badge-warning';
+                                            $accion_titulo = 'Derivación';
+                                        } else if($accion_tipo === 'recepcion') {
+                                            $dot_color = '#10b981';
+                                            $badge_accion = 'badge-success';
+                                            $accion_titulo = 'Recepción';
+                                        } else if($accion_tipo === 'cierre') {
+                                            $dot_color = '#64748b';
+                                            $badge_accion = 'badge-inverse';
+                                            $accion_titulo = 'Cierre';
+                                        } else if($accion_tipo === 'cancelacion') {
+                                            $dot_color = '#ef4444';
+                                            $badge_accion = 'badge-important';
+                                            $accion_titulo = 'Cancelación';
+                                        } else if($accion_tipo === 'seguimiento') {
+                                            $dot_color = '#2563eb';
+                                            $badge_accion = 'badge-primary';
+                                            $accion_titulo = 'Seguimiento';
+                                        }
+                                    ?>
+                                    <div style="position:relative; margin-bottom:16px;">
+                                        <div style="position:absolute; left:-25px; top:3px; width:12px; height:12px; border-radius:50%; background:<?php echo $dot_color; ?>; border:2px solid #fff;"></div>
+                                        <div style="background:#fff; border:1px solid #e2e8f0; border-radius:6px; padding:10px 14px; box-shadow:0 1px 2px rgba(0,0,0,0.03);">
+                                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:4px;">
+                                                <div>
+                                                    <span class="badge <?php echo $badge_accion; ?>" style="font-size:11px; text-transform:uppercase;"><?php echo texto_mostrar($accion_titulo); ?></span>
+                                                    <strong style="margin-left:6px; color:#1e293b;"><?php echo texto_mostrar($area_seg); ?></strong>
+                                                    <span style="color:#64748b; font-size:12px;"> · <?php echo texto_mostrar($emp_seg); ?></span>
+                                                </div>
+                                                <span style="font-size:11.5px; color:#64748b; font-weight:500;"><i class="fa fa-clock-o"></i> <?php echo texto_mostrar($f_seg); ?></span>
+                                            </div>
+                                            <?php if(!empty($item_seg['observacion'])) { ?>
+                                            <div style="font-size:13px; color:#334155; line-height:1.45; white-space:pre-wrap;"><?php echo nl2br(texto_mostrar($item_seg['observacion'])); ?></div>
+                                            <?php } ?>
+                                            <?php if(!empty($item_seg['estado_nuevo']) && $item_seg['estado_nuevo'] !== $item_seg['estado_anterior']) { ?>
+                                            <div style="margin-top:6px; font-size:11.5px; color:#94a3b8;">
+                                                Estado: <span style="font-weight:600; color:#475569;"><?php echo texto_mostrar(crm_estado_texto($item_seg['estado_anterior'], false)); ?></span> &rarr; <span style="font-weight:600; color:#0f172a;"><?php echo texto_mostrar(crm_estado_texto($item_seg['estado_nuevo'], false)); ?></span>
+                                            </div>
+                                            <?php } ?>
+                                        </div>
+                                    </div>
+                                    <?php } ?>
+                                </div>
+                                <?php } ?>
+                            </div>
+                        </div>
                     </div>
                     <div class="col-md-5">
                         <?php

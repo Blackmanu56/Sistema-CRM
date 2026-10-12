@@ -113,6 +113,28 @@ if(isset($_POST['nueva_atencion']))
 	exit();
 }
 
+if(isset($_POST['derivar_cliente_directo']))
+{
+	$area_dest = isset($_POST['area_destino']) ? trim($_POST['area_destino']) : '';
+	$motivo = isset($_POST['motivo']) ? trim($_POST['motivo']) : 'consulta';
+	$canal = isset($_POST['canal']) ? trim($_POST['canal']) : 'presencial';
+	$obs = isset($_POST['observaciones_derivacion']) ? trim($_POST['observaciones_derivacion']) : '';
+
+	$err = crm_cliente_derivar($id, $area_dest, $motivo, $obs, $canal);
+	if($err === '')
+	{
+		$etqs = acceso_etiquetas_area();
+		$nom_dest = isset($etqs[$area_dest]) ? $etqs[$area_dest] : $area_dest;
+		$_SESSION['msgcliente'] = 'Cliente derivado con éxito a '.$nom_dest.'. La derivación quedó pendiente de recepción.';
+	}
+	else
+	{
+		$_SESSION['msgcliente'] = $err;
+	}
+	echo "<script>window.location.href='editar-cliente.php?id=".$id."'</script>";
+	exit();
+}
+
 if(isset($_POST['update']))
 {
 	$err=cliente_actualizar($id, array(
@@ -230,6 +252,9 @@ function valid()
                         <div class="grid-body no-border">
                         <form name="form1" method="post" action="editar-cliente.php?id=<?php echo intval($id); ?>" onSubmit="return valid();">
                         <input type="hidden" name="id_cliente" value="<?php echo intval($id); ?>">
+                                <?php if(isset($_SESSION['msg_cliente_exito']) && $_SESSION['msg_cliente_exito']!='') { ?>
+                                <div class="alert alert-success"><button class="close" data-dismiss="alert"></button><i class="fa fa-check"></i> <?php echo texto_mostrar($_SESSION['msg_cliente_exito']); unset($_SESSION['msg_cliente_exito']); ?></div>
+                                <?php } ?>
                                 <?php if(isset($_SESSION['msgcliente']) && $_SESSION['msgcliente']!='') { ?>
                                 <div class="alert alert-info"><?php echo texto_mostrar($_SESSION['msgcliente']); $_SESSION['msgcliente']=''; ?></div>
                                 <?php } ?>
@@ -356,6 +381,57 @@ function valid()
                             </form>
                         </div>
                         </div>
+
+                        <?php
+                        $puede_derivar_area = function_exists('crm_areas_destino_derivacion');
+                        $destinos_disp = $puede_derivar_area ? crm_areas_destino_derivacion($area_cli) : array();
+                        if(count($destinos_disp) > 0) {
+                        ?>
+                        <div class="grid simple">
+                        <div class="grid-title no-border">
+                            <h4><i class="fa fa-share text-info"></i> Derivar cliente a otra área</h4>
+                        </div>
+                        <div class="grid-body no-border">
+                            <p class="muted">Derivá este cliente a otra área operativa de ADEMI para su atención o seguimiento.</p>
+                            <form method="post" action="">
+                                <input type="hidden" name="id_cliente" value="<?php echo intval($id); ?>">
+                                <div class="form-group">
+                                    <label>Área de destino</label>
+                                    <select name="area_destino" class="form-control" required>
+                                        <option value="">Elegir área destinataria...</option>
+                                        <?php foreach($destinos_disp as $c_dest => $n_dest) { ?>
+                                        <option value="<?php echo htmlspecialchars($c_dest); ?>"><?php echo htmlspecialchars($n_dest); ?></option>
+                                        <?php } ?>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Motivo</label>
+                                    <select name="motivo" class="form-control">
+                                        <option value="consulta">Consulta</option>
+                                        <option value="documentacion">Documentación</option>
+                                        <option value="seguimiento">Seguimiento</option>
+                                        <option value="tramite">Trámite</option>
+                                        <option value="otro">Otro</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Canal de contacto</label>
+                                    <select name="canal" class="form-control">
+                                        <option value="presencial">Presencial</option>
+                                        <option value="whatsapp">WhatsApp</option>
+                                        <option value="web">Web</option>
+                                        <option value="redes">Redes</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Observaciones / Motivo de derivación</label>
+                                    <textarea name="observaciones_derivacion" class="form-control" rows="2" placeholder="Indicá las observaciones para el área de destino..."></textarea>
+                                </div>
+                                <button type="submit" name="derivar_cliente_directo" value="1" class="btn btn-primary"><i class="fa fa-share"></i> Derivar cliente</button>
+                            </form>
+                        </div>
+                        </div>
+                        <?php } ?>
                     </div>
                 </div>
             </div>

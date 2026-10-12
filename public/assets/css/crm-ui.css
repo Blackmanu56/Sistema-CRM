@@ -813,15 +813,41 @@ p { color: var(--crm-muted); }
   border: 1px solid var(--crm-border);
   border-radius: var(--crm-radius);
   box-shadow: var(--crm-shadow);
+  /* Queda debajo del header fijo; no se corta al scrollear. */
+  position: sticky;
+  top: 68px;
+  z-index: 40;
+  overflow: visible !important;
+  box-sizing: border-box;
 }
 .crm-menu-seccion > .btn {
   margin: 0 !important;
   border-radius: 6px !important;
   padding: 8px 14px !important;
-  font-weight: 600;
-  line-height: 1.2;
+  font-weight: 600 !important;
+  font-size: 13px !important;
+  line-height: 1.35 !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  height: auto !important;
+  overflow: visible !important;
+  white-space: nowrap;
+  box-sizing: border-box;
+  vertical-align: middle;
 }
 .crm-menu-seccion > .btn + .btn { margin-left: 0 !important; }
+.crm-menu-seccion > .btn .badge,
+.crm-menu-seccion > .btn .label {
+  position: static !important;
+  top: auto !important;
+  display: inline-flex !important;
+  align-items: center;
+  margin: 0 !important;
+  vertical-align: middle;
+}
 
 .page-content .content .page-title {
   margin-top: 4px !important;

@@ -421,8 +421,13 @@ function crm_atencion_abrir($datos)
 	{
 		return 0;
 	}
-	// Preferir fecha+hora fijas si vienen
-	if(isset($datos['fecha']) && isset($datos['hora']) && function_exists('crm_turno_armar_fecha'))
+	// Si es atención espontánea / inmediata, se registra en el momento sin requerir slot prefijado
+	if(!empty($datos['espontanea']) || (isset($datos['modalidad']) && $datos['modalidad']==='atencion_espontanea'))
+	{
+		$fecha_turno=date('Y-m-d H:i:s');
+	}
+	// Preferir fecha+hora fijas si vienen en turno programado
+	else if(isset($datos['fecha']) && isset($datos['hora']) && function_exists('crm_turno_armar_fecha'))
 	{
 		$ft=crm_turno_armar_fecha($datos['fecha'], $datos['hora']);
 		if($ft=='')
@@ -502,20 +507,25 @@ function crm_atencion_abrir($datos)
 	{
 		$estado_ini='abierta';
 	}
+	$id_empleado=isset($datos['id_empleado']) ? intval($datos['id_empleado']) : 0;
+	if($id_empleado<=0 && !empty($datos['asignar_a_mi']))
+	{
+		$id_empleado=crm_id_empleado_sesion();
+	}
 	if($origen>0)
 	{
 		$id=acceso_insertar(
-			"INSERT INTO atencion (id_cliente, id_area, motivo, canal, detalle, estado, id_atencion_origen, fecha_turno) VALUES (?,?,?,?,?,?,?,?)",
-			'iissssis',
-			array($id_cliente, $id_area, $motivo, $canal, $detalle, $estado_ini, $origen, $fecha_turno)
+			"INSERT INTO atencion (id_cliente, id_area, id_empleado, motivo, canal, detalle, estado, id_atencion_origen, fecha_turno) VALUES (?,?,?,?,?,?,?,?,?)",
+			'iiissssis',
+			array($id_cliente, $id_area, $id_empleado > 0 ? $id_empleado : null, $motivo, $canal, $detalle, $estado_ini, $origen, $fecha_turno)
 		);
 	}
 	else
 	{
 		$id=acceso_insertar(
-			"INSERT INTO atencion (id_cliente, id_area, motivo, canal, detalle, estado, fecha_turno) VALUES (?,?,?,?,?,?,?)",
-			'iisssss',
-			array($id_cliente, $id_area, $motivo, $canal, $detalle, $estado_ini, $fecha_turno)
+			"INSERT INTO atencion (id_cliente, id_area, id_empleado, motivo, canal, detalle, estado, fecha_turno) VALUES (?,?,?,?,?,?,?,?)",
+			'iiisssss',
+			array($id_cliente, $id_area, $id_empleado > 0 ? $id_empleado : null, $motivo, $canal, $detalle, $estado_ini, $fecha_turno)
 		);
 	}
 	if($id<=0)
@@ -523,6 +533,27 @@ function crm_atencion_abrir($datos)
 		return 0;
 	}
 	crm_vincular_cliente_area($id_cliente, $id_area);
+
+	// Registrar evento inicial en atencion_seguimiento
+	if(function_exists('crm_atencion_seguimiento_agregar'))
+	{
+		$es_turno = ($fecha_turno != '' && !crm_turno_es_ahora($fecha_turno));
+		$accion_ini = $es_turno ? 'alta_turno' : 'alta_atencion';
+		$obs_ini = $es_turno
+			? 'Turno programado para ' . (function_exists('crm_turno_fecha_texto') ? crm_turno_fecha_texto($fecha_turno) : $fecha_turno) . ($detalle != '' ? ' · ' . $detalle : '')
+			: 'Atención directa iniciada' . ($detalle != '' ? ' · ' . $detalle : '');
+
+		crm_atencion_seguimiento_agregar(
+			$id,
+			$id_area,
+			$id_empleado > 0 ? $id_empleado : crm_id_empleado_sesion(),
+			NULL,
+			$estado_ini,
+			$accion_ini,
+			$obs_ini
+		);
+	}
+
 	// Avisar siempre al área destino (programado o inmediato).
 	crm_avisos_atencion_crear($id, $id_area);
 	return $id;
@@ -579,14 +610,46 @@ function crm_atencion_traer($id_atencion)
 		return null;
 	}
 	return acceso_consulta_una(
-		"SELECT at.*, a.clave AS area_clave, a.nombre AS area_nombre, c.nombre AS cliente_nombre
+		"SELECT at.*, a.clave AS area_clave, a.nombre AS area_nombre, c.nombre AS cliente_nombre,
+			ao.clave AS area_origen_clave, ao.nombre AS area_origen_nombre,
+			CONCAT(IFNULL(eo.nombres,''),' ',IFNULL(eo.apellido,'')) AS empleado_origen_nombre,
+			CONCAT(IFNULL(ed.nombres,''),' ',IFNULL(ed.apellido,'')) AS empleado_nombre
 		FROM atencion at
 		INNER JOIN area a ON a.id_area=at.id_area
 		INNER JOIN cliente c ON c.id_cliente=at.id_cliente
+		LEFT JOIN area ao ON ao.id_area=at.id_area_origen
+		LEFT JOIN empleado eo ON eo.id_empleado=at.id_empleado_origen
+		LEFT JOIN empleado ed ON ed.id_empleado=at.id_empleado
 		WHERE at.id_atencion=? LIMIT 1",
 		'i',
 		array($id)
 	);
+}
+
+function crm_atencion_puede_ver($at)
+{
+	if(!$at)
+	{
+		return false;
+	}
+	if(acceso_es_super() || acceso_es_coord_general())
+	{
+		return true;
+	}
+	$area=acceso_area_pantalla();
+	if(isset($at['area_clave']) && $at['area_clave']===$area)
+	{
+		return true;
+	}
+	if(isset($at['area_origen_clave']) && $at['area_origen_clave']===$area)
+	{
+		return true;
+	}
+	if($area==='recepcion')
+	{
+		return true;
+	}
+	return false;
 }
 
 function crm_atencion_puede_operar($at)
@@ -645,6 +708,68 @@ function crm_atencion_cerrar($id_atencion, $detalle='')
 	}
 	crm_avisos_atencion_cerrar_todos($id);
 	crm_atencion_cancelar_pendientes_empresa($id);
+	if(function_exists('crm_atencion_seguimiento_agregar'))
+	{
+		crm_atencion_seguimiento_agregar(
+			$id,
+			intval($at['id_area']),
+			$id_emp > 0 ? $id_emp : crm_id_empleado_sesion(),
+			$at['estado'],
+			'cerrada',
+			'cierre',
+			'Atención finalizada' . ($txt != '' ? ': ' . $txt : '')
+		);
+	}
+	return '';
+}
+
+/**
+ * Asigna o reasigna el colaborador responsable de una atención.
+ */
+function crm_atencion_asignar_empleado($id_atencion, $id_empleado, $motivo='')
+{
+	$id = intval($id_atencion);
+	$id_emp = intval($id_empleado);
+	$at = crm_atencion_traer($id);
+	if(!$at)
+	{
+		return 'No se encontró la atención.';
+	}
+	if(!crm_atencion_puede_operar($at))
+	{
+		return 'No tenés permisos para asignar colaboradores en esta atención.';
+	}
+	$emp_nom = '';
+	if($id_emp > 0)
+	{
+		$row_e = acceso_consulta_una("SELECT CONCAT(IFNULL(nombres,''),' ',IFNULL(apellido,'')) AS nom FROM empleado WHERE id_empleado=? LIMIT 1", 'i', array($id_emp));
+		if(!$row_e)
+		{
+			return 'El colaborador seleccionado no existe.';
+		}
+		$emp_nom = trim($row_e['nom']);
+		acceso_ejecutar("UPDATE atencion SET id_empleado=? WHERE id_atencion=?", 'ii', array($id_emp, $id));
+		$obs = 'Colaborador asignado: ' . $emp_nom . ($motivo != '' ? ' (' . $motivo . ')' : '');
+	}
+	else
+	{
+		acceso_ejecutar("UPDATE atencion SET id_empleado=NULL WHERE id_atencion=?", 'i', array($id));
+		$obs = 'Colaborador desasignado / pendiente de asignación' . ($motivo != '' ? ' (' . $motivo . ')' : '');
+	}
+
+	if(function_exists('crm_atencion_seguimiento_agregar'))
+	{
+		crm_atencion_seguimiento_agregar(
+			$id,
+			intval($at['id_area']),
+			crm_id_empleado_sesion(),
+			$at['estado'],
+			$at['estado'],
+			'asignacion_responsable',
+			$obs
+		);
+	}
+
 	return '';
 }
 
@@ -710,6 +835,27 @@ function crm_atencion_reabrir($id_atencion)
 	return '';
 }
 
+function crm_atencion_seguimiento_agregar($id_atencion, $id_area, $id_empleado, $estado_anterior, $estado_nuevo, $accion, $observacion='')
+{
+	$id_at = intval($id_atencion);
+	$id_ar = intval($id_area);
+	$id_em = intval($id_empleado);
+	if($id_at <= 0 || $id_ar <= 0)
+	{
+		return false;
+	}
+	if(!acceso_tabla_existe('atencion_seguimiento'))
+	{
+		return false;
+	}
+	return acceso_insertar(
+		"INSERT INTO atencion_seguimiento (id_atencion, id_area, id_empleado, estado_anterior, estado_nuevo, accion, observacion, fecha)
+		 VALUES (?,?,?,?,?,?,?,NOW())",
+		'iiissss',
+		array($id_at, $id_ar, $id_em > 0 ? $id_em : null, $estado_anterior, $estado_nuevo, $accion, trim((string)$observacion))
+	);
+}
+
 function crm_atencion_derivar($id_atencion, $area_destino, $detalle='', &$id_nuevo=null)
 {
 	$id=intval($id_atencion);
@@ -723,10 +869,10 @@ function crm_atencion_derivar($id_atencion, $area_destino, $detalle='', &$id_nue
 	{
 		return 'No podés derivar esta atención.';
 	}
-	// Se puede derivar en espera o mientras se atiende (la UI usa ambos flujos).
-	if($at['estado']!='abierta' && $at['estado']!='en_atencion')
+	// Se puede derivar en espera, en atención o pendiente.
+	if($at['estado']!='abierta' && $at['estado']!='en_atencion' && $at['estado']!='pendiente')
 	{
-		return 'Solo se puede derivar una atención activa (en espera o en atención).';
+		return 'Solo se puede derivar una atención activa.';
 	}
 	$area_destino=trim((string)$area_destino);
 	$id_dest=acceso_id_por_clave('area', $area_destino);
@@ -738,13 +884,12 @@ function crm_atencion_derivar($id_atencion, $area_destino, $detalle='', &$id_nue
 	{
 		return 'Esa atención ya está en esa área.';
 	}
-	$areas_ok=function_exists('recepcion_areas_cliente') ? recepcion_areas_cliente() : array();
-	if(count($areas_ok)>0 && !isset($areas_ok[$area_destino]))
+	$dest=acceso_consulta_una("SELECT nombre, clave, atiende_clientes FROM area WHERE id_area=? AND activo=1 LIMIT 1", 'i', array($id_dest));
+	if(!$dest || intval($dest['atiende_clientes'])!=1)
 	{
-		return 'Esa área no admite derivaciones de atención.';
+		return 'Esa área no admite derivaciones de clientes.';
 	}
-	$dest=acceso_consulta_una("SELECT nombre, clave FROM area WHERE id_area=? LIMIT 1", 'i', array($id_dest));
-	$nombre_dest=$dest && isset($dest['nombre']) ? $dest['nombre'] : $area_destino;
+	$nombre_dest=$dest['nombre'];
 	$nota=trim($detalle);
 	$viejo=isset($at['detalle']) ? trim($at['detalle']) : '';
 	$paso='Derivado a '.$nombre_dest.($nota!='' ? ': '.$nota : '');
@@ -754,22 +899,25 @@ function crm_atencion_derivar($id_atencion, $area_destino, $detalle='', &$id_nue
 	{
 		$txt_nuevo.=': '.$nota;
 	}
-	// Si el cliente ya estaba siendo atendido, el área destino continúa en atención.
-	$estado_nuevo=($at['estado']=='en_atencion') ? 'en_atencion' : 'abierta';
+	// Al derivar, la nueva atención queda pendiente de recepción en el área destino
+	$estado_nuevo='pendiente';
 	$fecha_nueva=date('Y-m-d H:i:s');
 	$motivo=isset($at['motivo']) ? $at['motivo'] : 'consulta';
 	$canal=isset($at['canal']) ? $at['canal'] : 'presencial';
+	$id_emp=crm_id_empleado_sesion();
+	$id_area_orig=intval($at['id_area']);
+
 	// Primero el turno nuevo (si falla, el original sigue activo).
 	$nuevo=acceso_insertar(
-		"INSERT INTO atencion (id_cliente, id_area, motivo, canal, detalle, estado, id_atencion_origen, fecha_turno) VALUES (?,?,?,?,?,?,?,?)",
-		'iissssis',
-		array(intval($at['id_cliente']), $id_dest, $motivo, $canal, $txt_nuevo, $estado_nuevo, $id, $fecha_nueva)
+		"INSERT INTO atencion (id_cliente, id_area, id_area_origen, id_empleado_origen, motivo, canal, detalle, estado, id_atencion_origen, fecha_turno, fecha_derivacion)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,NOW())",
+		'iiiissssis',
+		array(intval($at['id_cliente']), $id_dest, $id_area_orig, $id_emp > 0 ? $id_emp : null, $motivo, $canal, $txt_nuevo, $estado_nuevo, $id, $fecha_nueva)
 	);
 	if($nuevo<=0)
 	{
 		return 'No se pudo crear el turno en el área destino.';
 	}
-	$id_emp=crm_id_empleado_sesion();
 	if($id_emp>0)
 	{
 		$ok=acceso_ejecutar(
@@ -795,8 +943,256 @@ function crm_atencion_derivar($id_atencion, $area_destino, $detalle='', &$id_nue
 	crm_vincular_cliente_area(intval($at['id_cliente']), $id_dest);
 	crm_avisos_atencion_cerrar_todos($id);
 	crm_avisos_atencion_crear($nuevo, $id_dest);
+
+	// Trazabilidad histórica en atencion_seguimiento
+	crm_atencion_seguimiento_agregar(
+		$id,
+		$id_area_orig,
+		$id_emp,
+		$at['estado'],
+		'derivada',
+		'derivada',
+		$paso
+	);
+	crm_atencion_seguimiento_agregar(
+		$nuevo,
+		$id_area_orig,
+		$id_emp,
+		$at['estado'],
+		'pendiente',
+		'derivacion_creada',
+		$txt_nuevo
+	);
+
 	$id_nuevo=$nuevo;
 	return '';
+}
+
+/**
+ * Derivación directa de un cliente desde su ficha a otra área (sin turno previo).
+ */
+function crm_cliente_derivar($id_cliente, $area_destino, $motivo='consulta', $detalle='', $canal='presencial')
+{
+	$id_cli = intval($id_cliente);
+	if($id_cli <= 0)
+	{
+		return 'Cliente no válido.';
+	}
+	$area_act = acceso_area_activa();
+	$id_area_act = acceso_id_por_clave('area', $area_act);
+	if($id_area_act <= 0)
+	{
+		return 'Área de origen no válida.';
+	}
+	$area_dest = trim((string)$area_destino);
+	$id_dest = acceso_id_por_clave('area', $area_dest);
+	if($id_dest <= 0)
+	{
+		return 'Elegí un área de destino válida.';
+	}
+	if($id_dest === $id_area_act)
+	{
+		return 'El área de destino no puede ser la misma área activa.';
+	}
+	$dest = acceso_consulta_una("SELECT nombre, clave, atiende_clientes FROM area WHERE id_area=? AND activo=1 LIMIT 1", 'i', array($id_dest));
+	if(!$dest || intval($dest['atiende_clientes']) != 1)
+	{
+		return 'El área de destino no atiende clientes.';
+	}
+	$nombre_dest = $dest['nombre'];
+	$origen = acceso_consulta_una("SELECT nombre, clave FROM area WHERE id_area=? LIMIT 1", 'i', array($id_area_act));
+	$nombre_orig = $origen ? $origen['nombre'] : $area_act;
+
+	$ok_motivos = array('consulta','documentacion','seguimiento','tramite','otro');
+	if(!in_array($motivo, $ok_motivos, true)) { $motivo = 'consulta'; }
+	$ok_canales = array('presencial','whatsapp','web','redes');
+	if(!in_array($canal, $ok_canales, true)) { $canal = 'presencial'; }
+
+	$nota = trim($detalle);
+	$txt_nuevo = 'Derivado desde '.$nombre_orig.($nota != '' ? ': '.$nota : '');
+	$id_emp = crm_id_empleado_sesion();
+
+	$id_nuevo = acceso_insertar(
+		"INSERT INTO atencion (id_cliente, id_area, id_area_origen, id_empleado_origen, motivo, canal, detalle, estado, fecha_turno, fecha_derivacion)
+		 VALUES (?,?,?,?,?,?,?,?,NOW(),NOW())",
+		'iiiissss',
+		array($id_cli, $id_dest, $id_area_act, $id_emp > 0 ? $id_emp : null, $motivo, $canal, $txt_nuevo, 'pendiente')
+	);
+
+	if($id_nuevo <= 0)
+	{
+		return 'No se pudo registrar la derivación en el sistema.';
+	}
+
+	crm_vincular_cliente_area($id_cli, $id_dest);
+	crm_atencion_seguimiento_agregar(
+		$id_nuevo,
+		$id_area_act,
+		$id_emp,
+		NULL,
+		'pendiente',
+		'derivacion_creada',
+		'Derivación directa iniciada desde '.$nombre_orig.($nota != '' ? ': '.$nota : '')
+	);
+	crm_avisos_atencion_crear($id_nuevo, $id_dest);
+
+	return '';
+}
+
+/**
+ * Área destino acepta y recibe la derivación pendiente.
+ */
+function crm_atencion_recibir($id_atencion, $observacion='', $modo='en_espera')
+{
+	$id = intval($id_atencion);
+	$at = crm_atencion_traer($id);
+	if(!$at)
+	{
+		return 'No se encontró la atención.';
+	}
+	if(!crm_atencion_puede_operar($at))
+	{
+		return 'No podés recibir una atención de otra área.';
+	}
+	if($at['estado'] != 'pendiente')
+	{
+		return 'Esta derivación ya fue recibida o procesada.';
+	}
+	$id_emp = crm_id_empleado_sesion();
+	$estado_nuevo = ($modo === 'en_atencion') ? 'en_atencion' : 'abierta';
+	$obs = trim($observacion);
+	$detalle_extra = $obs != '' ? $obs : ($estado_nuevo === 'en_atencion' ? 'Derivación recibida y en atención' : 'Derivación recibida en el área');
+	$viejo = isset($at['detalle']) ? trim($at['detalle']) : '';
+	$txt = ($viejo != '' ? $viejo.' | ' : '').$detalle_extra;
+
+	$ok = acceso_ejecutar(
+		"UPDATE atencion SET estado=?, id_empleado=?, detalle=? WHERE id_atencion=?",
+		'sisi',
+		array($estado_nuevo, $id_emp > 0 ? $id_emp : null, $txt, $id)
+	);
+	if(!$ok)
+	{
+		return 'Error al actualizar el estado de la derivación.';
+	}
+
+	crm_atencion_seguimiento_agregar(
+		$id,
+		intval($at['id_area']),
+		$id_emp,
+		'pendiente',
+		$estado_nuevo,
+		'recibida',
+		$detalle_extra
+	);
+
+	if(function_exists('crm_avisos_atencion_cerrar_todos'))
+	{
+		crm_avisos_atencion_cerrar_todos($id);
+	}
+	return '';
+}
+
+/**
+ * Registra una nota de avance/seguimiento en una derivación activa.
+ */
+function crm_atencion_registrar_seguimiento($id_atencion, $observacion)
+{
+	$id = intval($id_atencion);
+	$at = crm_atencion_traer($id);
+	if(!$at)
+	{
+		return 'No se encontró la atención.';
+	}
+	if(!crm_atencion_puede_operar($at))
+	{
+		return 'No podés registrar seguimiento en una atención de otra área.';
+	}
+	if($at['estado'] == 'cerrada' || $at['estado'] == 'cancelada' || $at['estado'] == 'derivada')
+	{
+		return 'No se puede agregar seguimiento a una atención finalizada o derivada.';
+	}
+	$obs = trim($observacion);
+	if($obs == '')
+	{
+		return 'Ingresá una observación para el seguimiento.';
+	}
+	$id_emp = crm_id_empleado_sesion();
+	$estado_nuevo = 'en_atencion';
+	$viejo = isset($at['detalle']) ? trim($at['detalle']) : '';
+	$txt = ($viejo != '' ? $viejo.' | ' : '').'Seguimiento: '.$obs;
+
+	$ok = acceso_ejecutar(
+		"UPDATE atencion SET estado=?, id_empleado=COALESCE(?, id_empleado), detalle=? WHERE id_atencion=?",
+		'sisi',
+		array($estado_nuevo, $id_emp > 0 ? $id_emp : null, $txt, $id)
+	);
+	if(!$ok)
+	{
+		return 'Error al registrar el seguimiento.';
+	}
+
+	crm_atencion_seguimiento_agregar(
+		$id,
+		intval($at['id_area']),
+		$id_emp,
+		$at['estado'],
+		$estado_nuevo,
+		'seguimiento',
+		$obs
+	);
+
+	return '';
+}
+
+/**
+ * Consulta el historial de cambios y notas de seguimiento de una atención.
+ */
+function crm_atencion_seguimiento_historial($id_atencion)
+{
+	$id = intval($id_atencion);
+	if($id <= 0 || !acceso_tabla_existe('atencion_seguimiento'))
+	{
+		return array();
+	}
+	return acceso_consulta(
+		"SELECT s.*, a.nombre AS area_nombre, a.clave AS area_clave,
+				CONCAT(IFNULL(e.nombres,''),' ',IFNULL(e.apellido,'')) AS empleado_nombre
+		FROM atencion_seguimiento s
+		INNER JOIN area a ON a.id_area=s.id_area
+		LEFT JOIN empleado e ON e.id_empleado=s.id_empleado
+		WHERE s.id_atencion=?
+		ORDER BY s.fecha ASC, s.id_seguimiento ASC",
+		'i',
+		array($id)
+	);
+}
+
+/**
+ * Historial consolidado de atenciones y derivaciones de un cliente para su ficha.
+ */
+function crm_cliente_historial_atenciones($id_cliente)
+{
+	$id = intval($id_cliente);
+	if($id <= 0 || !acceso_tabla_existe('atencion'))
+	{
+		return array();
+	}
+	return acceso_consulta(
+		"SELECT at.*, 
+				a.nombre AS area_destino_nombre, a.clave AS area_destino_clave,
+				ao.nombre AS area_origen_nombre, ao.clave AS area_origen_clave,
+				CONCAT(IFNULL(ed.nombres,''),' ',IFNULL(ed.apellido,'')) AS empleado_destino_nombre,
+				CONCAT(IFNULL(eo.nombres,''),' ',IFNULL(eo.apellido,'')) AS empleado_origen_nombre
+		FROM atencion at
+		INNER JOIN area a ON a.id_area=at.id_area
+		LEFT JOIN area ao ON ao.id_area=at.id_area_origen
+		LEFT JOIN empleado ed ON ed.id_empleado=at.id_empleado
+		LEFT JOIN empleado eo ON eo.id_empleado=at.id_empleado_origen
+		WHERE at.id_cliente=?
+		ORDER BY at.fecha DESC, at.id_atencion DESC",
+		'i',
+		array($id)
+	);
 }
 
 function crm_atencion_derivada_siguiente($id_atencion)
@@ -1418,22 +1814,51 @@ function crm_motivo_texto($motivo)
 	return isset($t[$motivo]) ? $t[$motivo] : $motivo;
 }
 
-function crm_estado_texto($estado)
+function crm_estado_texto($estado, $es_derivacion=false)
 {
 	$estado=trim((string)$estado);
+	if($es_derivacion)
+	{
+		$map_der=array(
+			'pendiente'=>'Pendiente de recepción',
+			'abierta'=>'Recibida',
+			'en_atencion'=>'En seguimiento',
+			'cerrada'=>'Finalizada',
+			'cancelada'=>'Cancelada',
+			'derivada'=>'Derivada'
+		);
+		if(isset($map_der[$estado]))
+		{
+			return $map_der[$estado];
+		}
+	}
 	$map=array(
-		'pendiente'=>'Solicitud pendiente',
+		'pendiente'=>'Pendiente de recepción',
 		'abierta'=>'A la espera del cliente',
-		'en_atencion'=>'Siendo atendido',
-		'cerrada'=>'Cerrado',
-		'cancelada'=>'Cancelado',
-		'derivada'=>'Derivado'
+		'en_atencion'=>'En seguimiento / atendiendo',
+		'cerrada'=>'Finalizada',
+		'cancelada'=>'Cancelada',
+		'derivada'=>'Derivada'
 	);
 	if(isset($map[$estado]))
 	{
 		return $map[$estado];
 	}
 	return ($estado!=='') ? $estado : 'Sin estado';
+}
+
+function crm_estado_badge_class($estado)
+{
+	switch($estado)
+	{
+		case 'pendiente': return 'label-warning';
+		case 'abierta': return 'label-info';
+		case 'en_atencion': return 'label-primary';
+		case 'cerrada': return 'label-success';
+		case 'cancelada': return 'label-important';
+		case 'derivada': return 'label-inverse';
+		default: return 'label-default';
+	}
 }
 
 function crm_atencion_url($id_atencion, $area_clave='')
@@ -1451,8 +1876,8 @@ function crm_area_ve_todo($area_clave='')
 	{
 		$area_clave=acceso_area_pantalla();
 	}
-	// Solo superadmin ve el listado global. Cada área ve únicamente sus atenciones.
-	return acceso_es_super();
+	// Solo superadmin y coord general ven el listado global. Cada área ve sus atenciones.
+	return acceso_es_super() || acceso_es_coord_general();
 }
 
 function crm_cliente_puede_ver($id_cliente, $area_clave='')
@@ -1466,10 +1891,23 @@ function crm_cliente_puede_ver($id_cliente, $area_clave='')
 	{
 		$area_clave=acceso_area_pantalla();
 	}
-	// Recepción gestiona clientes y altas, y superadmin ve todo.
+	// Recepción gestiona clientes y altas, y superadmin / coord general ve todo.
 	if(crm_area_ve_todo($area_clave) || $area_clave=='recepcion')
 	{
 		return true;
+	}
+	if($area_clave==='emprendedores' || $area_clave==='empresas')
+	{
+		$cli=function_exists('cliente_traer') ? cliente_traer($id) : null;
+		$tipo=$cli && isset($cli['tipo_cliente']) ? cliente_tipo_normalizar($cli['tipo_cliente']) : '';
+		if($area_clave==='emprendedores' && $tipo==='emprendedor')
+		{
+			return true;
+		}
+		if($area_clave==='empresas' && $tipo==='empresa')
+		{
+			return true;
+		}
 	}
 	$id_area=acceso_id_por_clave('area', $area_clave);
 	if($id_area<=0)
@@ -1501,45 +1939,116 @@ function crm_atenciones_listado($area_clave='', $opts=array())
 	$id_loc=isset($opts['id_localidad']) ? intval($opts['id_localidad']) : (isset($_GET['id_localidad']) ? intval($_GET['id_localidad']) : 0);
 	$fecha_filtro=isset($opts['fecha']) ? trim($opts['fecha']) : (isset($_GET['fecha']) ? trim($_GET['fecha']) : '');
 	$area_filtro=isset($opts['area']) ? trim($opts['area']) : (isset($_GET['area']) ? trim($_GET['area']) : '');
+	$tipo_filtro=isset($opts['tipo']) ? trim($opts['tipo']) : (isset($_GET['tipo']) ? trim($_GET['tipo']) : 'todas');
+	$estado_filtro=isset($opts['estado']) ? trim($opts['estado']) : (isset($_GET['estado']) ? trim($_GET['estado']) : '');
+	$emp_filtro=isset($opts['id_empleado']) ? intval($opts['id_empleado']) : (isset($_GET['id_empleado']) ? intval($_GET['id_empleado']) : 0);
 	$lim=isset($opts['limite']) ? intval($opts['limite']) : 200;
 	if($lim<20) { $lim=20; }
 	if($lim>500) { $lim=500; }
 
 	$sql="SELECT at.*, c.nombre AS cliente_nombre, c.cuil_cuit, cp.dni AS dni_persona, l.nombre AS localidad_nombre,
-			a.clave AS area_clave, a.nombre AS area_nombre
+			a.clave AS area_clave, a.nombre AS area_nombre,
+			ao.clave AS area_origen_clave, ao.nombre AS area_origen_nombre,
+			CONCAT(IFNULL(eo.nombres,''),' ',IFNULL(eo.apellido,'')) AS empleado_origen_nombre,
+			CONCAT(IFNULL(ed.nombres,''),' ',IFNULL(ed.apellido,'')) AS empleado_nombre
 		FROM atencion at
 		INNER JOIN cliente c ON c.id_cliente=at.id_cliente
 		INNER JOIN area a ON a.id_area=at.id_area
+		LEFT JOIN area ao ON ao.id_area=at.id_area_origen
+		LEFT JOIN empleado eo ON eo.id_empleado=at.id_empleado_origen
+		LEFT JOIN empleado ed ON ed.id_empleado=at.id_empleado
 		LEFT JOIN cliente_persona cp ON cp.id_cliente=c.id_cliente
 		LEFT JOIN localidad l ON l.id_localidad=c.id_localidad";
 	$types='';
 	$vals=array();
 	$wheres=array();
-	if($area_clave==='recepcion')
+
+	// Filtros por derivaciones recibidas / enviadas
+	if($tipo_filtro === 'recibidas')
 	{
-		// Recepción puede consultar todos los turnos que registró derivados a las distintas áreas.
-		// Si se especifica un área particular por filtro, se aplica.
-		if($area_filtro!='')
+		if(!crm_area_ve_todo($area_clave))
+		{
+			$wheres[]="a.clave=? AND (at.id_area_origen IS NOT NULL OR at.id_atencion_origen IS NOT NULL)";
+			$types.='s';
+			$vals[]=$area_clave;
+		}
+		else
+		{
+			$wheres[]="(at.id_area_origen IS NOT NULL OR at.id_atencion_origen IS NOT NULL)";
+		}
+	}
+	else if($tipo_filtro === 'enviadas')
+	{
+		if(!crm_area_ve_todo($area_clave))
+		{
+			$wheres[]="ao.clave=?";
+			$types.='s';
+			$vals[]=$area_clave;
+		}
+		else
+		{
+			$wheres[]="at.id_area_origen IS NOT NULL";
+		}
+	}
+	else
+	{
+		// Modo 'todas'
+		if($area_clave==='recepcion')
+		{
+			if($area_filtro!='')
+			{
+				$wheres[]="a.clave=?";
+				$types.='s';
+				$vals[]=$area_filtro;
+			}
+		}
+		else if(!crm_area_ve_todo($area_clave) && $area_clave!='')
 		{
 			$wheres[]="a.clave=?";
 			$types.='s';
-			$vals[]=$area_filtro;
+			$vals[]=$area_clave;
 		}
 	}
-	else if(!crm_area_ve_todo($area_clave) && $area_clave!='')
+
+	if($estado_filtro === 'turnos')
 	{
-		// Solo atenciones de esta área (también cerradas/derivadas de cuando el cliente pasó por acá).
-		$wheres[]="a.clave=?";
-		$types.='s';
-		$vals[]=$area_clave;
+		$wheres[] = "at.estado IN ('pendiente','abierta')";
 	}
+	else if($estado_filtro === 'en_atencion')
+	{
+		$wheres[] = "at.estado = 'en_atencion'";
+	}
+	else if($estado_filtro === 'cerrada')
+	{
+		$wheres[] = "at.estado = 'cerrada'";
+	}
+	else if($estado_filtro === 'cancelada')
+	{
+		$wheres[] = "at.estado = 'cancelada'";
+	}
+
+	if($emp_filtro > 0)
+	{
+		$wheres[] = "at.id_empleado = ?";
+		$types .= 'i';
+		$vals[] = $emp_filtro;
+	}
+
 	if($fecha_filtro==='hoy')
 	{
 		$wheres[]="DATE(COALESCE(at.fecha_turno, at.fecha))=CURDATE()";
-		if($area_clave==='recepcion')
+		if($area_clave==='recepcion' && $estado_filtro==='')
 		{
 			$wheres[]="at.estado NOT IN ('cancelada')";
 		}
+	}
+	else if($fecha_filtro==='proximos')
+	{
+		$wheres[]="DATE(COALESCE(at.fecha_turno, at.fecha)) BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)";
+	}
+	else if($fecha_filtro==='semana')
+	{
+		$wheres[]="YEARWEEK(COALESCE(at.fecha_turno, at.fecha), 1) = YEARWEEK(CURDATE(), 1)";
 	}
 	else if($fecha_filtro!='' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha_filtro))
 	{
@@ -2380,7 +2889,7 @@ function crm_programas_de_cliente($id_cliente)
 		return array();
 	}
 	return acceso_consulta(
-		"SELECT cp.*, p.nombre
+		"SELECT cp.*, p.nombre, p.descripcion
 		FROM cliente_programa cp INNER JOIN programa p ON p.id_programa=cp.id_programa
 		WHERE cp.id_cliente=? AND cp.fecha_hasta IS NULL
 		ORDER BY p.nombre",

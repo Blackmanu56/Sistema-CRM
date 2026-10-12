@@ -22,12 +22,28 @@ if(isset($_POST['login']))
 		echo "<script>window.location.href='elegir-cuenta.php'</script>";
 		exit();
 	}
-	$_SESSION['action1']="Usuario o contraseña no válidos";
+	$msg='Usuario o contraseña no válidos';
+	if(function_exists('crm_asegurar_cliente_solicitud') && function_exists('acceso_tabla_existe') && acceso_tabla_existe('cliente_solicitud'))
+	{
+		crm_asegurar_cliente_solicitud();
+		$pend=acceso_consulta_una(
+			"SELECT id_solicitud FROM cliente_solicitud WHERE correo=? AND estado='pendiente' LIMIT 1",
+			's',
+			array($correo)
+		);
+		if($pend)
+		{
+			$msg='Tu solicitud todavía está en revisión en ADEMI. Cuando la acepten, vas a poder ingresar.';
+		}
+	}
+	$_SESSION['action1']=$msg;
 	echo "<script>window.location.href='login.php'</script>";
 	exit();
 }
 $err=isset($_SESSION['action1']) ? $_SESSION['action1'] : '';
 $_SESSION['action1']='';
+$ok=isset($_SESSION['action_ok']) ? $_SESSION['action_ok'] : '';
+$_SESSION['action_ok']='';
 ?>
 <!DOCTYPE html>
 <html>
@@ -46,6 +62,9 @@ $_SESSION['action1']='';
   <div class="crm-auth-card">
     <div class="crm-auth-brand">ADEMI</div>
     <h1 class="crm-auth-title">INICIO DE SESIÓN</h1>
+    <?php if($ok!='') { ?>
+    <div class="alert alert-success"><?php echo htmlspecialchars($ok); ?></div>
+    <?php } ?>
     <?php if($err!='') { ?>
     <div class="alert alert-danger"><?php echo htmlspecialchars($err); ?></div>
     <?php } ?>

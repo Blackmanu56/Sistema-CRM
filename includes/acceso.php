@@ -332,6 +332,26 @@ function recepcion_areas_cliente()
 	return $salida;
 }
 
+function crm_areas_destino_derivacion($area_origen = '')
+{
+	crm_asegurar_area_flags();
+	if($area_origen === '')
+	{
+		$area_origen = function_exists('acceso_area_activa') ? acceso_area_activa() : (function_exists('acceso_area') ? acceso_area() : '');
+	}
+	$salida = array();
+	$filas = acceso_consulta("SELECT clave, nombre FROM area WHERE activo=1 AND atiende_clientes=1 ORDER BY nombre");
+	foreach($filas as $a)
+	{
+		if($a['clave'] === $area_origen)
+		{
+			continue;
+		}
+		$salida[$a['clave']] = $a['nombre'];
+	}
+	return $salida;
+}
+
 function clientes_asegurar_columnas()
 {
 	// Ya no se toca la tabla vieja "user". Los clientes van en cliente / usuario_cliente.
@@ -967,7 +987,15 @@ function cliente_alta($datos)
 	{
 		return 'Esa localidad no está cargada.';
 	}
-	// Área opcional: si no eligen, el turno inicial va a Recepción.
+	// Área: si no eligen, intentar con el área activa del usuario antes de caer en Recepción.
+	if($id_area<=0)
+	{
+		$area_mia = function_exists('acceso_area_activa') ? acceso_area_activa() : (function_exists('acceso_area') ? acceso_area() : '');
+		if($area_mia!='' && $area_mia!='general' && $area_mia!='sistemas' && $area_mia!='rrhh')
+		{
+			$id_area = acceso_id_por_clave('area', $area_mia);
+		}
+	}
 	if($id_area<=0)
 	{
 		$id_area=acceso_id_por_clave('area', 'recepcion');
@@ -1005,16 +1033,33 @@ function cliente_alta($datos)
 		$origen='presencial';
 	}
 	$id_area_sql=($id_area>0) ? $id_area : null;
-	$id=acceso_insertar(
-		"INSERT INTO cliente (tipo_cliente, nombre, correo, telefono, id_localidad, direccion, cuil_cuit, id_area_afectada, origen_contacto)
-		VALUES (?,?,?,?,?,?,?,?,?)",
-		'ssssissis',
-		array($tipo, $nombre, $correo, $tel, $id_loc, $dir, $cuil, $id_area_sql, $origen)
-	);
+	$id_emp_alta=isset($datos['id_empleado_alta']) ? intval($datos['id_empleado_alta']) : (function_exists('crm_id_empleado_sesion') ? crm_id_empleado_sesion() : 0);
+	$id_emp_sql=($id_emp_alta>0) ? $id_emp_alta : null;
+
+	$tiene_col_emp=function_exists('crm_columna_existe') ? crm_columna_existe('cliente', 'id_empleado_alta') : false;
+	if($tiene_col_emp)
+	{
+		$id=acceso_insertar(
+			"INSERT INTO cliente (tipo_cliente, nombre, correo, telefono, id_localidad, direccion, cuil_cuit, id_area_afectada, id_empleado_alta, origen_contacto)
+			VALUES (?,?,?,?,?,?,?,?,?,?)",
+			'ssssissiis',
+			array($tipo, $nombre, $correo, $tel, $id_loc, $dir, $cuil, $id_area_sql, $id_emp_sql, $origen)
+		);
+	}
+	else
+	{
+		$id=acceso_insertar(
+			"INSERT INTO cliente (tipo_cliente, nombre, correo, telefono, id_localidad, direccion, cuil_cuit, id_area_afectada, origen_contacto)
+			VALUES (?,?,?,?,?,?,?,?,?)",
+			'ssssissis',
+			array($tipo, $nombre, $correo, $tel, $id_loc, $dir, $cuil, $id_area_sql, $origen)
+		);
+	}
 	if($id<=0)
 	{
 		return 'No se pudo dar de alta el cliente. Intentá de nuevo.';
 	}
+	$GLOBALS['crm_ultimo_cliente_alta_id'] = $id;
 	if($es_org)
 	{
 		acceso_insertar("INSERT INTO cliente_empresa (id_cliente, razon_social) VALUES (?,?)", 'is', array($id, $nombre));
@@ -1614,7 +1659,11 @@ function acceso_iniciar_sesion($persona)
 	$_SESSION['alogin']=isset($persona['usuario']) ? $persona['usuario'] : '';
 	$_SESSION['id']=isset($persona['id']) ? intval($persona['id']) : 0;
 	$_SESSION['id_empleado']=$_SESSION['id'];
-	$_SESSION['area_usuario']=isset($persona['area']) ? $persona['area'] : '';
+	$area_base=isset($persona['area']) ? $persona['area'] : '';
+	$_SESSION['area_base']=$area_base;
+	$_SESSION['rol_base']=$rol;
+	$_SESSION['area_activa']=$area_base;
+	$_SESSION['area_usuario']=$area_base;
 	$_SESSION['rol_area']=$rol;
 	$_SESSION['nombre_mostrado']=isset($persona['nombre']) ? $persona['nombre'] : '';
 	$_SESSION['persona_tareas']=isset($persona['persona']) ? $persona['persona'] : '';
@@ -1630,7 +1679,8 @@ function acceso_iniciar_sesion($persona)
 
 function acceso_es_super()
 {
-	return (isset($_SESSION['rol_area']) && ($_SESSION['rol_area']=='superadmin' || $_SESSION['rol_area']=='admin'));
+	return (isset($_SESSION['rol_area']) && ($_SESSION['rol_area']=='superadmin' || $_SESSION['rol_area']=='admin'))
+		|| (isset($_SESSION['rol_base']) && ($_SESSION['rol_base']=='superadmin' || $_SESSION['rol_base']=='admin'));
 }
 
 function acceso_es_coord_general()
@@ -1742,21 +1792,36 @@ function acceso_mis_areas_asignadas()
 		);
 	}
 
-	$fn_url = function($r) {
-		return function_exists('url_crm') ? url_crm($r) : '../' . $r;
+	$fn_url = function($clave) {
+		if($clave === 'general')
+		{
+			return function_exists('url_crm') ? url_crm('admin/home.php') : '../admin/home.php';
+		}
+		if(function_exists('url_crm'))
+		{
+			if(is_file(BASE_PATH.'/public/'.$clave.'/dashboard.php'))
+			{
+				return url_crm($clave.'/dashboard.php');
+			}
+			return url_crm($clave.'/tareas.php');
+		}
+		return '../' . $clave . '/dashboard.php';
 	};
+
+	$area_activa = function_exists('acceso_area_activa') ? acceso_area_activa() : (isset($_SESSION['area_activa']) ? $_SESSION['area_activa'] : (isset($_SESSION['area_usuario']) ? $_SESSION['area_usuario'] : ''));
 
 	// Superadmin / Coordinador General: acceso global
 	if (acceso_es_super() || acceso_es_coord_general())
 	{
-		$rol_nombre = acceso_es_super() ? 'Superadmin' : 'Coordinador General';
+		$rol_nombre = acceso_es_super() ? 'Superadmin' : 'Coordinación General';
 		$salida[] = array(
 			'clave' => 'general',
 			'nombre' => 'Vista General',
 			'rol' => acceso_es_super() ? 'superadmin' : 'coordinador_general',
 			'rol_nombre' => $rol_nombre,
 			'es_principal' => true,
-			'url' => $fn_url('admin/home.php')
+			'es_activa' => ($area_activa === 'general' || $area_activa === ''),
+			'url' => $fn_url('general')
 		);
 		$ya['general'] = true;
 
@@ -1770,29 +1835,34 @@ function acceso_mis_areas_asignadas()
 				'rol' => acceso_es_super() ? 'superadmin' : 'coordinador_general',
 				'rol_nombre' => $rol_nombre,
 				'es_principal' => false,
-				'url' => ($clave === 'recepcion') ? $fn_url('recepcion/atencion.php') : $fn_url($clave . '/tareas.php')
+				'es_activa' => ($area_activa === $clave),
+				'url' => $fn_url($clave)
 			);
 		}
 		return $salida;
 	}
 
-	// 1. Área principal
-	$area_pri = function_exists('acceso_area') ? acceso_area() : (isset($_SESSION['area_usuario']) ? $_SESSION['area_usuario'] : '');
-	$rol_pri = isset($_SESSION['rol_area']) ? $_SESSION['rol_area'] : '';
+	// 1. Área principal (base de la cuenta del usuario)
+	$area_base = isset($_SESSION['area_base']) && $_SESSION['area_base'] !== '' 
+		? $_SESSION['area_base'] 
+		: (isset($_SESSION['area_usuario']) ? $_SESSION['area_usuario'] : '');
+	$rol_base = isset($_SESSION['rol_base']) && $_SESSION['rol_base'] !== ''
+		? $_SESSION['rol_base']
+		: (isset($_SESSION['rol_area']) ? $_SESSION['rol_area'] : '');
 
-	if ($area_pri !== '' && isset($etiquetas[$area_pri]))
+	if ($area_base !== '' && isset($etiquetas[$area_base]))
 	{
-		$rol_nom_pri = ($rol_pri === 'coordinador' ? 'Coordinadora' : ($rol_pri === 'presidencia' ? 'Presidencia' : 'Colaborador/a'));
-		$url_def = ($area_pri === 'recepcion') ? $fn_url('recepcion/atencion.php') : $fn_url($area_pri . '/tareas.php');
+		$rol_nom_pri = function_exists('acceso_etiqueta_rol') ? acceso_etiqueta_rol($rol_base) : ($rol_base === 'coordinador' ? 'Coordinación' : ($rol_base === 'presidencia' ? 'Presidencia' : 'Personal'));
 		$salida[] = array(
-			'clave' => $area_pri,
-			'nombre' => $etiquetas[$area_pri],
-			'rol' => $rol_pri,
+			'clave' => $area_base,
+			'nombre' => $etiquetas[$area_base],
+			'rol' => $rol_base,
 			'rol_nombre' => $rol_nom_pri,
 			'es_principal' => true,
-			'url' => $url_def
+			'es_activa' => ($area_activa === $area_base),
+			'url' => $fn_url($area_base)
 		);
-		$ya[$area_pri] = true;
+		$ya[$area_base] = true;
 	}
 
 	// 2. Roles adicionales activos
@@ -1803,21 +1873,101 @@ function acceso_mis_areas_asignadas()
 		$rol_ext = isset($ext['rol']) ? trim((string)$ext['rol']) : '';
 		if ($area_ext !== '' && isset($etiquetas[$area_ext]) && !isset($ya[$area_ext]))
 		{
-			$rol_nom_ext = ($rol_ext === 'coordinador' ? 'Coordinadora' : 'Colaborador/a');
-			$url_ext = ($area_ext === 'recepcion') ? $fn_url('recepcion/atencion.php') : $fn_url($area_ext . '/tareas.php');
+			$rol_nom_ext = function_exists('acceso_etiqueta_rol') ? acceso_etiqueta_rol($rol_ext) : ($rol_ext === 'coordinador' ? 'Coordinación' : ($rol_ext === 'presidencia' ? 'Presidencia' : 'Personal'));
 			$salida[] = array(
 				'clave' => $area_ext,
 				'nombre' => $etiquetas[$area_ext],
 				'rol' => $rol_ext,
 				'rol_nombre' => $rol_nom_ext,
 				'es_principal' => false,
-				'url' => $url_ext
+				'es_activa' => ($area_activa === $area_ext),
+				'url' => $fn_url($area_ext)
 			);
 			$ya[$area_ext] = true;
 		}
 	}
 
 	return $salida;
+}
+
+function acceso_area_activa()
+{
+	if(isset($_SESSION['area_activa']) && $_SESSION['area_activa'] !== '')
+	{
+		return $_SESSION['area_activa'];
+	}
+	if(isset($_SESSION['area_usuario']) && $_SESSION['area_usuario'] !== '')
+	{
+		return $_SESSION['area_usuario'];
+	}
+	return '';
+}
+
+function acceso_rol_activo()
+{
+	if(acceso_es_super())
+	{
+		return 'superadmin';
+	}
+	if(acceso_es_coord_general())
+	{
+		return 'coordinador_general';
+	}
+	return isset($_SESSION['rol_area']) ? $_SESSION['rol_area'] : '';
+}
+
+function acceso_cambiar_area_activa($nueva_area)
+{
+	$nueva_area = trim((string)$nueva_area);
+	if($nueva_area === '')
+	{
+		return false;
+	}
+
+	if(acceso_es_super() || acceso_es_coord_general())
+	{
+		$etq = acceso_etiquetas_area();
+		if($nueva_area !== 'general' && !isset($etq[$nueva_area]))
+		{
+			return false;
+		}
+		$_SESSION['area_activa'] = $nueva_area;
+		$_SESSION['area_usuario'] = $nueva_area;
+		if(acceso_es_super())
+		{
+			$_SESSION['rol_area'] = 'superadmin';
+			$_SESSION['tareas_rol'] = 'coordinador';
+		}
+		else
+		{
+			$_SESSION['rol_area'] = 'coordinador_general';
+			$_SESSION['tareas_rol'] = 'coordinador';
+		}
+		return true;
+	}
+
+	$mis = acceso_mis_areas_asignadas();
+	$encontrada = null;
+	foreach($mis as $a)
+	{
+		if($a['clave'] === $nueva_area)
+		{
+			$encontrada = $a;
+			break;
+		}
+	}
+
+	if(!$encontrada)
+	{
+		return false;
+	}
+
+	$_SESSION['area_activa'] = $nueva_area;
+	$_SESSION['area_usuario'] = $nueva_area;
+	$rol_en_area = isset($encontrada['rol']) ? $encontrada['rol'] : 'empleado';
+	$_SESSION['rol_area'] = $rol_en_area;
+	$_SESSION['tareas_rol'] = ($rol_en_area === 'coordinador' || $rol_en_area === 'coordinador_general' || $rol_en_area === 'superadmin') ? 'coordinador' : $rol_en_area;
+	return true;
 }
 
 function acceso_roles_adicionales_sesion()
@@ -2492,27 +2642,37 @@ function tareas_armar_comentarios_nuevos()
 
 function acceso_mostrar_rol($rol)
 {
-	if($rol=='trabajador' || $rol=='empleado')
+	$r = strtolower(trim((string)$rol));
+	if($r === 'coordinador')
 	{
-		return 'Empleado';
+		return 'Coordinación';
 	}
-	if($rol=='superadmin' || $rol=='admin')
+	if($r === 'coordinador_general')
+	{
+		return 'Coordinación General';
+	}
+	if($r === 'trabajador' || $r === 'empleado')
+	{
+		return 'Personal';
+	}
+	if($r === 'superadmin' || $r === 'admin')
 	{
 		return 'Superadmin';
 	}
-	if($rol=='coordinador_general')
-	{
-		return 'Coordinador general';
-	}
-	if($rol=='presidencia')
+	if($r === 'presidencia')
 	{
 		return 'Presidencia';
 	}
-	if($rol=='coordinador')
+	if($r === 'admin_tareas')
 	{
-		return 'Coordinador';
+		return 'Administración de tareas';
 	}
-	return $rol;
+	return ($rol !== '') ? ucfirst($rol) : 'Personal';
+}
+
+function acceso_etiqueta_rol($rol)
+{
+	return acceso_mostrar_rol($rol);
 }
 
 // Areas que tienen pantalla de tareas. Ya no se usa para guardar en sesión.
@@ -3310,6 +3470,16 @@ function acceso_guardar_empleado($usuario, $datos)
 		'condicion_fiscal'=>'condicion_fiscal',
 		'cuit_facturacion'=>'cuit_facturacion'
 	);
+	if(isset($datos['condicion_fiscal']))
+	{
+		$cf_ok=acceso_condiciones_fiscales();
+		$cf_val=trim((string)$datos['condicion_fiscal']);
+		if($cf_val!=='' && !isset($cf_ok[$cf_val]))
+		{
+			$cf_val='otro';
+		}
+		$datos['condicion_fiscal']=$cf_val;
+	}
 	foreach($campos_txt as $k=>$col)
 	{
 		if(isset($datos[$k]))
@@ -3330,6 +3500,30 @@ function acceso_guardar_empleado($usuario, $datos)
 		return false;
 	}
 	return (bool)@mysqli_query($con,"UPDATE empleado SET ".implode(', ', $set)." WHERE id_empleado='".$id."'");
+}
+
+/** Condiciones fiscales habituales (AFIP) para el legajo de personal. */
+function acceso_condiciones_fiscales()
+{
+	return array(
+		''=>'—',
+		'monotributo'=>'Monotributo',
+		'responsable_inscripto'=>'Responsable inscripto',
+		'exento'=>'Exento',
+		'no_inscripto'=>'No inscripto',
+		'otro'=>'Otro'
+	);
+}
+
+function acceso_condicion_fiscal_etiqueta($clave)
+{
+	$mapa=acceso_condiciones_fiscales();
+	$clave=trim((string)$clave);
+	if($clave!=='' && isset($mapa[$clave]))
+	{
+		return $mapa[$clave];
+	}
+	return $clave!=='' ? $clave : '—';
 }
 
 function acceso_alta_empleado($datos)
@@ -3408,6 +3602,11 @@ function acceso_alta_empleado($datos)
 	$estado_lab=isset($datos['estado_laboral']) ? trim($datos['estado_laboral']) : 'activo';
 	$modalidad=isset($datos['modalidad']) ? trim($datos['modalidad']) : '';
 	$cond_fiscal=isset($datos['condicion_fiscal']) ? trim($datos['condicion_fiscal']) : '';
+	$cf_ok=acceso_condiciones_fiscales();
+	if($cond_fiscal!=='' && !isset($cf_ok[$cond_fiscal]))
+	{
+		$cond_fiscal='otro';
+	}
 	$id_area_sql=($id_area>0) ? "'".$id_area."'" : 'NULL';
 	$sql="INSERT INTO empleado (nombres, apellido, cuil, dni, correo, telefono, telefono_alt, direccion, fecha_nacimiento, fecha_ingreso, puesto, tipo_vinculo, estado_laboral, modalidad, condicion_fiscal, nombre_usuario, contrasena_hash, primer_acceso, id_rol, id_area, activo)
 		VALUES ('".acceso_sql($nombres)."','".acceso_sql($apellido)."','".acceso_sql($cuil)."','".acceso_sql($dni)."','".acceso_sql($correo)."','".acceso_sql($telefono)."','".acceso_sql($tel_alt)."','".acceso_sql($direccion)."',".($fecha_nac!='' ? "'".acceso_sql($fecha_nac)."'" : 'NULL').",'".acceso_sql($ingreso)."','".acceso_sql($puesto)."','".acceso_sql($tipo_vinculo)."','".acceso_sql($estado_lab)."','".acceso_sql($modalidad)."','".acceso_sql($cond_fiscal)."','".acceso_sql($usuario)."','".acceso_sql($hash)."',1,'".$id_rol."',".$id_area_sql.",1)";
@@ -3514,6 +3713,103 @@ function acceso_puede_clientes_de_area($area='')
 		return false;
 	}
 	return (acceso_area()==$area || acceso_es_super());
+}
+
+// Comprueba si existe una columna en una tabla MySQL.
+function crm_columna_existe($tabla, $columna)
+{
+	global $con;
+	if(!$con) { return false; }
+	$t_esc = mysqli_real_escape_string($con, $tabla);
+	$c_esc = mysqli_real_escape_string($con, $columna);
+	$res = @mysqli_query($con, "SHOW COLUMNS FROM `{$t_esc}` LIKE '{$c_esc}'");
+	return ($res && mysqli_num_rows($res) > 0);
+}
+
+// Permisos para dar de alta clientes en un área operativa.
+// Sistemas, RRHH y Presidencia están expresamente excluidas.
+function acceso_puede_alta_cliente($area='')
+{
+	if($area=='')
+	{
+		$area=function_exists('acceso_area_activa') ? acceso_area_activa() : (function_exists('acceso_area_pantalla') ? acceso_area_pantalla() : acceso_area());
+	}
+	if($area==='' || $area==='sistemas' || $area==='rrhh' || $area==='presidencia' || $area==='general' || $area==='admin')
+	{
+		return false;
+	}
+	if(acceso_es_presidencia())
+	{
+		return false;
+	}
+	if(acceso_es_super())
+	{
+		return true;
+	}
+	crm_asegurar_area_flags();
+	$row=acceso_consulta_una(
+		"SELECT atiende_clientes FROM area WHERE clave=? AND activo=1 LIMIT 1",
+		's',
+		array($area)
+	);
+	if(!$row || intval($row['atiende_clientes'])!==1)
+	{
+		return false;
+	}
+	if(acceso_es_coord_general())
+	{
+		return true;
+	}
+	if($area==='recepcion')
+	{
+		return acceso_puede('recepcion');
+	}
+	$area_act = function_exists('acceso_area_activa') ? acceso_area_activa() : acceso_area();
+	return ($area_act === $area && acceso_puede($area));
+}
+
+// Búsqueda rápida de clientes existentes por CUIT/CUIL o DNI (para prevención de duplicados).
+function cliente_buscar_por_identificador($identificador)
+{
+	$limpio = preg_replace('/\D+/', '', (string)$identificador);
+	if(strlen($limpio) < 6)
+	{
+		return null;
+	}
+	$c = acceso_consulta_una(
+		"SELECT c.id_cliente, c.nombre, c.correo, c.telefono, c.tipo_cliente, c.cuil_cuit, c.id_localidad, l.nombre AS localidad_nombre, cp.dni
+		FROM cliente c
+		LEFT JOIN localidad l ON l.id_localidad=c.id_localidad
+		LEFT JOIN cliente_persona cp ON cp.id_cliente=c.id_cliente
+		WHERE REPLACE(REPLACE(REPLACE(c.cuil_cuit,'-',''),' ',''),'.','') = ?
+		   OR cp.dni = ?
+		   OR REPLACE(IFNULL(cp.dni,''),'.','') = ?
+		LIMIT 1",
+		'sss',
+		array($limpio, $identificador, $limpio)
+	);
+	return $c ?: null;
+}
+
+// Vincula un cliente existente al área operativa seleccionada.
+function cliente_vincular_area_existente($id_cliente, $clave_area)
+{
+	$id_cliente = intval($id_cliente);
+	if($id_cliente <= 0 || $clave_area == '')
+	{
+		return false;
+	}
+	$id_area = acceso_id_por_clave('area', $clave_area);
+	if($id_area <= 0)
+	{
+		return false;
+	}
+	if(function_exists('crm_vincular_cliente_area'))
+	{
+		crm_vincular_cliente_area($id_cliente, $id_area);
+	}
+	acceso_ejecutar("UPDATE cliente SET id_area_afectada=? WHERE id_cliente=? AND (id_area_afectada IS NULL OR id_area_afectada=0)", 'ii', array($id_area, $id_cliente));
+	return true;
 }
 
 function acceso_exigir_gestion($seccion)

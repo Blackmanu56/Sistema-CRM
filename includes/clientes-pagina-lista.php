@@ -13,6 +13,12 @@ $etq=acceso_etiquetas_area();
 $nombre_area=isset($etq[$area_cli]) ? $etq[$area_cli] : $area_cli;
 $nombres_cli=recepcion_areas_cliente();
 $bus=crm_clientes_buscar(array('area'=>$area_cli));
+$es_padron_tipo=($area_cli==='emprendedores' || $area_cli==='empresas');
+$txt_ayuda=$es_padron_tipo
+	? ($area_cli==='emprendedores'
+		? 'Padrón de emprendedores y clientes vinculados al área.'
+		: 'Padrón de empresas y clientes vinculados al área.')
+	: 'Clientes vinculados a esta área (atención, tarea o asignación).';
 ?>
 <!DOCTYPE html>
 <html>
@@ -43,8 +49,19 @@ $bus=crm_clientes_buscar(array('area'=>$area_cli));
                     <li><a href="#" class="active">Clientes</a></li>
                 </ul>
                 <?php include("menu-seccion.php"); ?>
-                <div class="page-title"><h3>Clientes</h3></div>
-                <p>Clientes de esta área. Buscá por nombre, DNI, CUIL/CUIT o localidad.</p>
+                <?php if(isset($_SESSION['msg_cliente_exito']) && $_SESSION['msg_cliente_exito']!='') { ?>
+                <div class="alert alert-success">
+                    <button class="close" data-dismiss="alert"></button>
+                    <i class="fa fa-check"></i> <?php echo texto_mostrar($_SESSION['msg_cliente_exito']); unset($_SESSION['msg_cliente_exito']); ?>
+                </div>
+                <?php } ?>
+                <div class="page-title" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                    <h3 style="margin:0;">Clientes</h3>
+                    <?php if(function_exists('acceso_puede_alta_cliente') && acceso_puede_alta_cliente($area_cli)) { ?>
+                    <a href="<?php echo url_crm($area_cli.'/alta-cliente.php'); ?>" class="btn btn-primary btn-cons" style="margin-bottom:0;"><i class="fa fa-plus"></i> Nuevo cliente</a>
+                    <?php } ?>
+                </div>
+                <p><?php echo texto_mostrar($txt_ayuda); ?> Buscá por nombre, DNI, CUIL/CUIT o localidad.</p>
                 <?php echo crm_html_busqueda_clientes(); ?>
                 <div class="row">
                     <div class="col-md-12">
@@ -57,6 +74,7 @@ $bus=crm_clientes_buscar(array('area'=>$area_cli));
                                         <tr>
                                             <th>#</th>
                                             <th>Nombre completo</th>
+                                            <th>Tipo</th>
                                             <th>Correo</th>
                                             <th>CUIL / CUIT</th>
                                             <th>DNI</th>
@@ -71,11 +89,14 @@ $bus=crm_clientes_buscar(array('area'=>$area_cli));
                                     $ret=$bus['lista'];
                                     $cnt=(($bus['pagina']-1)*$bus['limite'])+1;
                                     if(count($ret)==0) { ?>
-                                        <tr><td colspan="9">No hay resultados.</td></tr>
-                                    <?php } foreach($ret as $row) { ?>
+                                        <tr><td colspan="10">No hay resultados.</td></tr>
+                                    <?php } foreach($ret as $row) {
+                                    	$tipo_txt=isset($row['tipo_cliente']) ? cliente_tipo_normalizar($row['tipo_cliente']) : '';
+                                    ?>
                                         <tr>
                                             <td><?php echo $cnt;?></td>
                                             <td><?php echo texto_mostrar($row['name']);?></td>
+                                            <td><?php echo texto_mostrar($tipo_txt);?></td>
                                             <td><?php echo texto_mostrar($row['email']);?></td>
                                             <td><?php echo texto_mostrar($row['cuil_cuit']);?></td>
                                             <td><?php echo texto_mostrar(isset($row['dni']) ? $row['dni'] : '');?></td>

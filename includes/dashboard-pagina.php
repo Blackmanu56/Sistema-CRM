@@ -2,6 +2,7 @@
 // Dashboard útil por alcance: empleado / área / todo.
 // Resumen del día: turnos, tareas de hoy, vencidas, en proceso.
 require_once BASE_PATH.'/includes/informes.php';
+require_once BASE_PATH.'/includes/actividades.php';
 
 // Evitar pantalla en blanco: menu-seccion usa tareas_link.
 if(!function_exists('tareas_link'))
@@ -31,17 +32,28 @@ if(!function_exists('tareas_link'))
 $area_act=acceso_area_pantalla();
 if($area_act=='' || $area_act=='admin' || $area_act=='ajax')
 {
-	$area_act=acceso_area();
+	$area_act=function_exists('acceso_area_activa') ? acceso_area_activa() : acceso_area();
 }
 
 $alcance=crm_dashboard_alcance();
-// Coordinador general / presidencia / super: siempre vista global (no la carpeta "general").
-if(function_exists('acceso_es_coord_general') && (acceso_es_coord_general() || acceso_es_presidencia() || acceso_es_super() || acceso_es_general()))
+if(function_exists('acceso_es_empleado') && acceso_es_empleado())
 {
-	if($area_act!=='sistemas')
+	$alcance='empleado';
+}
+elseif(function_exists('acceso_es_coord_general') && (acceso_es_coord_general() || acceso_es_presidencia() || acceso_es_super() || acceso_es_general()))
+{
+	if($area_act==='general')
 	{
 		$alcance='todo';
 	}
+	else
+	{
+		$alcance='area';
+	}
+}
+else
+{
+	$alcance='area';
 }
 
 $etq=acceso_etiquetas_area();
@@ -58,14 +70,6 @@ foreach($etq as $k=>$t)
 
 if($area_act==='sistemas')
 {
-	if(function_exists('acceso_es_empleado') && acceso_es_empleado())
-	{
-		$alcance='empleado';
-	}
-	else
-	{
-		$alcance='area';
-	}
 	$filtro='sistemas';
 	$area_links='sistemas';
 }
@@ -75,7 +79,7 @@ else
 	$area_links=$area_act;
 	if($alcance==='todo' || !isset($areas_operativas[$area_links]))
 	{
-		$mia=acceso_area();
+		$mia=function_exists('acceso_area_activa') ? acceso_area_activa() : acceso_area();
 		if(isset($areas_operativas[$mia]))
 		{
 			$area_links=$mia;
@@ -108,12 +112,7 @@ else if($alcance=='todo')
 }
 else
 {
-	$filtro=isset($areas_operativas[$area_act]) ? $area_act : (isset($areas_operativas[acceso_area()]) ? acceso_area() : 'todas');
-	if($filtro==='todas')
-	{
-		// Coord de área sin área operativa válida: mejor mostrar todo a que nada.
-		$alcance='todo';
-	}
+	$filtro=$area_act;
 }
 
 $sin_db=(!isset($GLOBALS['con']) || !$GLOBALS['con']);
@@ -161,10 +160,10 @@ if(!$sin_db && acceso_tabla_existe('tarea'))
 			FROM tarea t
 			INNER JOIN area a ON a.id_area=t.id_area
 			INNER JOIN tarea_responsable tr ON tr.id_tarea=t.id_tarea AND tr.id_empleado=?
-			WHERE t.estado<>'cancelada'
+			WHERE t.estado<>'cancelada' AND a.clave=?
 			ORDER BY FIELD(t.estado,'en_proceso','no_iniciada','pausada','terminada'), t.fecha_cierre ASC",
-			'i',
-			array($id_yo)
+			'is',
+			array($id_yo, $area_act)
 		);
 		foreach($rows as $r)
 		{
@@ -279,13 +278,28 @@ if(!$sin_db && $id_yo>0 && function_exists('crm_avisos_extra_mios'))
 	if(count($avisos)>6) { $avisos=array_slice($avisos, 0, 6); }
 }
 
+// Actividades relacionadas del área activa
+$actividades_rel=array();
+if(!$sin_db && function_exists('crm_eventos_de_area') && $area_act!=='' && $area_act!=='general')
+{
+	$evs=crm_eventos_de_area($area_act);
+	foreach($evs as $ev)
+	{
+		if(function_exists('actividad_puede_ver') && actividad_puede_ver($ev))
+		{
+			$actividades_rel[]=$ev;
+			if(count($actividades_rel)>=6) { break; }
+		}
+	}
+}
+
 $n_hoy_tar=isset($tot_hv) && $tot_hv ? intval($tot_hv['hoy']) : count($tareas_hoy);
 $n_venc=isset($tot_hv) && $tot_hv ? intval($tot_hv['venc']) : count($tareas_vencidas);
 $n_proc=isset($cont['En proceso']) ? intval($cont['En proceso']) : count($tareas_proceso);
 $n_turnos=($area_act==='sistemas') ? 0 : count($turnos_hoy);
 
 $menu_activo='dashboard';
-$nombre_vista=($alcance=='todo') ? 'Todas las áreas' : (($alcance=='empleado') ? 'Mis actividades' : $titulo_area);
+$nombre_vista=($alcance=='todo') ? 'Todas las áreas' : $titulo_area;
 if($alcance==='todo' && $filtro!=='todas' && isset($areas_operativas[$filtro]))
 {
 	$nombre_vista=$areas_operativas[$filtro];
@@ -342,15 +356,45 @@ $bajas_pend=function_exists('crm_tarea_bajas_pendientes_mias') ? crm_tarea_bajas
                     <li><a href="#" class="active">Inicio</a></li>
                 </ul>
                 <?php if(file_exists('menu-seccion.php')) { include('menu-seccion.php'); } ?>
+                <?php if(isset($_SESSION['msg_cliente_exito']) && $_SESSION['msg_cliente_exito']!='') { ?>
+                <div class="alert alert-success">
+                    <button class="close" data-dismiss="alert"></button>
+                    <i class="fa fa-check"></i> <?php echo htmlspecialchars($_SESSION['msg_cliente_exito']); unset($_SESSION['msg_cliente_exito']); ?>
+                </div>
+                <?php } ?>
                 <div class="page-title">
                     <h3>Inicio · <?php echo htmlspecialchars($nombre_vista); ?></h3>
-                    <p class="muted" style="margin:0;">Hoy <?php echo date('d/m/Y'); ?> · lo que necesita atención ahora</p>
-                    <?php if($area_act==='recepcion') { ?>
-                    <p style="margin-top:10px;">
-                        <a class="btn btn-primary btn-cons" href="<?php echo url_crm('recepcion/alta-cliente.php'); ?>">Nuevo cliente</a>
-                        <a class="btn btn-primary btn-cons" href="<?php echo url_crm('recepcion/nueva-atencion.php'); ?>">Nuevo turno</a>
+                    <p class="muted" style="margin:0;">
+                        Hoy <?php echo date('d/m/Y'); ?> · 
+                        <?php if($alcance==='empleado') { ?>
+                        Panel de tareas y actividades asignadas al colaborador
+                        <?php } elseif(acceso_es_super() || acceso_es_coord_general()) { ?>
+                        Supervisión general del área activa
+                        <?php } else { ?>
+                        Panel de supervisión y gestión de coordinación
+                        <?php } ?>
                     </p>
-                    <?php } ?>
+                    <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+                        <?php if(function_exists('acceso_puede_alta_cliente') && acceso_puede_alta_cliente($area_act)) { ?>
+                        <a class="btn btn-white btn-cons" href="<?php echo url_crm($area_act.'/alta-cliente.php'); ?>"><i class="fa fa-user"></i> Nuevo cliente</a>
+                        <?php } ?>
+                        <?php if($area_act==='recepcion') { ?>
+                        <a class="btn btn-white btn-cons" href="<?php echo url_crm('recepcion/nueva-atencion.php'); ?>"><i class="fa fa-calendar-o"></i> Nuevo turno</a>
+                        <?php } elseif(function_exists('acceso_puede_alta_cliente') && acceso_puede_alta_cliente($area_act) && !in_array($area_act, array('rrhh','sistemas','general'), true)) { ?>
+                        <a class="btn btn-white btn-cons" href="<?php echo url_crm($area_act.'/nueva-atencion.php'); ?>"><i class="fa fa-calendar-o"></i> Nuevo turno</a>
+                        <?php } elseif($area_act==='rrhh' && !acceso_es_empleado()) { ?>
+                        <a class="btn btn-white btn-cons" href="<?php echo url_crm('rrhh/alta-usuario.php'); ?>"><i class="fa fa-user"></i> Alta de empleado</a>
+                        <a class="btn btn-white btn-cons" href="<?php echo url_crm('rrhh/empleados.php'); ?>"><i class="fa fa-users"></i> Empleados</a>
+                        <?php } elseif($area_act==='sistemas' && !acceso_es_empleado()) { ?>
+                        <a class="btn btn-white btn-cons" href="<?php echo url_crm('sistemas/dominios.php'); ?>"><i class="fa fa-globe"></i> Dominios</a>
+                        <a class="btn btn-white btn-cons" href="<?php echo url_crm('sistemas/programas.php'); ?>"><i class="fa fa-th-large"></i> Programas</a>
+                        <?php } ?>
+
+                        <a class="btn btn-white btn-cons" href="<?php echo url_crm($area_links.'/nueva-tarea.php'); ?>"><i class="fa fa-plus"></i> Nueva tarea</a>
+                        <?php if(function_exists('actividad_puede_crear') && actividad_puede_crear($area_act)) { ?>
+                        <a class="btn btn-white btn-cons" href="<?php echo url_crm($area_links.'/nueva-actividad.php'); ?>"><i class="fa fa-calendar-o"></i> Nueva actividad</a>
+                        <?php } ?>
+                    </div>
                 </div>
 
                 <?php if($sin_db) { ?>
@@ -478,6 +522,58 @@ $bajas_pend=function_exists('crm_tarea_bajas_pendientes_mias') ? crm_tarea_bajas
                         </div>
                     </div>
                 </div>
+
+                <?php if(count($actividades_rel)>0) { ?>
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="grid simple">
+                            <div class="grid-title" style="display: flex; align-items: center; justify-content: space-between;">
+                                <h4 style="margin: 0;"><i class="fa fa-calendar" style="color:#0090d9; margin-right:6px;"></i>Actividades vinculadas con <?php echo htmlspecialchars($nombre_vista); ?> (<?php echo count($actividades_rel); ?>)</h4>
+                                <div class="actions" style="margin-left: auto;">
+                                    <a class="btn btn-white btn-xs" style="height: auto !important; padding: 4px 10px !important; line-height: 1.4 !important; border: 1px solid #d5dbe0 !important; font-size: 11px !important; font-weight: 600 !important; color: #5e6871 !important; background: #fff !important; border-radius: 3px !important; display: inline-block !important;" href="<?php echo url_crm($area_act.'/actividades.php'); ?>">Ver todas</a>
+                                </div>
+                            </div>
+                            <div class="grid-body">
+                                <div class="table-responsive">
+                                    <table class="table table-hover table-condensed" style="margin-bottom:0;">
+                                        <thead>
+                                            <tr>
+                                                <th>Actividad</th>
+                                                <th>Fecha</th>
+                                                <th>Área organizadora</th>
+                                                <th>Tipo</th>
+                                                <th style="text-align:right;">Acción</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach($actividades_rel as $ev_rel) { 
+                                                $id_ev = intval($ev_rel['id_evento']);
+                                                $f_ev = !empty($ev_rel['fecha']) ? date('d/m/Y', strtotime($ev_rel['fecha'])) : 'Sin fecha';
+                                                $es_org = (isset($ev_rel['area_clave']) && $ev_rel['area_clave'] === $area_act);
+                                            ?>
+                                            <tr>
+                                                <td>
+                                                    <strong><a href="<?php echo url_crm($area_act.'/actividades.php?id='.$id_ev); ?>"><?php echo htmlspecialchars($ev_rel['titulo']); ?></a></strong>
+                                                    <?php if(!$es_org) { ?>
+                                                    <span class="badge badge-info" style="font-size:10px; margin-left:6px;">Participante</span>
+                                                    <?php } ?>
+                                                </td>
+                                                <td><?php echo htmlspecialchars($f_ev); ?></td>
+                                                <td><?php echo htmlspecialchars(isset($etq[$ev_rel['area_clave']]) ? $etq[$ev_rel['area_clave']] : (isset($ev_rel['area_nombre']) ? $ev_rel['area_nombre'] : $ev_rel['area_clave'])); ?></td>
+                                                <td><span class="label"><?php echo htmlspecialchars(ucfirst(isset($ev_rel['tipo']) ? $ev_rel['tipo'] : 'reunión')); ?></span></td>
+                                                <td style="text-align:right;">
+                                                    <a class="btn btn-white btn-xs" href="<?php echo url_crm($area_act.'/actividades.php?id='.$id_ev); ?>"><i class="fa fa-eye"></i> Ver</a>
+                                                </td>
+                                            </tr>
+                                            <?php } ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <?php } ?>
 
                 <?php if(count($bajas_pend)>0) { ?>
                 <div class="grid simple">

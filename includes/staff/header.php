@@ -6,7 +6,7 @@
           <div class="iconset top-menu-toggle-white"></div>
           </a> </li>
       </ul>
-      <a href="<?php echo url_crm('admin/home.php'); ?>" class="crm-brand-link">ADEMI</a>
+      <a href="<?php echo function_exists('crm_dashboard_destino') ? crm_dashboard_destino() : url_crm('admin/home.php'); ?>" class="crm-brand-link">ADEMI</a>
       <ul class="nav pull-right notifcation-center">
       </ul>
     </div>

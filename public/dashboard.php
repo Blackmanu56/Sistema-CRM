@@ -15,10 +15,16 @@ if(isset($_POST['inscribir_actividad']))
 	}
 }
 
+if(isset($_POST['cerrar_aviso']))
+{
+	crm_cliente_aviso_marcar_leido(intval($_POST['cerrar_aviso']));
+}
+
 $turnos=crm_cliente_mis_turnos();
 $proximas=array_slice(crm_cliente_actividades_proximas(), 0, 5);
 $recomendadas=crm_cliente_recomendaciones();
 $mis_prog=crm_cliente_mis_programas();
+$avisos=function_exists('crm_cliente_avisos_pendientes') ? crm_cliente_avisos_pendientes() : array();
 $nombre=isset($cta['nombre']) ? $cta['nombre'] : '';
 ?>
 <!DOCTYPE html>
@@ -64,6 +70,20 @@ $nombre=isset($cta['nombre']) ? $cta['nombre'] : '';
         </div>
 		<?php if($msg!='') { ?><div class="alert alert-success"><?php echo htmlspecialchars($msg); ?></div><?php } ?>
 		<?php if($err!='') { ?><div class="alert alert-warning"><?php echo htmlspecialchars($err); ?></div><?php } ?>
+
+		<?php foreach($avisos as $av) { ?>
+		<div class="alert alert-success" style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
+			<div>
+				<strong><?php echo htmlspecialchars($av['titulo']); ?></strong>
+				<?php if(trim(isset($av['detalle']) ? $av['detalle'] : '')!='') { ?>
+				<br><span><?php echo htmlspecialchars($av['detalle']); ?></span>
+				<?php } ?>
+			</div>
+			<form method="post" action="" style="margin:0; flex-shrink:0;">
+				<button type="submit" name="cerrar_aviso" value="<?php echo intval($av['id_aviso']); ?>" class="btn btn-xs btn-white">Entendido</button>
+			</form>
+		</div>
+		<?php } ?>
 
 		<?php if(count($recomendadas)>0) { ?>
 		<div class="crm-cli-card crm-cli-reco">

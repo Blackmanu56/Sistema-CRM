@@ -105,15 +105,63 @@ function tareas_datos_procesar_accion()
 
 function tareas_lista()
 {
-	return repo_tareas_listar(rrhh_id_area(), array(), tareas_rol(), repo_empleado_logueado());
+	// RRHH también opera recepción: listar ambas áreas.
+	$id_rrhh=rrhh_id_area();
+	$id_rec=acceso_id_por_clave('area', 'recepcion');
+	$rol=tareas_rol();
+	$yo=repo_empleado_logueado();
+	$a=repo_tareas_listar($id_rrhh, array(), $rol, $yo);
+	if($id_rec>0 && $id_rec!=$id_rrhh && (acceso_es_coord_rrhh() || acceso_es_general() || acceso_es_admin_tareas()))
+	{
+		$b=repo_tareas_listar($id_rec, array(), $rol, $yo);
+		$vistos=array();
+		$out=array();
+		foreach(array_merge($a, $b) as $t)
+		{
+			$id=isset($t['id']) ? intval($t['id']) : (isset($t['id_tarea']) ? intval($t['id_tarea']) : 0);
+			if($id>0 && isset($vistos[$id])) { continue; }
+			if($id>0) { $vistos[$id]=1; }
+			$out[]=$t;
+		}
+		return $out;
+	}
+	return $a;
 }
 function tareas_visibles() { return tareas_lista(); }
 function tareas_filtradas()
 {
 	$filtros=array();
 	foreach(array('mes','area','prioridad','tipo','responsable','estado','cliente') as $filtro) { if(isset($_GET[$filtro]) && $_GET[$filtro]!='') { $filtros[$filtro]=$_GET[$filtro]; } }
+	$id_rrhh=rrhh_id_area();
+	$id_rec=acceso_id_por_clave('area', 'recepcion');
+	$rol=tareas_rol();
+	$yo=repo_empleado_logueado();
+	$filtro_area=isset($filtros['area']) ? $filtros['area'] : '';
 	unset($filtros['area']);
-	return repo_tareas_listar(rrhh_id_area(), $filtros, tareas_rol(), repo_empleado_logueado());
+	if($filtro_area==='recepcion' || $filtro_area==='Recepción')
+	{
+		return repo_tareas_listar($id_rec, $filtros, $rol, $yo);
+	}
+	if($filtro_area!=='' && ($filtro_area==='rrhh' || $filtro_area==='Recursos humanos' || $filtro_area===acceso_etiqueta_corta_area('rrhh')))
+	{
+		return repo_tareas_listar($id_rrhh, $filtros, $rol, $yo);
+	}
+	$a=repo_tareas_listar($id_rrhh, $filtros, $rol, $yo);
+	if($id_rec>0 && $id_rec!=$id_rrhh && (acceso_es_coord_rrhh() || acceso_es_general() || acceso_es_admin_tareas()))
+	{
+		$b=repo_tareas_listar($id_rec, $filtros, $rol, $yo);
+		$vistos=array();
+		$out=array();
+		foreach(array_merge($a, $b) as $t)
+		{
+			$id=isset($t['id']) ? intval($t['id']) : (isset($t['id_tarea']) ? intval($t['id_tarea']) : 0);
+			if($id>0 && isset($vistos[$id])) { continue; }
+			if($id>0) { $vistos[$id]=1; }
+			$out[]=$t;
+		}
+		return $out;
+	}
+	return $a;
 }
 function tareas_contadores($lista=null) {
 	if(is_array($lista)) { return function_exists('crm_tareas_contar') ? crm_tareas_contar($lista) : repo_tareas_contadores(rrhh_id_area(), tareas_rol(), repo_empleado_logueado()); }

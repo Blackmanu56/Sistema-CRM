@@ -338,7 +338,18 @@ if(isset($_POST['guardar']))
                                 </div>
                                 <div class="form-group">
                                     <label>Condición fiscal</label>
-                                    <input type="text" name="condicion_fiscal" class="form-control" value="<?php echo htmlspecialchars(isset($empleado['condicion_fiscal']) ? $empleado['condicion_fiscal'] : ''); ?>"/>
+                                    <select name="condicion_fiscal" class="form-control">
+                                        <?php
+                                        $cf_ops=acceso_condiciones_fiscales();
+                                        $cf_sel=isset($empleado['condicion_fiscal']) ? trim((string)$empleado['condicion_fiscal']) : '';
+                                        if($cf_sel!=='' && !isset($cf_ops[$cf_sel]))
+                                        {
+                                            $cf_ops[$cf_sel]=$cf_sel;
+                                        }
+                                        foreach($cf_ops as $k=>$t) { ?>
+                                        <option value="<?php echo htmlspecialchars($k); ?>" <?php if($cf_sel===$k) echo 'selected'; ?>><?php echo htmlspecialchars($t); ?></option>
+                                        <?php } ?>
+                                    </select>
                                 </div>
                                 <div class="form-group">
                                     <label>Rol principal</label>

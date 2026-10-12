@@ -228,7 +228,14 @@ function valid()
                                 </div>
                                 <div class="form-group">
                                     <label>Condición fiscal</label>
-                                    <input type="text" name="condicion_fiscal" class="form-control" value="<?php echo htmlspecialchars(crm_campo('condicion_fiscal')); ?>" placeholder="Ej. Monotributo / Responsable inscripto"/>
+                                    <select name="condicion_fiscal" class="form-control">
+                                        <?php
+                                        $cf_ops=acceso_condiciones_fiscales();
+                                        $cf_sel=crm_campo('condicion_fiscal');
+                                        foreach($cf_ops as $k=>$t) { ?>
+                                        <option value="<?php echo htmlspecialchars($k); ?>" <?php if($cf_sel===$k) echo 'selected'; ?>><?php echo htmlspecialchars($t); ?></option>
+                                        <?php } ?>
+                                    </select>
                                 </div>
                                 <div class="form-actions">
                                     <a href="empleados.php" class="btn btn-white">Cancelar</a>

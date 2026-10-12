@@ -156,6 +156,7 @@ require_once BASE_PATH.'/includes/crm_tareas_flujo.php';
 require_once BASE_PATH.'/includes/crm_portal_cliente.php';
 require_once BASE_PATH.'/includes/crm_turnos_agenda.php';
 require_once BASE_PATH.'/includes/crm_busqueda.php';
+require_once BASE_PATH.'/includes/cliente_solicitudes.php';
 
 // Nunca ALTER/semillas en AJAX ni al crear una parte (camino caliente).
 $crm_script=str_replace('\\', '/', isset($_SERVER['SCRIPT_NAME']) ? $_SERVER['SCRIPT_NAME'] : '');
@@ -178,6 +179,10 @@ if(!$crm_es_ajax && !$crm_post_subtarea)
 	if(function_exists('crm_asegurar_area_flags'))
 	{
 		crm_asegurar_area_flags();
+	}
+	if(function_exists('crm_asegurar_cliente_solicitud'))
+	{
+		crm_asegurar_cliente_solicitud();
 	}
 }
 // No agregues acá un if por área. Cada pantalla incluye el datos-tareas.php de su carpeta.

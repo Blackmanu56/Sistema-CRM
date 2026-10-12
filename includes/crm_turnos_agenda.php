@@ -298,7 +298,7 @@ function crm_turno_validar_alta($area_clave, $fecha, $hora, $excepto_id=0)
 	return '';
 }
 
-function crm_atencion_iniciar_atencion($id_atencion)
+function crm_atencion_iniciar_atencion($id_atencion, $id_empleado=0)
 {
 	crm_asegurar_turno_agenda();
 	$id=intval($id_atencion);
@@ -320,10 +320,23 @@ function crm_atencion_iniciar_atencion($id_atencion)
 	{
 		return '';
 	}
-	acceso_ejecutar("UPDATE atencion SET estado='en_atencion', id_empleado=? WHERE id_atencion=?", 'ii', array(crm_id_empleado_sesion(), $id));
+	$id_emp = (intval($id_empleado) > 0) ? intval($id_empleado) : (intval($at['id_empleado']) > 0 ? intval($at['id_empleado']) : crm_id_empleado_sesion());
+	acceso_ejecutar("UPDATE atencion SET estado='en_atencion', id_empleado=? WHERE id_atencion=?", 'ii', array($id_emp > 0 ? $id_emp : null, $id));
 	if(function_exists('crm_avisos_atencion_cerrar_todos'))
 	{
 		crm_avisos_atencion_cerrar_todos($id);
+	}
+	if(function_exists('crm_atencion_seguimiento_agregar'))
+	{
+		crm_atencion_seguimiento_agregar(
+			$id,
+			intval($at['id_area']),
+			$id_emp > 0 ? $id_emp : crm_id_empleado_sesion(),
+			$at['estado'],
+			'en_atencion',
+			'inicio_atencion',
+			'Cliente presente · Atención iniciada'
+		);
 	}
 	return '';
 }
@@ -359,10 +372,22 @@ function crm_atencion_cancelar($id_atencion, $motivo='')
 	{
 		crm_avisos_atencion_cerrar_todos($id);
 	}
+	if(function_exists('crm_atencion_seguimiento_agregar'))
+	{
+		crm_atencion_seguimiento_agregar(
+			$id,
+			intval($at['id_area']),
+			crm_id_empleado_sesion(),
+			$at['estado'],
+			'cancelada',
+			'cancelacion',
+			'Atención o turno cancelado' . ($txt != '' ? '. Motivo: ' . $txt : '')
+		);
+	}
 	return '';
 }
 
-function crm_atencion_reprogramar($id_atencion, $fecha, $hora)
+function crm_atencion_reprogramar($id_atencion, $fecha, $hora, $motivo='')
 {
 	crm_asegurar_turno_agenda();
 	$id=intval($id_atencion);
@@ -390,13 +415,26 @@ function crm_atencion_reprogramar($id_atencion, $fecha, $hora)
 	$ft=crm_turno_armar_fecha($fecha, $hora);
 	$viejo=isset($at['detalle']) ? trim($at['detalle']) : '';
 	$antes=isset($at['fecha_turno']) && $at['fecha_turno']!='' ? crm_turno_fecha_texto($at['fecha_turno']) : '';
-	$paso='Reprogramado'.($antes!='' ? ' (antes '.$antes.')' : '');
+	$txt_mot=trim($motivo);
+	$paso='Reprogramado'.($antes!='' ? ' (antes '.$antes.')' : '').($txt_mot!='' ? ' - Motivo: '.$txt_mot : '');
 	$detalle=($viejo!='' ? $viejo.' | ' : '').$paso;
 	acceso_ejecutar(
 		"UPDATE atencion SET fecha_turno=?, estado='abierta', detalle=? WHERE id_atencion=?",
 		'ssi',
 		array($ft, $detalle, $id)
 	);
+	if(function_exists('crm_atencion_seguimiento_agregar'))
+	{
+		crm_atencion_seguimiento_agregar(
+			$id,
+			intval($at['id_area']),
+			crm_id_empleado_sesion(),
+			$at['estado'],
+			'abierta',
+			'reprogramacion',
+			'Turno reprogramado para ' . (function_exists('crm_turno_fecha_texto') ? crm_turno_fecha_texto($ft) : $ft) . ($antes != '' ? ' (anterior: ' . $antes . ')' : '') . ($txt_mot != '' ? '. Motivo: ' . $txt_mot : '')
+		);
+	}
 	return '';
 }
 

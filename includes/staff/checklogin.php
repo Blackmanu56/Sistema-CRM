@@ -13,5 +13,13 @@ function check_login($area=null)
 		header('Location: '.acceso_destino_area());
 		exit();
 	}
+	if($area!==null && $area!=='' && $area!=='admin' && function_exists('acceso_cambiar_area_activa'))
+	{
+		$act = function_exists('acceso_area_activa') ? acceso_area_activa() : (isset($_SESSION['area_activa']) ? $_SESSION['area_activa'] : '');
+		if($act !== $area && acceso_puede($area))
+		{
+			acceso_cambiar_area_activa($area);
+		}
+	}
 }
 ?>

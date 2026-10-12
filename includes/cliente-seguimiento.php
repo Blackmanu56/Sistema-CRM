@@ -42,15 +42,34 @@ $base_ficha='editar-cliente.php?id='.$id_seg;
                             <p class="muted">Sin atenciones registradas.</p>
                             <?php } foreach($turnos_seg as $at) {
                             	$ft=isset($at['fecha_turno']) && $at['fecha_turno']!='' ? $at['fecha_turno'] : (isset($at['fecha']) ? $at['fecha'] : '');
+                            	$es_der=(!empty($at['id_area_origen']) || !empty($at['area_origen_nombre']) || !empty($at['id_atencion_origen']) || $at['estado']=='derivada');
+                            	$origen_txt=!empty($at['area_origen_nombre']) ? $at['area_origen_nombre'] : 'Atención directa';
+                            	$dest_txt=isset($at['area_nombre']) ? $at['area_nombre'] : '';
+                            	$resp_txt=!empty($at['empleado_nombre']) ? $at['empleado_nombre'] : (!empty($at['empleado_origen_nombre']) ? $at['empleado_origen_nombre'] : 'Equipo del área');
+                            	$badge_cls=function_exists('crm_estado_badge_class') ? crm_estado_badge_class($at['estado']) : 'label-info';
+                            	$estado_txt=function_exists('crm_estado_texto') ? crm_estado_texto($at['estado'], $es_der) : $at['estado'];
                             ?>
-                            <div style="border:1px solid #eee; padding:10px; margin-bottom:10px;">
-                                <p style="margin-bottom:4px;"><strong><?php echo texto_mostrar(function_exists('crm_turno_fecha_texto') ? crm_turno_fecha_texto($ft) : $ft); ?></strong>
-                                    · <?php echo texto_mostrar(isset($at['area_nombre']) ? $at['area_nombre'] : ''); ?>
-                                    · <?php echo texto_mostrar(function_exists('crm_motivo_texto') ? crm_motivo_texto($at['motivo']) : $at['motivo']); ?>
-                                    · <?php echo texto_mostrar(isset($at['estado']) && function_exists('crm_estado_texto') ? crm_estado_texto($at['estado']) : ''); ?>
-                                    · <a href="atencion.php?id=<?php echo intval($at['id_atencion']); ?>">Abrir</a></p>
+                            <div style="border:1px solid #e2e8f0; background:#f8fafc; border-radius:5px; padding:12px 14px; margin-bottom:12px;">
+                                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px;">
+                                    <div>
+                                        <span class="badge <?php echo htmlspecialchars($badge_cls); ?>"><?php echo texto_mostrar($estado_txt); ?></span>
+                                        <strong style="margin-left:6px; color:#0f172a;"><?php echo texto_mostrar(function_exists('crm_turno_fecha_texto') ? crm_turno_fecha_texto($ft) : $ft); ?></strong>
+                                        <span style="color:#64748b; font-size:12px;"> · Motivo: <strong><?php echo texto_mostrar(function_exists('crm_motivo_texto') ? crm_motivo_texto($at['motivo']) : $at['motivo']); ?></strong></span>
+                                    </div>
+                                    <a href="atencion.php?id=<?php echo intval($at['id_atencion']); ?>" class="btn btn-white btn-xs" style="font-weight:600;"><i class="fa fa-folder-open-o"></i> Ver detalle</a>
+                                </div>
+                                <div style="font-size:12.5px; color:#334155; margin-bottom:4px;">
+                                    <?php if($es_der && !empty($at['area_origen_nombre'])) { ?>
+                                    <span><i class="fa fa-share text-info"></i> Derivado desde: <strong><?php echo texto_mostrar($origen_txt); ?></strong> hacia <strong><?php echo texto_mostrar($dest_txt); ?></strong></span>
+                                    <?php } else { ?>
+                                    <span>Área: <strong><?php echo texto_mostrar($dest_txt); ?></strong></span>
+                                    <?php } ?>
+                                    <span style="color:#64748b; margin-left:8px;">· Responsable: <?php echo texto_mostrar($resp_txt); ?></span>
+                                </div>
                                 <?php if(isset($at['detalle']) && trim($at['detalle'])!='') { ?>
-                                <p class="muted" style="margin:0;"><?php echo texto_mostrar($at['detalle']); ?></p>
+                                <div style="background:#fff; border:1px solid #edf2f7; border-radius:4px; padding:6px 10px; margin-top:6px; font-size:12px; color:#475569;">
+                                    <strong>Observaciones / resultado:</strong> <?php echo nl2br(texto_mostrar($at['detalle'])); ?>
+                                </div>
                                 <?php } ?>
                             </div>
                             <?php } ?>

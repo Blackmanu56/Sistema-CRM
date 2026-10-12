@@ -47,6 +47,8 @@ tmp/
 temp/
 *.bak
 *.backup
+sql/backup_*.sql
+*backup*.sql
 *.swp
 *.swo
 *~

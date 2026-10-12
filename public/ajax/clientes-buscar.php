@@ -35,6 +35,34 @@ $lim=isset($_GET['limit']) ? intval($_GET['limit']) : 20;
 if($lim<5) { $lim=5; }
 if($lim>40) { $lim=40; }
 $solo_org=(isset($_GET['organismos']) && strval($_GET['organismos'])==='1');
+$exacto=(isset($_GET['exacto']) && strval($_GET['exacto'])==='1');
+
+if($exacto && $q!=='' && function_exists('cliente_buscar_por_identificador'))
+{
+	$cli_ex = cliente_buscar_por_identificador($q);
+	if($cli_ex)
+	{
+		$id_c = intval($cli_ex['id_cliente']);
+		echo json_encode(array(
+			'ok'=>true,
+			'total'=>1,
+			'lista'=>array(
+				array(
+					'id'=>$id_c,
+					'nombre'=>isset($cli_ex['nombre']) ? $cli_ex['nombre'] : '',
+					'email'=>isset($cli_ex['correo']) ? $cli_ex['correo'] : '',
+					'localidad'=>isset($cli_ex['localidad_nombre']) ? $cli_ex['localidad_nombre'] : '',
+					'cuil_cuit'=>isset($cli_ex['cuil_cuit']) ? $cli_ex['cuil_cuit'] : '',
+					'dni'=>isset($cli_ex['dni']) ? $cli_ex['dni'] : '',
+					'telefono'=>isset($cli_ex['telefono']) ? $cli_ex['telefono'] : '',
+					'tipo'=>isset($cli_ex['tipo_cliente']) ? $cli_ex['tipo_cliente'] : '',
+					'areas'=>function_exists('crm_nombres_areas_cliente') ? crm_nombres_areas_cliente($id_c) : ''
+				)
+			)
+		), JSON_UNESCAPED_UNICODE);
+		exit();
+	}
+}
 
 // Búsqueda rápida si hay texto; si no, lista corta
 if($q!=='' && function_exists('crm_clientes_buscar_rapido'))
@@ -67,14 +95,17 @@ foreach($bus['lista'] as $cli)
 	{
 		continue;
 	}
+	$id_c=intval($cli['id']);
 	$lista[]=array(
-		'id'=>intval($cli['id']),
+		'id'=>$id_c,
 		'nombre'=>isset($cli['name']) ? $cli['name'] : (isset($cli['nombre']) ? $cli['nombre'] : ''),
 		'email'=>isset($cli['email']) ? $cli['email'] : '',
 		'localidad'=>isset($cli['localidad']) ? $cli['localidad'] : '',
 		'cuil_cuit'=>isset($cli['cuil_cuit']) ? $cli['cuil_cuit'] : '',
 		'dni'=>isset($cli['dni']) ? $cli['dni'] : '',
-		'tipo'=>$tipo
+		'telefono'=>isset($cli['mobile']) ? $cli['mobile'] : (isset($cli['telefono']) ? $cli['telefono'] : ''),
+		'tipo'=>$tipo,
+		'areas'=>function_exists('crm_nombres_areas_cliente') ? crm_nombres_areas_cliente($id_c) : ''
 	);
 }
 
