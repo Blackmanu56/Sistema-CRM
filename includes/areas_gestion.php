@@ -299,7 +299,7 @@ function crm_area_quitar_coordinador($id_area, $confirmar=false)
 /**
  * Crea una nueva área y opcionalmente le asigna un coordinador.
  */
-function crm_area_crear($nombre, $clave, $id_coord=0, $conf_mov=false, $atiende_clientes=1, $asignable_empleado=1)
+function crm_area_crear($nombre, $clave, $id_coord=0, $conf_mov=false, $atiende_clientes=1, $asignable_empleado=1, $puede_clientes=null, $recibe_derivaciones=null, $recibe_turnos=null)
 {
 	global $con;
 	$nombre=trim((string)$nombre);
@@ -309,6 +309,13 @@ function crm_area_crear($nombre, $clave, $id_coord=0, $conf_mov=false, $atiende_
 	$id_coord=intval($id_coord);
 	$atiende_clientes=intval($atiende_clientes) ? 1 : 0;
 	$asignable_empleado=intval($asignable_empleado) ? 1 : 0;
+	// Capacidades independientes. Si no vienen explícitas (llamadas viejas),
+	// heredan el comportamiento anterior de atiende_clientes.
+	$puede_clientes      = ($puede_clientes===null)      ? $atiende_clientes : (intval($puede_clientes) ? 1 : 0);
+	$recibe_derivaciones = ($recibe_derivaciones===null) ? $atiende_clientes : (intval($recibe_derivaciones) ? 1 : 0);
+	$recibe_turnos       = ($recibe_turnos===null)       ? $atiende_clientes : (intval($recibe_turnos) ? 1 : 0);
+	// atiende_clientes queda como resumen legacy (compatibilidad).
+	$atiende_clientes = ($puede_clientes || $recibe_derivaciones || $recibe_turnos) ? 1 : 0;
 	if(function_exists('crm_asegurar_area_flags'))
 	{
 		crm_asegurar_area_flags();
@@ -371,6 +378,9 @@ function crm_area_crear($nombre, $clave, $id_coord=0, $conf_mov=false, $atiende_
 					'clave'=>$clave,
 					'id_coordinador'=>$id_coord,
 					'atiende_clientes'=>$atiende_clientes,
+					'puede_clientes'=>$puede_clientes,
+					'recibe_derivaciones'=>$recibe_derivaciones,
+					'recibe_turnos'=>$recibe_turnos,
 					'asignable_empleado'=>$asignable_empleado,
 					'emp_nombre'=>$emp['nombre_completo'],
 					'area_origen'=>$emp['area_nombre'],
@@ -392,9 +402,9 @@ function crm_area_crear($nombre, $clave, $id_coord=0, $conf_mov=false, $atiende_
 
 	try {
 		$id_nueva = acceso_insertar(
-			"INSERT INTO area (clave, nombre, activo, atiende_clientes, asignable_empleado) VALUES (?,?,1,?,?)",
-			'ssii',
-			array($clave, $nombre, $atiende_clientes, $asignable_empleado)
+			"INSERT INTO area (clave, nombre, activo, atiende_clientes, puede_clientes, recibe_derivaciones, recibe_turnos, asignable_empleado) VALUES (?,?,1,?,?,?,?,?)",
+			'ssiiiii',
+			array($clave, $nombre, $atiende_clientes, $puede_clientes, $recibe_derivaciones, $recibe_turnos, $asignable_empleado)
 		);
 		if($id_nueva<=0)
 		{
@@ -461,6 +471,7 @@ function crm_area_asegurar_modulo($clave, $nombre, $id_area)
 	{
 		$archivos = array(
 			'actividades.php',
+			'alta-cliente.php',
 			'atencion.php',
 			'atenciones.php',
 			'clientes.php',
@@ -470,7 +481,9 @@ function crm_area_asegurar_modulo($clave, $nombre, $id_area)
 			'editar-tarea.php',
 			'menu-seccion.php',
 			'nueva-actividad.php',
+			'nueva-atencion.php',
 			'nueva-tarea.php',
+			'nuevo-turno.php',
 			'tareas.php',
 			'ver-tarea.php'
 		);

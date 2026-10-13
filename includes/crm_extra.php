@@ -249,6 +249,45 @@ function crm_empleados_de_area_id($id_area)
 	return $salida;
 }
 
+// ¿Este colaborador está autorizado para trabajar en este área?
+// Reutiliza crm_empleados_de_area_id(), que ya cubre el área principal del
+// empleado y sus roles adicionales vigentes (empleado_rol_adicional.fecha_hasta IS NULL),
+// siempre con empleado activo y sin contar superadmins.
+function crm_colaborador_del_area($id_area, $id_empleado)
+{
+	$id_area = intval($id_area);
+	$id_emp = intval($id_empleado);
+	if($id_area <= 0 || $id_emp <= 0)
+	{
+		return false;
+	}
+	foreach(crm_empleados_de_area_id($id_area) as $emp)
+	{
+		if(intval($emp['id_empleado']) === $id_emp)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+// Variante para una atención (array que devuelve crm_atencion_traer()).
+// $id_empleado <= 0 siempre pasa: es "sin asignar" / "desasignar".
+function crm_atencion_empleado_autorizado($at, $id_empleado)
+{
+	$id_emp = intval($id_empleado);
+	if($id_emp <= 0)
+	{
+		return true;
+	}
+	if(!$at)
+	{
+		return false;
+	}
+	$id_area = isset($at['id_area']) ? intval($at['id_area']) : 0;
+	return crm_colaborador_del_area($id_area, $id_emp);
+}
+
 function crm_personal_sin_super()
 {
 	return acceso_consulta(
@@ -751,6 +790,12 @@ function crm_atencion_asignar_empleado($id_atencion, $id_empleado, $motivo='')
 		{
 			return 'El colaborador seleccionado no existe.';
 		}
+		// El colaborador debe pertenecer al área de la atención (área principal
+		// o rol adicional vigente). Así un POST directo no asigna a gente de otra área.
+		if(!crm_atencion_empleado_autorizado($at, $id_emp))
+		{
+			return 'Ese colaborador no pertenece al área de esta atención.';
+		}
 		$emp_nom = trim($row_e['nom']);
 		acceso_ejecutar("UPDATE atencion SET id_empleado=? WHERE id_atencion=?", 'ii', array($id_emp, $id));
 		$obs = 'Colaborador asignado: ' . $emp_nom . ($motivo != '' ? ' (' . $motivo . ')' : '');
@@ -888,8 +933,8 @@ function crm_atencion_derivar($id_atencion, $area_destino, $detalle='', &$id_nue
 	{
 		return 'Esa atención ya está en esa área.';
 	}
-	$dest=acceso_consulta_una("SELECT nombre, clave, atiende_clientes FROM area WHERE id_area=? AND activo=1 LIMIT 1", 'i', array($id_dest));
-	if(!$dest || intval($dest['atiende_clientes'])!=1)
+	$dest=acceso_consulta_una("SELECT nombre, clave, recibe_derivaciones FROM area WHERE id_area=? AND activo=1 LIMIT 1", 'i', array($id_dest));
+	if(!$dest || intval($dest['recibe_derivaciones'])!=1)
 	{
 		return 'Esa área no admite derivaciones de clientes.';
 	}
@@ -998,10 +1043,10 @@ function crm_cliente_derivar($id_cliente, $area_destino, $motivo='consulta', $de
 	{
 		return 'El área de destino no puede ser la misma área activa.';
 	}
-	$dest = acceso_consulta_una("SELECT nombre, clave, atiende_clientes FROM area WHERE id_area=? AND activo=1 LIMIT 1", 'i', array($id_dest));
-	if(!$dest || intval($dest['atiende_clientes']) != 1)
+	$dest = acceso_consulta_una("SELECT nombre, clave, recibe_derivaciones FROM area WHERE id_area=? AND activo=1 LIMIT 1", 'i', array($id_dest));
+	if(!$dest || intval($dest['recibe_derivaciones']) != 1)
 	{
-		return 'El área de destino no atiende clientes.';
+		return 'El área de destino no admite derivaciones de clientes.';
 	}
 	$nombre_dest = $dest['nombre'];
 	$origen = acceso_consulta_una("SELECT nombre, clave FROM area WHERE id_area=? LIMIT 1", 'i', array($id_area_act));

@@ -70,7 +70,7 @@ $lista=crm_atenciones_listado($area_cli, array(
                 <?php include("menu-seccion.php"); ?>
                 <div class="page-title">
                     <h3>Atenciones y Derivaciones<?php if($area_cli=='recepcion' && isset($_GET['fecha']) && $_GET['fecha']=='hoy') { echo ' de hoy'; } ?></h3>
-                    <?php if(acceso_puede_alta_cliente($area_cli) || $area_cli==='recepcion' || $area_cli==='superadmin' || $area_cli==='administracion') { ?>
+                    <?php if((acceso_puede_alta_cliente($area_cli) || $area_cli==='recepcion' || $area_cli==='superadmin' || $area_cli==='administracion') && area_capacidad($area_cli, 'recibe_turnos')) { ?>
                     <a href="nueva-atencion.php" class="btn btn-primary btn-cons pull-right"><i class="fa fa-calendar-plus-o"></i> Nuevo turno / atención</a>
                     <?php } ?>
                 </div>

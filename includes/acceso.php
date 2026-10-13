@@ -217,6 +217,25 @@ function crm_asegurar_area_flags()
 	{
 		@mysqli_query($con, "ALTER TABLE area ADD COLUMN asignable_empleado TINYINT(1) NOT NULL DEFAULT 1 AFTER atiende_clientes");
 	}
+	// v3: capacidades independientes (clientes / derivaciones / turnos).
+	// Si hay que crearlas, se arrancan desde atiende_clientes para no perder
+	// el funcionamiento anterior; después cada fila se configura por separado.
+	$cols_nuevas=array();
+	if(!isset($cols['puede_clientes']))
+	{
+		@mysqli_query($con, "ALTER TABLE area ADD COLUMN puede_clientes TINYINT(1) NOT NULL DEFAULT 0 AFTER atiende_clientes");
+		$cols_nuevas[]='puede_clientes';
+	}
+	if(!isset($cols['recibe_derivaciones']))
+	{
+		@mysqli_query($con, "ALTER TABLE area ADD COLUMN recibe_derivaciones TINYINT(1) NOT NULL DEFAULT 0 AFTER puede_clientes");
+		$cols_nuevas[]='recibe_derivaciones';
+	}
+	if(!isset($cols['recibe_turnos']))
+	{
+		@mysqli_query($con, "ALTER TABLE area ADD COLUMN recibe_turnos TINYINT(1) NOT NULL DEFAULT 0 AFTER recibe_derivaciones");
+		$cols_nuevas[]='recibe_turnos';
+	}
 	// Semilla única: según módulo público real + áreas de dirección (sin carpeta operativa de clientes).
 	$base=defined('BASE_PATH') ? BASE_PATH.'/public' : '';
 	$filas=acceso_consulta("SELECT id_area, clave FROM area");
@@ -236,6 +255,11 @@ function crm_asegurar_area_flags()
 			array($atiende, $asignable, intval($a['id_area']))
 		);
 		unset($tiene_mod); // reservado por si se amplía el criterio
+	}
+	// Backfill de las capacidades recién creadas (solo la primera vez).
+	foreach($cols_nuevas as $cn)
+	{
+		@mysqli_query($con, "UPDATE area SET {$cn}=atiende_clientes WHERE {$cn}=0 AND atiende_clientes=1");
 	}
 	crm_schema_marcar('area_flags_v1');
 	$listo=true;
@@ -319,7 +343,7 @@ function recepcion_areas_cliente()
 {
 	crm_asegurar_area_flags();
 	$salida=array();
-	$filas=acceso_consulta("SELECT clave, nombre FROM area WHERE activo=1 AND atiende_clientes=1 ORDER BY nombre");
+	$filas=acceso_consulta("SELECT clave, nombre FROM area WHERE activo=1 AND recibe_turnos=1 ORDER BY nombre");
 	foreach($filas as $a)
 	{
 		// Recepción agenda/deriva hacia otras áreas; no se lista a sí misma como destino.
@@ -340,7 +364,7 @@ function crm_areas_destino_derivacion($area_origen = '')
 		$area_origen = function_exists('acceso_area_activa') ? acceso_area_activa() : (function_exists('acceso_area') ? acceso_area() : '');
 	}
 	$salida = array();
-	$filas = acceso_consulta("SELECT clave, nombre FROM area WHERE activo=1 AND atiende_clientes=1 ORDER BY nombre");
+	$filas = acceso_consulta("SELECT clave, nombre FROM area WHERE activo=1 AND recibe_derivaciones=1 ORDER BY nombre");
 	foreach($filas as $a)
 	{
 		if($a['clave'] === $area_origen)
@@ -355,6 +379,42 @@ function crm_areas_destino_derivacion($area_origen = '')
 function clientes_asegurar_columnas()
 {
 	// Ya no se toca la tabla vieja "user". Los clientes van en cliente / usuario_cliente.
+}
+
+/**
+ * Capacidad puntual de un área (columnas v3 de la tabla area).
+ * $cap: 'puede_clientes' | 'recibe_derivaciones' | 'recibe_turnos'
+ * Devuelve 1 o 0.
+ */
+function area_capacidad($clave, $cap)
+{
+	static $permitidas=null;
+	if($permitidas===null)
+	{
+		$permitidas=array('puede_clientes','recibe_derivaciones','recibe_turnos');
+	}
+	crm_asegurar_area_flags();
+	$clave=trim((string)$clave);
+	if($clave==='' || !in_array($cap, $permitidas, true))
+	{
+		return 0;
+	}
+	$row=acceso_consulta_una(
+		"SELECT {$cap} AS v FROM area WHERE clave=? AND activo=1 LIMIT 1",
+		's',
+		array($clave)
+	);
+	return ($row && intval($row['v'])===1) ? 1 : 0;
+}
+
+// Nombre histórico: ¿el área recibe turnos/atenciones? (ahora respeta la columna propia).
+function acceso_area_atiende_clientes($clave='')
+{
+	if($clave==='')
+	{
+		$clave=function_exists('acceso_area_pantalla') ? acceso_area_pantalla() : '';
+	}
+	return area_capacidad($clave, 'recibe_turnos');
 }
 
 // Clientes para relacionarlos a una tarea (limitado; preferir ajax/clientes-buscar.php).
@@ -3720,11 +3780,11 @@ function acceso_puede_clientes_de_area($area='')
 	}
 	crm_asegurar_area_flags();
 	$row=acceso_consulta_una(
-		"SELECT atiende_clientes FROM area WHERE clave=? AND activo=1 LIMIT 1",
+		"SELECT puede_clientes FROM area WHERE clave=? AND activo=1 LIMIT 1",
 		's',
 		array($area)
 	);
-	if(!$row || intval($row['atiende_clientes'])!==1)
+	if(!$row || intval($row['puede_clientes'])!==1)
 	{
 		return false;
 	}
@@ -3743,14 +3803,14 @@ function crm_columna_existe($tabla, $columna)
 }
 
 // Permisos para dar de alta clientes en un área operativa.
-// Sistemas, RRHH y Presidencia están expresamente excluidas.
+// Presidencia, Coordinación general y Admin quedan expresamente excluidas.
 function acceso_puede_alta_cliente($area='')
 {
 	if($area=='')
 	{
 		$area=function_exists('acceso_area_activa') ? acceso_area_activa() : (function_exists('acceso_area_pantalla') ? acceso_area_pantalla() : acceso_area());
 	}
-	if($area==='' || $area==='sistemas' || $area==='rrhh' || $area==='presidencia' || $area==='general' || $area==='admin')
+	if($area==='' || $area==='presidencia' || $area==='general' || $area==='admin')
 	{
 		return false;
 	}
@@ -3764,11 +3824,11 @@ function acceso_puede_alta_cliente($area='')
 	}
 	crm_asegurar_area_flags();
 	$row=acceso_consulta_una(
-		"SELECT atiende_clientes FROM area WHERE clave=? AND activo=1 LIMIT 1",
+		"SELECT puede_clientes FROM area WHERE clave=? AND activo=1 LIMIT 1",
 		's',
 		array($area)
 	);
-	if(!$row || intval($row['atiende_clientes'])!==1)
+	if(!$row || intval($row['puede_clientes'])!==1)
 	{
 		return false;
 	}

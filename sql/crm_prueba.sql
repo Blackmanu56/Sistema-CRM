@@ -34,6 +34,9 @@ CREATE TABLE area (
   nombre               VARCHAR(80)  NOT NULL,
   activo               TINYINT(1) NOT NULL DEFAULT 1,
   atiende_clientes     TINYINT(1) NOT NULL DEFAULT 0,
+  puede_clientes       TINYINT(1) NOT NULL DEFAULT 0,
+  recibe_derivaciones  TINYINT(1) NOT NULL DEFAULT 0,
+  recibe_turnos        TINYINT(1) NOT NULL DEFAULT 0,
   asignable_empleado   TINYINT(1) NOT NULL DEFAULT 1,
   creado_en            TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT uq_area_clave UNIQUE (clave)
@@ -553,19 +556,23 @@ INSERT INTO rol (clave, nombre) VALUES
   ('presidencia', 'Presidencia'),
   ('admin_tareas', 'Administración de tareas');
 
--- Orden alfabético por nombre. Solo Administración como área nueva (sin Analista).
-INSERT INTO area (clave, nombre, atiende_clientes, asignable_empleado) VALUES
-  ('administracion', 'Administración',         0, 1),
-  ('comercio',       'Comercio exterior',      1, 1),
-  ('general',        'Coordinación general',   0, 0),
-  ('emprendedores',  'Emprendedores',          1, 1),
-  ('empresas',       'Empresas',               1, 1),
-  ('marketing',      'Marketing',              1, 1),
-  ('presidencia',    'Presidencia',            0, 0),
-  ('recepcion',      'Recepción',              1, 1),
-  ('rrhh',           'Recursos humanos',       0, 1),
-  ('sistemas',       'Sistemas',               0, 1),
-  ('vinculaciones',  'Vinculación académica',  1, 1);
+-- Orden alfabético por nombre. Solo Administración como área nueva (sin Analista;
+-- si el área existe, la migración v3 le aplica sus capacidades).
+-- Capacidades v3 con la configuración vigente de la base:
+--   puede_clientes / recibe_derivaciones / recibe_turnos
+-- atiende_clientes queda como resumen legacy (OR de las tres), como en producción.
+INSERT INTO area (clave, nombre, atiende_clientes, puede_clientes, recibe_derivaciones, recibe_turnos, asignable_empleado) VALUES
+  ('administracion', 'Administración',         1, 1, 1, 1, 1),
+  ('comercio',       'Comercio exterior',      1, 1, 1, 1, 1),
+  ('general',        'Coordinación general',   0, 0, 0, 0, 0),
+  ('emprendedores',  'Emprendedores',          1, 1, 1, 1, 1),
+  ('empresas',       'Empresas',               1, 1, 1, 1, 1),
+  ('marketing',      'Marketing',              1, 1, 1, 1, 1),
+  ('presidencia',    'Presidencia',            0, 0, 0, 0, 0),
+  ('recepcion',      'Recepción',              1, 1, 1, 1, 1),
+  ('rrhh',           'Recursos humanos',       1, 1, 1, 1, 1),
+  ('sistemas',       'Sistemas',               1, 1, 0, 0, 1),
+  ('vinculaciones',  'Vinculación académica',  1, 1, 1, 1, 1);
 
 INSERT INTO tipo_tarea (id_area, nombre)
 SELECT id_area, 'General' FROM area WHERE clave NOT IN ('presidencia');

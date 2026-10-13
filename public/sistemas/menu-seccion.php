@@ -6,6 +6,9 @@ if(!isset($menu_activo)) { $menu_activo='tareas'; }
  <div class="crm-menu-seccion">
 	<a href="<?php echo url_crm('sistemas/tareas.php'); ?>" class="btn <?php echo ($menu_activo=='tareas' ? 'btn-primary' : 'btn-white'); ?>">Tareas</a>
 	<a href="<?php echo url_crm('sistemas/actividades.php'); ?>" class="btn <?php echo ($menu_activo=='Actividades' ? 'btn-primary' : 'btn-white'); ?>">Actividades</a>
+	<?php if(acceso_puede_clientes_de_area('sistemas')) { ?>
+	<a href="<?php echo url_crm('sistemas/clientes.php'); ?>" class="btn <?php echo ($menu_activo=='clientes' ? 'btn-primary' : 'btn-white'); ?>">Clientes</a>
+	<?php } ?>
 	<a href="<?php echo url_crm('sistemas/dominios.php'); ?>" class="btn <?php echo ($menu_activo=='dominios' ? 'btn-primary' : 'btn-white'); ?>">Dominios</a>
 	<?php if(crm_puede_gestionar_programas()) { ?>
 	<a href="<?php echo url_crm('sistemas/programas.php'); ?>" class="btn <?php echo ($menu_activo=='programas' ? 'btn-primary' : 'btn-white'); ?>">Programas</a>

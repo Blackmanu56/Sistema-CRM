@@ -4,8 +4,18 @@ $area_cli = acceso_area_pantalla();
 $etq = acceso_etiquetas_area();
 $nombre_area = isset($etq[$area_cli]) ? $etq[$area_cli] : $area_cli;
 
-// Validar permisos del área actual
-$atiende_ext = function_exists('acceso_area_atiende_clientes') ? acceso_area_atiende_clientes($area_cli) : true;
+// Validar permisos del área actual.
+// 1) Crear turnos requiere la capacidad 'recibe_turnos' del área:
+//    tener clientes habilitados NO activa turnos por sí solo.
+$atiende_ext = function_exists('acceso_area_atiende_clientes') ? acceso_area_atiende_clientes($area_cli) : 1;
+if(!$atiende_ext && !acceso_es_super() && !acceso_es_coord_general())
+{
+	// El área no admite turnos: volvemos a la home de la sección. Ojo:
+	// no todas las áreas tienen 'atenciones.php', por eso no redirigimos ahí.
+	header('Location: tareas.php');
+	exit();
+}
+// 2) Habilitación general del módulo de clientes/área.
 if(!acceso_puede_clientes_de_area($area_cli) && !crm_area_ve_todo($area_cli) && !acceso_puede($area_cli))
 {
 	header('Location: '.acceso_destino_login());
@@ -67,6 +77,16 @@ if(isset($_POST['guardar_atencion']))
 	if($area_form === '' || !isset($areas_disp[$area_form]))
 	{
 		$errores[] = 'Seleccioná un área válida para el turno o atención.';
+	}
+	else if($id_empleado_asig > 0 && function_exists('crm_colaborador_del_area'))
+	{
+		// El colaborador que va a atender debe pertenecer al área destino.
+		// Sin esto, un POST directo asigna a cualquiera de la organización.
+		$id_area_form = acceso_id_por_clave('area', $area_form);
+		if(!crm_colaborador_del_area($id_area_form, $id_empleado_asig))
+		{
+			$errores[] = 'Ese colaborador no pertenece al área seleccionada.';
+		}
 	}
 
 	$datos_alta = array(
@@ -321,6 +341,12 @@ $url_ajax_horarios = url_crm('ajax/turnos-horarios.php');
                                 <div class="col-sm-6">
                                     <div class="form-group">
                                         <label style="font-weight:600;"><i class="fa fa-user-circle-o"></i> Colaborador responsable</label>
+                                        <?php if(empty($colaboradores_disp)) { ?>
+                                        <input type="hidden" name="id_empleado" value="">
+                                        <div style="background:#fffbeb; border:1px solid #fcd34d; border-radius:6px; padding:8px 12px; font-size:12px; color:#92400e;">
+                                            <i class="fa fa-info-circle"></i> Esta área no tiene colaboradores activos. El turno queda <strong>sin asignar</strong> y se coordina después desde Atenciones.
+                                        </div>
+                                        <?php } else { ?>
                                         <select name="id_empleado" id="id_empleado" class="form-control">
                                             <option value="">(Sin asignar / Por asignar en el área)</option>
                                             <?php foreach($colaboradores_disp as $emp) {
@@ -333,6 +359,7 @@ $url_ajax_horarios = url_crm('ajax/turnos-horarios.php');
                                             <?php } ?>
                                         </select>
                                         <p class="muted" style="margin-top:4px; font-size:11.5px;">Podés preasignar un colaborador del equipo o dejarlo para coordinar.</p>
+                                        <?php } ?>
                                     </div>
                                 </div>
                             </div>

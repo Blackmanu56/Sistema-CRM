@@ -16,10 +16,14 @@ if(isset($_POST['alta_area']))
 	$clave = isset($_POST['clave']) ? trim($_POST['clave']) : '';
 	$id_coord = isset($_POST['id_coordinador']) ? intval($_POST['id_coordinador']) : 0;
 	$conf_mov = (isset($_POST['confirmar_movimiento']) && $_POST['confirmar_movimiento']==='1');
-	$atiende = isset($_POST['atiende_clientes']) ? (intval($_POST['atiende_clientes']) ? 1 : 0) : 0;
+	$cap_clientes = isset($_POST['puede_clientes']) ? (intval($_POST['puede_clientes']) ? 1 : 0) : 0;
+	$cap_deriv = isset($_POST['recibe_derivaciones']) ? (intval($_POST['recibe_derivaciones']) ? 1 : 0) : 0;
+	$cap_turnos = isset($_POST['recibe_turnos']) ? (intval($_POST['recibe_turnos']) ? 1 : 0) : 0;
 	$asignable = isset($_POST['asignable_empleado']) ? (intval($_POST['asignable_empleado']) ? 1 : 0) : 1;
+	// Legacy: solo como resumen para llamadas viejas que no mandan las capacidades.
+	$atiende = ($cap_clientes || $cap_deriv || $cap_turnos) ? 1 : 0;
 
-	$res = crm_area_crear($nombre, $clave, $id_coord, $conf_mov, $atiende, $asignable);
+	$res = crm_area_crear($nombre, $clave, $id_coord, $conf_mov, $atiende, $asignable, $cap_clientes, $cap_deriv, $cap_turnos);
 	if(!$res['ok'] && isset($res['requiere_confirmacion']) && $res['requiere_confirmacion'])
 	{
 		$confirmacion_pendiente = $res['datos_confirmacion'];
@@ -112,18 +116,30 @@ if(isset($_POST['toggle_flag_area']))
 	$id = isset($_POST['id_area']) ? intval($_POST['id_area']) : 0;
 	$flag = isset($_POST['flag']) ? trim($_POST['flag']) : '';
 	$val = isset($_POST['valor']) ? intval($_POST['valor']) : 0;
-	if($id > 0 && in_array($flag, array('atiende_clientes', 'asignable_empleado'), true))
+	if($id > 0 && in_array($flag, array('puede_clientes', 'recibe_derivaciones', 'recibe_turnos', 'asignable_empleado'), true))
 	{
 		if(function_exists('crm_asegurar_area_flags')) { crm_asegurar_area_flags(); }
 		acceso_ejecutar("UPDATE area SET {$flag}=? WHERE id_area=?", 'ii', array($val ? 0 : 1, $id));
-		$_SESSION['msgsis'] = 'Flag del área actualizado.';
+		// atiende_clientes queda como resumen legacy: se recalcula con las tres capacidades.
+		acceso_ejecutar(
+			"UPDATE area SET atiende_clientes = IF(puede_clientes=1 OR recibe_derivaciones=1 OR recibe_turnos=1, 1, 0) WHERE id_area=?",
+			'i',
+			array($id)
+		);
+		$etq_flag = array(
+			'puede_clientes' => 'Gestión de clientes',
+			'recibe_derivaciones' => 'Recepción de derivaciones',
+			'recibe_turnos' => 'Recepción de turnos',
+			'asignable_empleado' => 'Asignable en el alta'
+		);
+		$_SESSION['msgsis'] = (isset($etq_flag[$flag]) ? $etq_flag[$flag] : 'Capacidad') . ($val ? ' habilitada.' : ' deshabilitada.');
 	}
 	echo "<script>window.location.href='areas.php'</script>";
 	exit();
 }
 
 if(function_exists('crm_asegurar_area_flags')) { crm_asegurar_area_flags(); }
-$areas = acceso_consulta("SELECT id_area, clave, nombre, activo, atiende_clientes, asignable_empleado, creado_en FROM area ORDER BY nombre");
+$areas = acceso_consulta("SELECT id_area, clave, nombre, activo, atiende_clientes, puede_clientes, recibe_derivaciones, recibe_turnos, asignable_empleado, creado_en FROM area ORDER BY nombre");
 ?>
 <!DOCTYPE html>
 <html>
@@ -216,7 +232,9 @@ $areas = acceso_consulta("SELECT id_area, clave, nombre, activo, atiende_cliente
             <input type="hidden" name="nombre" value="<?php echo htmlspecialchars($confirmacion_pendiente['nombre']); ?>">
             <input type="hidden" name="clave" value="<?php echo htmlspecialchars($confirmacion_pendiente['clave']); ?>">
             <input type="hidden" name="id_coordinador" value="<?php echo intval($confirmacion_pendiente['id_coordinador']); ?>">
-            <input type="hidden" name="atiende_clientes" value="<?php echo intval(isset($confirmacion_pendiente['atiende_clientes']) ? $confirmacion_pendiente['atiende_clientes'] : 0); ?>">
+            <input type="hidden" name="puede_clientes" value="<?php echo intval(isset($confirmacion_pendiente['puede_clientes']) ? $confirmacion_pendiente['puede_clientes'] : 0); ?>">
+            <input type="hidden" name="recibe_derivaciones" value="<?php echo intval(isset($confirmacion_pendiente['recibe_derivaciones']) ? $confirmacion_pendiente['recibe_derivaciones'] : 0); ?>">
+            <input type="hidden" name="recibe_turnos" value="<?php echo intval(isset($confirmacion_pendiente['recibe_turnos']) ? $confirmacion_pendiente['recibe_turnos'] : 0); ?>">
             <input type="hidden" name="asignable_empleado" value="<?php echo intval(isset($confirmacion_pendiente['asignable_empleado']) ? $confirmacion_pendiente['asignable_empleado'] : 1); ?>">
             <input type="hidden" name="confirmar_movimiento" value="1">
             <button type="submit" name="alta_area" value="1" class="btn btn-primary"><i class="fa fa-check"></i> Confirmar y crear área</button>
@@ -305,9 +323,12 @@ $areas = acceso_consulta("SELECT id_area, clave, nombre, activo, atiende_cliente
               <p class="muted">Solo minúsculas, números y guión bajo. Debe coincidir con la carpeta pública si la van a usar.</p>
             </div>
             <div class="form-group">
-              <label class="checkbox"><input type="checkbox" name="atiende_clientes" value="1" checked> Atiende clientes / recibe derivaciones</label>
+              <label><strong>Capacidades del área</strong></label>
+              <label class="checkbox"><input type="checkbox" name="puede_clientes" value="1" checked> Habilitar gestión de clientes</label>
+              <label class="checkbox"><input type="checkbox" name="recibe_derivaciones" value="1" checked> Permitir recibir derivaciones</label>
+              <label class="checkbox"><input type="checkbox" name="recibe_turnos" value="1" checked> Permitir recibir turnos</label>
               <label class="checkbox"><input type="checkbox" name="asignable_empleado" value="1" checked> Se puede asignar a colaboradores en el alta</label>
-              <p class="muted">Estos flags se guardan en la BD y reemplazan listas fijas de áreas.</p>
+              <p class="muted">Son independientes: habilitar clientes NO activa por sí solo las derivaciones ni los turnos.</p>
             </div>
             
             <div class="form-group" style="margin-top:15px;">
@@ -339,6 +360,8 @@ $areas = acceso_consulta("SELECT id_area, clave, nombre, activo, atiende_cliente
                 <th>Nombre</th>
                 <th>Coordinador actual</th>
                 <th>Clientes</th>
+                <th>Derivaciones</th>
+                <th>Turnos</th>
                 <th>Asignable</th>
                 <th>Estado</th>
                 <th>Acciones</th>
@@ -347,8 +370,15 @@ $areas = acceso_consulta("SELECT id_area, clave, nombre, activo, atiende_cliente
             <tbody>
             <?php foreach($areas as $a) { 
               $coord = crm_area_coordinador_activo($a['id_area']);
-              $atiende_a = isset($a['atiende_clientes']) ? intval($a['atiende_clientes']) : 0;
+              $cli_a = isset($a['puede_clientes']) ? intval($a['puede_clientes']) : 0;
+              $der_a = isset($a['recibe_derivaciones']) ? intval($a['recibe_derivaciones']) : 0;
+              $tur_a = isset($a['recibe_turnos']) ? intval($a['recibe_turnos']) : 0;
               $asig_a = isset($a['asignable_empleado']) ? intval($a['asignable_empleado']) : 1;
+              $caps_a = array(
+                array('puede_clientes', $cli_a, 'Habilitar gestión de clientes'),
+                array('recibe_derivaciones', $der_a, 'Permitir recibir derivaciones'),
+                array('recibe_turnos', $tur_a, 'Permitir recibir turnos')
+              );
             ?>
               <tr>
                 <td><code><?php echo htmlspecialchars($a['clave']); ?></code></td>
@@ -365,14 +395,16 @@ $areas = acceso_consulta("SELECT id_area, clave, nombre, activo, atiende_cliente
                   <?php } ?>
                 </td>
                 <td>
-                  <form method="post" style="display:inline;">
+                  <?php foreach($caps_a as $capc) { ?>
+                  <form method="post" style="display:inline; margin-right:4px;">
                     <input type="hidden" name="id_area" value="<?php echo intval($a['id_area']); ?>">
-                    <input type="hidden" name="flag" value="atiende_clientes">
-                    <input type="hidden" name="valor" value="<?php echo $atiende_a; ?>">
-                    <button type="submit" name="toggle_flag_area" value="1" class="btn btn-xs <?php echo $atiende_a ? 'btn-success' : 'btn-white'; ?>" title="Recibe atenciones/derivaciones">
-                      <?php echo $atiende_a ? 'Sí' : 'No'; ?>
+                    <input type="hidden" name="flag" value="<?php echo $capc[0]; ?>">
+                    <input type="hidden" name="valor" value="<?php echo intval($capc[1]); ?>">
+                    <button type="submit" name="toggle_flag_area" value="1" class="btn btn-xs <?php echo $capc[1] ? 'btn-success' : 'btn-white'; ?>" title="<?php echo htmlspecialchars($capc[2]); ?>">
+                      <?php echo $capc[1] ? 'Sí' : 'No'; ?>
                     </button>
                   </form>
+                  <?php } ?>
                 </td>
                 <td>
                   <form method="post" style="display:inline;">

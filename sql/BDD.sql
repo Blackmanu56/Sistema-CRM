@@ -238,6 +238,34 @@ BEGIN
     ALTER TABLE `area` ADD COLUMN `asignable_empleado` TINYINT(1) NOT NULL DEFAULT 1 AFTER `atiende_clientes`;
   END IF;
 
+  -- D2. Area: capacidades independientes (v3)
+  -- Cuando la columna recién se crea se rellena desde atiende_clientes, así una
+  -- base existente conserva su comportamiento sin pasos manuales. El relleno vive
+  -- DENTRO del IF: si la columna ya existe, no se ejecuta y no pisa configuraciones.
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'area' AND COLUMN_NAME = 'puede_clientes'
+  ) THEN
+    ALTER TABLE `area` ADD COLUMN `puede_clientes` TINYINT(1) NOT NULL DEFAULT 0 AFTER `atiende_clientes`;
+    UPDATE `area` SET `puede_clientes` = `atiende_clientes` WHERE `puede_clientes` = 0;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'area' AND COLUMN_NAME = 'recibe_derivaciones'
+  ) THEN
+    ALTER TABLE `area` ADD COLUMN `recibe_derivaciones` TINYINT(1) NOT NULL DEFAULT 0 AFTER `puede_clientes`;
+    UPDATE `area` SET `recibe_derivaciones` = `atiende_clientes` WHERE `recibe_derivaciones` = 0;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'area' AND COLUMN_NAME = 'recibe_turnos'
+  ) THEN
+    ALTER TABLE `area` ADD COLUMN `recibe_turnos` TINYINT(1) NOT NULL DEFAULT 0 AFTER `recibe_derivaciones`;
+    UPDATE `area` SET `recibe_turnos` = `atiende_clientes` WHERE `recibe_turnos` = 0;
+  END IF;
+
   -- E. Tarea: estado cancelada
   ALTER TABLE `tarea` MODIFY `estado` ENUM('no_iniciada','en_proceso','pausada','terminada','cancelada') NOT NULL DEFAULT 'no_iniciada';
 

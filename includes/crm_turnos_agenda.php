@@ -320,7 +320,15 @@ function crm_atencion_iniciar_atencion($id_atencion, $id_empleado=0)
 	{
 		return '';
 	}
-	$id_emp = (intval($id_empleado) > 0) ? intval($id_empleado) : (intval($at['id_empleado']) > 0 ? intval($at['id_empleado']) : crm_id_empleado_sesion());
+	// Si el colaborador viene indicado explícitamente (POST), debe pertenecer al
+	// área del turno. Los fallbacks ($at['id_empleado'] o el de la sesión) se
+	// respetan como hasta ahora para no romper el inicio normal de atención.
+	$id_emp_explicito = intval($id_empleado) > 0;
+	$id_emp = ($id_emp_explicito) ? intval($id_empleado) : (intval($at['id_empleado']) > 0 ? intval($at['id_empleado']) : crm_id_empleado_sesion());
+	if($id_emp_explicito && function_exists('crm_atencion_empleado_autorizado') && !crm_atencion_empleado_autorizado($at, $id_emp))
+	{
+		return 'Ese colaborador no pertenece al área de este turno.';
+	}
 	acceso_ejecutar("UPDATE atencion SET estado='en_atencion', id_empleado=? WHERE id_atencion=?", 'ii', array($id_emp > 0 ? $id_emp : null, $id));
 	if(function_exists('crm_avisos_atencion_cerrar_todos'))
 	{

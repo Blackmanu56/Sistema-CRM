@@ -311,6 +311,10 @@ $historial_seguimiento=function_exists('crm_atencion_seguimiento_historial') ? c
                                         <i class="fa fa-check"></i> Asignar
                                     </button>
                                 </form>
+                                <?php } else if($puede && !$cancelado && !$derivado && empty($empleados_area)) { ?>
+                                <p style="margin-top:6px; margin-bottom:10px; background:#fffbeb; border:1px solid #fcd34d; border-radius:6px; padding:8px 12px; font-size:12px; color:#92400e;">
+                                    <i class="fa fa-info-circle"></i> Esta área no tiene colaboradores activos: no hay personal para asignar a esta atención.
+                                </p>
                                 <?php } ?>
                                 <p><strong>Fecha del turno:</strong> <?php
                                     $ft=isset($at['fecha_turno']) && $at['fecha_turno']!='' ? $at['fecha_turno'] : $at['fecha'];
@@ -410,6 +414,10 @@ $historial_seguimiento=function_exists('crm_atencion_seguimiento_historial') ? c
                                             <?php } ?>
                                         </select>
                                     </div>
+                                    <?php } else if(empty($at['id_empleado']) && empty($empleados_area)) { ?>
+                                    <p style="margin-bottom:8px; background:#fffbeb; border:1px solid #fcd34d; border-radius:6px; padding:8px 12px; font-size:12px; color:#92400e;">
+                                        <i class="fa fa-info-circle"></i> Esta área no tiene colaboradores activos: no hay personal para asignar.
+                                    </p>
                                     <?php } ?>
                                     <button type="submit" name="iniciar_atencion" value="1" class="btn btn-success"><i class="fa fa-play"></i> Cliente presente · Atender</button>
                                 </form>
