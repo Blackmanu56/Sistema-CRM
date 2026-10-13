@@ -257,8 +257,8 @@
       <li class="<?php echo in_array($crm_cur_script, array('atenciones.php','nueva-atencion.php','atencion.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm('recepcion/atenciones.php'); ?>"><span class="fa fa-clock-o"></span>&nbsp;&nbsp;Atenciones</a></li>
       <li class="<?php echo in_array($crm_cur_script, array('clientes.php','alta-cliente.php','editar-cliente.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm('recepcion/clientes.php'); ?>"><span class="fa fa-users"></span>&nbsp;&nbsp;Clientes</a></li>
       <?php } elseif($left_area_act === 'rrhh' && acceso_puede_gestionar('rrhh')) { ?>
-      <li class="<?php echo in_array($crm_cur_script, array('empleados.php','editar-empleado.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm('rrhh/empleados.php'); ?>"><span class="fa fa-users"></span>&nbsp;&nbsp;Empleados</a></li>
-      <li class="<?php echo ($crm_cur_script === 'alta-usuario.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('rrhh/alta-usuario.php'); ?>"><span class="fa fa-user"></span>&nbsp;&nbsp;Alta de empleado</a></li>
+      <li class="<?php echo in_array($crm_cur_script, array('empleados.php','editar-empleado.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm('rrhh/empleados.php'); ?>"><span class="fa fa-users"></span>&nbsp;&nbsp;Colaboradores</a></li>
+      <li class="<?php echo ($crm_cur_script === 'alta-usuario.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('rrhh/alta-usuario.php'); ?>"><span class="fa fa-user"></span>&nbsp;&nbsp;Alta de colaborador</a></li>
       <?php } elseif($left_area_act === 'sistemas') { ?>
       <li class="<?php echo ($crm_cur_script === 'dominios.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('sistemas/dominios.php'); ?>"><span class="fa fa-globe"></span>&nbsp;&nbsp;Dominios</a></li>
       <?php if(acceso_puede_gestionar('sistemas')) { ?>

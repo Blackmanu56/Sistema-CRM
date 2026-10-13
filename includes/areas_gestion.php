@@ -118,7 +118,7 @@ function crm_area_validar_y_asignar_coordinador($id_area, $id_coord, $conf_mov=f
 
 	if($id_coord<=0)
 	{
-		return array('ok'=>false, 'error'=>'Seleccioná un empleado para asignar como coordinador.');
+		return array('ok'=>false, 'error'=>'Seleccioná un colaborador para asignar como coordinador.');
 	}
 
 	$emp = acceso_consulta_una("
@@ -134,7 +134,7 @@ function crm_area_validar_y_asignar_coordinador($id_area, $id_coord, $conf_mov=f
 
 	if(!$emp)
 	{
-		return array('ok'=>false, 'error'=>'El empleado seleccionado no existe o ya no trabaja en la agencia.');
+		return array('ok'=>false, 'error'=>'El colaborador seleccionado no existe o ya no trabaja en la agencia.');
 	}
 
 	if(in_array($emp['rol_clave'], array('superadmin', 'coordinador_general'), true))
@@ -222,7 +222,7 @@ function crm_area_validar_y_asignar_coordinador($id_area, $id_coord, $conf_mov=f
 		{
 			mysqli_commit($con);
 		}
-		$msg = "Coordinador asignado correctamente a {$area['nombre']}." . ($reemplaza ? " ({$coord_actual['nombre_completo']} quedó como empleado en esa área)." : '') . " El cambio se verá cuando el empleado vuelva a iniciar sesión.";
+		$msg = "Coordinador asignado correctamente a {$area['nombre']}." . ($reemplaza ? " ({$coord_actual['nombre_completo']} quedó como colaborador en esa área)." : '') . " El cambio se verá cuando el colaborador vuelva a iniciar sesión.";
 		return array('ok'=>true, 'msg'=>$msg);
 	} catch(\Throwable $e) {
 		if($abrio_tx)
@@ -285,7 +285,7 @@ function crm_area_quitar_coordinador($id_area, $confirmar=false)
 		{
 			mysqli_commit($con);
 		}
-		$msg = "Se quitó al coordinador de {$area['nombre']}. {$coord_actual['nombre_completo']} quedó como empleado común en esa área. El cambio se verá cuando el empleado vuelva a iniciar sesión.";
+		$msg = "Se quitó al coordinador de {$area['nombre']}. {$coord_actual['nombre_completo']} quedó como colaborador común en esa área. El cambio se verá cuando el colaborador vuelva a iniciar sesión.";
 		return array('ok'=>true, 'msg'=>$msg);
 	} catch(\Throwable $e) {
 		if($abrio_tx)
@@ -339,7 +339,7 @@ function crm_area_crear($nombre, $clave, $id_coord=0, $conf_mov=false, $atiende_
 
 		if(!$emp)
 		{
-			return array('ok'=>false, 'error'=>'El empleado seleccionado no existe o ya no trabaja en la agencia.');
+			return array('ok'=>false, 'error'=>'El colaborador seleccionado no existe o ya no trabaja en la agencia.');
 		}
 		if(in_array($emp['rol_clave'], array('superadmin', 'coordinador_general'), true))
 		{
@@ -419,7 +419,7 @@ function crm_area_crear($nombre, $clave, $id_coord=0, $conf_mov=false, $atiende_
 			mysqli_commit($con);
 		}
 		crm_area_asegurar_modulo($clave, $nombre, $id_nueva);
-		$msg = 'Área creada correctamente' . ($id_coord > 0 ? ' con su coordinador asignado. El cambio se verá cuando el empleado vuelva a iniciar sesión.' : '.');
+		$msg = 'Área creada correctamente' . ($id_coord > 0 ? ' con su coordinador asignado. El cambio se verá cuando el colaborador vuelva a iniciar sesión.' : '.');
 		return array('ok'=>true, 'msg'=>$msg, 'id_area'=>$id_nueva);
 	} catch(\Throwable $e) {
 		if($abrio_tx)

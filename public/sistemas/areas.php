@@ -197,7 +197,7 @@ $areas = acceso_consulta("SELECT id_area, clave, nombre, activo, atiende_cliente
           
           <?php if(!empty($confirmacion_pendiente['es_unico'])) { ?>
           <div class="aviso-unico">
-            <i class="fa fa-warning"></i> ¡ATENCIÓN! <strong><?php echo htmlspecialchars($confirmacion_pendiente['emp_nombre']); ?></strong> es el ÚNICO empleado de <strong><?php echo htmlspecialchars($confirmacion_pendiente['area_origen']); ?></strong>. Si lo movés, esa área quedará completamente vacía (sin empleados).
+            <i class="fa fa-warning"></i> ¡ATENCIÓN! <strong><?php echo htmlspecialchars($confirmacion_pendiente['emp_nombre']); ?></strong> es el ÚNICO colaborador de <strong><?php echo htmlspecialchars($confirmacion_pendiente['area_origen']); ?></strong>. Si lo movés, esa área quedará completamente vacía (sin colaboradores).
           </div>
           <?php } ?>
 
@@ -235,14 +235,14 @@ $areas = acceso_consulta("SELECT id_area, clave, nombre, activo, atiende_cliente
           
           <?php if(!empty($confirmacion_pendiente['es_unico'])) { ?>
           <div class="aviso-unico">
-            <i class="fa fa-warning"></i> ¡ATENCIÓN! <strong><?php echo htmlspecialchars($confirmacion_pendiente['emp_nombre']); ?></strong> es el ÚNICO empleado de <strong><?php echo htmlspecialchars($confirmacion_pendiente['area_origen']); ?></strong>. Si lo movés, esa área quedará completamente vacía (sin empleados).
+            <i class="fa fa-warning"></i> ¡ATENCIÓN! <strong><?php echo htmlspecialchars($confirmacion_pendiente['emp_nombre']); ?></strong> es el ÚNICO colaborador de <strong><?php echo htmlspecialchars($confirmacion_pendiente['area_origen']); ?></strong>. Si lo movés, esa área quedará completamente vacía (sin colaboradores).
           </div>
           <?php } ?>
 
           <?php if($confirmacion_pendiente['reemplaza']) { ?>
           <div class="aviso-reemplazo">
             <p><strong><i class="fa fa-user-times"></i> Reemplazo de coordinador:</strong> El área ya tiene como coordinador activo a <strong><?php echo htmlspecialchars($confirmacion_pendiente['coord_anterior']); ?></strong>.</p>
-            <p>Al confirmar, <strong><?php echo htmlspecialchars($confirmacion_pendiente['coord_anterior']); ?></strong> pasará a ser empleado común en esa área, sin borrarlo del sistema.</p>
+            <p>Al confirmar, <strong><?php echo htmlspecialchars($confirmacion_pendiente['coord_anterior']); ?></strong> pasará a ser colaborador común en esa área, sin borrarlo del sistema.</p>
           </div>
           <?php } ?>
 
@@ -279,7 +279,7 @@ $areas = acceso_consulta("SELECT id_area, clave, nombre, activo, atiende_cliente
         <div class="grid-body no-border">
           <p>¿Estás seguro de que querés quitar a <strong><?php echo htmlspecialchars($confirmacion_pendiente['coord_nombre']); ?></strong> como coordinador de <strong><?php echo htmlspecialchars($confirmacion_pendiente['area_nombre']); ?></strong>?</p>
           <div class="aviso-reemplazo">
-            <p><strong><i class="fa fa-info-circle"></i> Resultado:</strong> El área quedará sin coordinador asignado. <strong><?php echo htmlspecialchars($confirmacion_pendiente['coord_nombre']); ?></strong> quedará como empleado común en <strong><?php echo htmlspecialchars($confirmacion_pendiente['area_nombre']); ?></strong>, sin borrarse del sistema.</p>
+            <p><strong><i class="fa fa-info-circle"></i> Resultado:</strong> El área quedará sin coordinador asignado. <strong><?php echo htmlspecialchars($confirmacion_pendiente['coord_nombre']); ?></strong> quedará como colaborador común en <strong><?php echo htmlspecialchars($confirmacion_pendiente['area_nombre']); ?></strong>, sin borrarse del sistema.</p>
           </div>
           <form method="post">
             <input type="hidden" name="id_area" value="<?php echo intval($confirmacion_pendiente['id_area']); ?>">
@@ -306,13 +306,13 @@ $areas = acceso_consulta("SELECT id_area, clave, nombre, activo, atiende_cliente
             </div>
             <div class="form-group">
               <label class="checkbox"><input type="checkbox" name="atiende_clientes" value="1" checked> Atiende clientes / recibe derivaciones</label>
-              <label class="checkbox"><input type="checkbox" name="asignable_empleado" value="1" checked> Se puede asignar a empleados en el alta</label>
+              <label class="checkbox"><input type="checkbox" name="asignable_empleado" value="1" checked> Se puede asignar a colaboradores en el alta</label>
               <p class="muted">Estos flags se guardan en la BD y reemplazan listas fijas de áreas.</p>
             </div>
             
             <div class="form-group" style="margin-top:15px;">
               <label><strong>Coordinador de área (opcional)</strong></label>
-              <p class="muted">Buscá un empleado como se buscan los clientes. Dejá vacío para asignar después.</p>
+              <p class="muted">Buscá un colaborador como se buscan los clientes. Dejá vacío para asignar después.</p>
               <?php echo crm_html_picker_empleado(array(
               	'input_id'=>'buscar_coord_alta',
               	'hidden_id'=>'id_coord_alta',
@@ -379,7 +379,7 @@ $areas = acceso_consulta("SELECT id_area, clave, nombre, activo, atiende_cliente
                     <input type="hidden" name="id_area" value="<?php echo intval($a['id_area']); ?>">
                     <input type="hidden" name="flag" value="asignable_empleado">
                     <input type="hidden" name="valor" value="<?php echo $asig_a; ?>">
-                    <button type="submit" name="toggle_flag_area" value="1" class="btn btn-xs <?php echo $asig_a ? 'btn-success' : 'btn-white'; ?>" title="Visible al dar de alta empleados">
+                    <button type="submit" name="toggle_flag_area" value="1" class="btn btn-xs <?php echo $asig_a ? 'btn-success' : 'btn-white'; ?>" title="Visible al dar de alta colaboradores">
                       <?php echo $asig_a ? 'Sí' : 'No'; ?>
                     </button>
                   </form>
@@ -470,7 +470,7 @@ $areas = acceso_consulta("SELECT id_area, clave, nombre, activo, atiende_cliente
           <input type="hidden" name="id_area" id="modal_id_area" value="0">
           
           <div class="form-group">
-            <label>Seleccionar empleado existente</label>
+            <label>Seleccionar colaborador existente</label>
             <?php echo crm_html_picker_empleado(array(
             	'input_id'=>'buscar_coord_modal',
             	'hidden_id'=>'modal_id_coordinador',
@@ -545,7 +545,7 @@ $areas = acceso_consulta("SELECT id_area, clave, nombre, activo, atiende_cliente
   if(formModal) {
     formModal.onsubmit = function() {
       var id = parseInt(document.getElementById('modal_id_coordinador').value || '0', 10);
-      if(!id) { window.alert('Elegí un empleado de la búsqueda.'); return false; }
+      if(!id) { window.alert('Elegí un colaborador de la búsqueda.'); return false; }
       return true;
     };
   }

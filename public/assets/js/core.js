@@ -286,14 +286,16 @@ $(document).ready(function () {
 
     //***********************************BEGIN Layout Readjust *****************************		
 
-    $(window).setBreakpoints({
-        distinct: true,
-        breakpoints: [
-        320,
-        480,
-        768,
-        1024]
-    });
+    if ($.fn.setBreakpoints) {
+        $(window).setBreakpoints({
+            distinct: true,
+            breakpoints: [
+            320,
+            480,
+            768,
+            1024]
+        });
+    }
     //Break point entry 
     $(window).bind('enterBreakpoint320', function () {
         $('#main-menu-toggle-wrapper').show();

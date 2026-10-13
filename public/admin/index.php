@@ -40,7 +40,7 @@ if($err=='' && isset($_SESSION['errmsg']) && $_SESSION['errmsg']!='')
   <div class="crm-auth-card">
     <div class="crm-auth-brand">ADEMI</div>
     <h1 class="crm-auth-title">INGRESO DEL PERSONAL</h1>
-    <p class="crm-auth-sub">Para el equipo de ADEMI (empleados y coordinación).</p>
+    <p class="crm-auth-sub">Para el equipo de ADEMI (colaboradores y coordinación).</p>
     <?php if($err!='') { ?>
     <div class="alert alert-danger"><?php echo htmlspecialchars(ltrim($err, '*')); ?></div>
     <?php } ?>

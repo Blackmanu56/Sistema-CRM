@@ -1382,7 +1382,7 @@ function acceso_roles_catalogo()
 			'superadmin'=>'Superadmin',
 			'coordinador_general'=>'Coordinador general',
 			'coordinador'=>'Coordinador de área',
-			'empleado'=>'Empleado',
+			'empleado'=>'Colaborador',
 			'presidencia'=>'Presidencia'
 		);
 	}
@@ -1393,7 +1393,7 @@ function acceso_roles_para_alta()
 {
 	// Alta RRHH: los 4 roles base. Permisos/extras adicionales los administra Sistemas.
 	return array(
-		'empleado'=>'Empleado',
+		'empleado'=>'Colaborador',
 		'coordinador'=>'Coordinador de área',
 		'presidencia'=>'Presidencia',
 		'coordinador_general'=>'Coordinador general'
@@ -1405,7 +1405,7 @@ function acceso_roles_extras_permitidos()
 	// Extras: otra área (empleado/coord) o sumar Coordinador general.
 	// Presidencia es exclusiva: nunca como rol adicional.
 	$roles=array(
-		'empleado'=>'Empleado',
+		'empleado'=>'Colaborador',
 		'coordinador'=>'Coordinador de área',
 		'coordinador_general'=>'Coordinador general'
 	);
@@ -1437,7 +1437,7 @@ function acceso_validar_rol_area($rol, $area, $id_empleado=0)
 	}
 	if($area==='')
 	{
-		return 'Indicá el área para empleado o coordinador de área.';
+		return 'Indicá el área para colaborador o coordinador de área.';
 	}
 	if($area==='presidencia' || $area==='general')
 	{
@@ -1470,6 +1470,14 @@ function acceso_id_por_clave($tabla, $clave)
 	}
 	$row=mysqli_fetch_assoc($q);
 	return $row ? intval($row['id']) : 0;
+}
+
+if(!function_exists('crm_area_id'))
+{
+	function crm_area_id($clave)
+	{
+		return acceso_id_por_clave('area', $clave);
+	}
 }
 
 function acceso_clave_por_id($tabla, $id)
@@ -3363,7 +3371,11 @@ function acceso_empleado_por_usuario($usuario)
 	{
 		return null;
 	}
-	return acceso_fila_a_persona(mysqli_fetch_assoc($q));
+	$row=mysqli_fetch_assoc($q);
+	$persona=acceso_fila_a_persona($row);
+	$persona['primer_acceso']=isset($row['primer_acceso']) ? intval($row['primer_acceso']) : 0;
+	$persona['roles_adicionales']=acceso_cargar_roles_adicionales($persona['id']);
+	return $persona;
 }
 
 function acceso_empleado_por_id($id)
@@ -3379,7 +3391,11 @@ function acceso_empleado_por_id($id)
 	{
 		return null;
 	}
-	return acceso_fila_a_persona(mysqli_fetch_assoc($q));
+	$row=mysqli_fetch_assoc($q);
+	$persona=acceso_fila_a_persona($row);
+	$persona['primer_acceso']=isset($row['primer_acceso']) ? intval($row['primer_acceso']) : 0;
+	$persona['roles_adicionales']=acceso_cargar_roles_adicionales($persona['id']);
+	return $persona;
 }
 
 // RRHH / superadmin guardan cambios del empleado en la tabla empleado.
@@ -3612,7 +3628,7 @@ function acceso_alta_empleado($datos)
 		VALUES ('".acceso_sql($nombres)."','".acceso_sql($apellido)."','".acceso_sql($cuil)."','".acceso_sql($dni)."','".acceso_sql($correo)."','".acceso_sql($telefono)."','".acceso_sql($tel_alt)."','".acceso_sql($direccion)."',".($fecha_nac!='' ? "'".acceso_sql($fecha_nac)."'" : 'NULL').",'".acceso_sql($ingreso)."','".acceso_sql($puesto)."','".acceso_sql($tipo_vinculo)."','".acceso_sql($estado_lab)."','".acceso_sql($modalidad)."','".acceso_sql($cond_fiscal)."','".acceso_sql($usuario)."','".acceso_sql($hash)."',1,'".$id_rol."',".$id_area_sql.",1)";
 	if(!@mysqli_query($con, $sql))
 	{
-		return 'No se pudo guardar el empleado. Revisá que CUIL, DNI, correo y usuario no estén repetidos.';
+		return 'No se pudo guardar el colaborador. Revisá que CUIL, DNI, correo y usuario no estén repetidos.';
 	}
 	return '';
 }

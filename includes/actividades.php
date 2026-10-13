@@ -796,7 +796,7 @@ function actividades_generar_tareas_desde_post($id_evento, $modo='edicion')
 		if($n_personal_area<=0)
 		{
 			$res['fallo']++;
-			$res['detalle'][]='No se creó “'.$titulo_t.'”: el área '.$area_t.' no tiene empleados asignados.';
+			$res['detalle'][]='No se creó “'.$titulo_t.'”: el área '.$area_t.' no tiene colaboradores asignados.';
 			continue;
 		}
 		if($id_resp_t>0 && function_exists('crm_empleado_pertenece_a_area') && !crm_empleado_pertenece_a_area($id_resp_t, $id_area))
@@ -874,7 +874,7 @@ function actividades_msg_tareas_generadas($res)
 				}
 			}
 		}
-		$partes[]=$n_sin_aviso.' tarea(s) en área(s) sin empleados'.(count($items_aviso)>0 ? ': '.implode(', ', $items_aviso) : '').' (se notificó al responsable de la actividad)';
+		$partes[]=$n_sin_aviso.' tarea(s) en área(s) sin colaboradores'.(count($items_aviso)>0 ? ': '.implode(', ', $items_aviso) : '').' (se notificó al responsable de la actividad)';
 	}
 	if($n_fallo>0)
 	{

@@ -12,7 +12,7 @@ $bus=crm_empleados_buscar();
 <html>
 <head>
 <meta charset="utf-8" />
-<title>CRM | Recursos humanos - Empleados</title>
+<title>CRM | Recursos humanos - Colaboradores</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <link href="../assets/plugins/boostrapv3/css/bootstrap.min.css" rel="stylesheet" type="text/css"/>
 <link href="../assets/plugins/font-awesome/css/font-awesome.css" rel="stylesheet" type="text/css"/>
@@ -32,12 +32,12 @@ $bus=crm_empleados_buscar();
             <div class="content">
                 <ul class="breadcrumb">
                     <li><p>ESTÁS AQUÍ</p></li>
-                    <li><a href="#" class="active">Recursos humanos / Empleados</a></li>
+                    <li><a href="#" class="active">Recursos humanos / Colaboradores</a></li>
                 </ul>
                 <?php include("menu-seccion.php"); ?>
                 <div class="page-title">
-                    	<h3>Empleados</h3>
-                    	<a href="alta-usuario.php" class="btn btn-primary">Nuevo empleado</a>
+                    	<h3>Colaboradores</h3>
+                    	<a href="alta-usuario.php" class="btn btn-primary">Nuevo colaborador</a>
                 </div>
                 <p>Buscá por nombre, apellido, DNI, usuario o correo. Filtrá por área y rol.</p>
                 <?php if(isset($_SESSION['msgrrhh']) && $_SESSION['msgrrhh']!='') { ?>

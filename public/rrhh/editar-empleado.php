@@ -46,7 +46,7 @@ $id_logueado=function_exists('crm_id_empleado_sesion') ? crm_id_empleado_sesion(
 $es_propio=($id_logueado>0 && intval($empleado['id'])===$id_logueado);
 
 $roles_extra_ok=function_exists('acceso_roles_extras_permitidos') ? acceso_roles_extras_permitidos() : array(
-	'empleado'=>'Empleado',
+	'empleado'=>'Colaborador',
 	'coordinador'=>'Coordinador de área',
 	'coordinador_general'=>'Coordinador general'
 );
@@ -204,7 +204,7 @@ if(isset($_POST['guardar']))
 				{
 					$_SESSION['alogin']=$usuario_nuevo;
 				}
-				$_SESSION['msgrrhh']="Empleado actualizado.";
+				$_SESSION['msgrrhh']="Colaborador actualizado.";
 				header('Location: empleados.php');
 				exit();
 			}
@@ -222,7 +222,7 @@ if(isset($_POST['guardar']))
 <head>
 <meta http-equiv="content-type" content="text/html;charset=UTF-8" />
 <meta charset="utf-8" />
-<title>CRM | Recursos humanos - Editar empleado</title>
+<title>CRM | Recursos humanos - Editar colaborador</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <meta content="" name="description" />
 <meta content="" name="author" />
@@ -250,19 +250,19 @@ if(isset($_POST['guardar']))
                     <li>
                         <p>ESTÁS AQUÍ</p>
                     </li>
-                    <li><a href="empleados.php">Empleados</a></li>
-                    <li><a href="#" class="active">Editar empleado</a></li>
+                    <li><a href="empleados.php">Colaboradores</a></li>
+                    <li><a href="#" class="active">Editar colaborador</a></li>
                 </ul>
                 <?php include("menu-seccion.php"); ?>
                 <div class="page-title">
-                    	<h3>Editar empleado</h3>
+                    	<h3>Editar colaborador</h3>
                 </div>
 
                 <div class="row">
                     <div class="col-md-12">
                         <div class="grid simple">
                         <div class="grid-title no-border">
-                            <h4>Datos del empleado</h4>
+                            <h4>Datos del colaborador</h4>
                         </div>
                         <div class="grid-body no-border">
                         <form method="post" action="" accept-charset="UTF-8">
@@ -378,7 +378,7 @@ if(isset($_POST['guardar']))
                                         <option value="<?php echo htmlspecialchars($clave); ?>" <?php if($empleado['area']==$clave) echo 'selected'; ?>><?php echo htmlspecialchars($titulo); ?></option>
                                         <?php } ?>
                                     </select>
-                                    <p class="muted">Solo para Empleado o Coordinador de área. Presidencia y Coordinador general quedan sin área.</p>
+                                    <p class="muted">Solo para Colaborador o Coordinador de área. Presidencia y Coordinador general quedan sin área.</p>
                                     <?php } ?>
                                 </div>
                                 <div class="form-actions">
@@ -426,7 +426,7 @@ if(isset($_POST['guardar']))
                                     </select>
                                 </div>
                                 <div class="form-group">
-                                    <label>Área (obligatoria para empleado/coordinador; vacía si sumás Coordinador general)</label>
+                                    <label>Área (obligatoria para colaborador/coordinador; vacía si sumás Coordinador general)</label>
                                     <select name="area_extra" class="form-control">
                                         <option value="">Sin área / Coordinador general</option>
                                         <?php foreach($areas_extra as $clave=>$titulo) { ?>

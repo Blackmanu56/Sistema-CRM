@@ -383,8 +383,8 @@ $bajas_pend=function_exists('crm_tarea_bajas_pendientes_mias') ? crm_tarea_bajas
                         <?php } elseif(function_exists('acceso_puede_alta_cliente') && acceso_puede_alta_cliente($area_act) && !in_array($area_act, array('rrhh','sistemas','general'), true)) { ?>
                         <a class="btn btn-white btn-cons" href="<?php echo url_crm($area_act.'/nueva-atencion.php'); ?>"><i class="fa fa-calendar-o"></i> Nuevo turno</a>
                         <?php } elseif($area_act==='rrhh' && !acceso_es_empleado()) { ?>
-                        <a class="btn btn-white btn-cons" href="<?php echo url_crm('rrhh/alta-usuario.php'); ?>"><i class="fa fa-user"></i> Alta de empleado</a>
-                        <a class="btn btn-white btn-cons" href="<?php echo url_crm('rrhh/empleados.php'); ?>"><i class="fa fa-users"></i> Empleados</a>
+                        <a class="btn btn-white btn-cons" href="<?php echo url_crm('rrhh/alta-usuario.php'); ?>"><i class="fa fa-user"></i> Alta de colaborador</a>
+                        <a class="btn btn-white btn-cons" href="<?php echo url_crm('rrhh/empleados.php'); ?>"><i class="fa fa-users"></i> Colaboradores</a>
                         <?php } elseif($area_act==='sistemas' && !acceso_es_empleado()) { ?>
                         <a class="btn btn-white btn-cons" href="<?php echo url_crm('sistemas/dominios.php'); ?>"><i class="fa fa-globe"></i> Dominios</a>
                         <a class="btn btn-white btn-cons" href="<?php echo url_crm('sistemas/programas.php'); ?>"><i class="fa fa-th-large"></i> Programas</a>

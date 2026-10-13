@@ -46,7 +46,7 @@ if(isset($_POST['alta']))
 	));
 	if($msg=='')
 	{
-		$_SESSION['msgrrhh']='Empleado dado de alta correctamente.';
+		$_SESSION['msgrrhh']='Colaborador dado de alta correctamente.';
 		echo "<script>window.location.href='empleados.php'</script>";
 		exit();
 	}
@@ -60,7 +60,7 @@ $mostrar_area=($rol_sel==='empleado' || $rol_sel==='coordinador');
 <head>
 <meta http-equiv="content-type" content="text/html;charset=UTF-8" />
 <meta charset="utf-8" />
-<title>CRM | Recursos humanos - Alta de empleado</title>
+<title>CRM | Recursos humanos - Alta de colaborador</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <link href="../assets/plugins/pace/pace-theme-flash.css" rel="stylesheet" type="text/css" media="screen"/>
 <link href="../assets/plugins/boostrapv3/css/bootstrap.min.css" rel="stylesheet" type="text/css"/>
@@ -115,16 +115,16 @@ function valid()
             <div class="content">
                 <ul class="breadcrumb">
                     <li><p>ESTÁS AQUÍ</p></li>
-                    <li><a href="#" class="active">Recursos humanos / Alta de empleado</a></li>
+                    <li><a href="#" class="active">Recursos humanos / Alta de colaborador</a></li>
                 </ul>
                 <?php include("menu-seccion.php"); ?>
-                <div class="page-title"><h3>Alta de empleado</h3></div>
-                <p>Primero elegí el rol. El área solo aplica a Empleado o Coordinador de área. Presidencia y Coordinador general van sin área. Los permisos extras los carga Sistemas.</p>
+                <div class="page-title"><h3>Alta de colaborador</h3></div>
+                <p>Primero elegí el rol. El área solo aplica a Colaborador o Coordinador de área. Presidencia y Coordinador general van sin área. Los permisos extras los carga Sistemas.</p>
 
                 <div class="row">
                     <div class="col-md-12">
                         <div class="grid simple">
-                        <div class="grid-title no-border"><h4>Datos del empleado</h4></div>
+                        <div class="grid-title no-border"><h4>Datos del colaborador</h4></div>
                         <div class="grid-body no-border">
                         <form name="form1" method="post" action="" accept-charset="UTF-8" onSubmit="return valid();">
                                 <?php if(isset($_SESSION['msgrrhh']) && $_SESSION['msgrrhh']!='') { ?>

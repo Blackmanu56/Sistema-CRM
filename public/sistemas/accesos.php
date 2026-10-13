@@ -130,7 +130,7 @@ $clientes=acceso_consulta("SELECT id_usuario, nombre, correo, dni, primer_acceso
                         <?php } else { ?>
                         <form method="post" action="">
                             <select name="id_empleado" class="form-control" style="max-width:360px;" required>
-                                <option value="">Seleccionar empleado</option>
+                                <option value="">Seleccionar colaborador</option>
                                 <?php foreach($resto as $persona) {
                                 	$es_actual=($coord && intval($coord['id_empleado'])==intval($persona['id']));
                                 ?>

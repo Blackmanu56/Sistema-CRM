@@ -5,7 +5,7 @@ acceso_exigir_gestion('sistemas');
 $menu_activo='permisos';
 
 $roles_extra_ok=function_exists('acceso_roles_extras_permitidos') ? acceso_roles_extras_permitidos() : array(
-	'empleado'=>'Empleado',
+	'empleado'=>'Colaborador',
 	'coordinador'=>'Coordinador de área',
 	'coordinador_general'=>'Coordinador general'
 );
@@ -27,7 +27,7 @@ if(isset($_POST['agregar_rol_extra']))
 
 	if(!$emp || $emp['rol']==='superadmin')
 	{
-		$_SESSION['msgsis']='Empleado no válido o Superadmin no modificable.';
+		$_SESSION['msgsis']='Colaborador no válido o Superadmin no modificable.';
 	}
 	else if($es_propio)
 	{
@@ -62,7 +62,7 @@ if(isset($_POST['quitar_rol_extra']))
 
 	if(!$emp || $emp['rol']==='superadmin')
 	{
-		$_SESSION['msgsis']='Empleado no válido o Superadmin no modificable.';
+		$_SESSION['msgsis']='Colaborador no válido o Superadmin no modificable.';
 	}
 	else if($es_propio)
 	{
@@ -136,7 +136,7 @@ if($id_ver>0)
                 </ul>
                 <?php include("menu-seccion.php"); ?>
                 <div class="page-title"><h3>Permisos adicionales</h3></div>
-                <p class="muted">RRHH carga el rol y el área principales. Acá Sistemas suma o quita excepciones: otra área como empleado/coordinador, o Coordinador general.</p>
+                <p class="muted">RRHH carga el rol y el área principales. Acá Sistemas suma o quita excepciones: otra área como colaborador/coordinador, o Coordinador general.</p>
                 <?php if(isset($_SESSION['msgsis']) && $_SESSION['msgsis']!='') { ?>
                 <div class="alert alert-info"><?php echo htmlspecialchars($_SESSION['msgsis']); $_SESSION['msgsis']=''; ?></div>
                 <?php } ?>
@@ -184,7 +184,7 @@ if($id_ver>0)
                                 </select>
                             </div>
                             <div class="form-group">
-                                <label>Área (obligatoria para empleado/coordinador; vacía si sumás Coordinador general)</label>
+                                <label>Área (obligatoria para colaborador/coordinador; vacía si sumás Coordinador general)</label>
                                 <select name="area_extra" class="form-control" style="max-width:360px;">
                                     <option value="">Sin área / Coordinador general</option>
                                     <?php foreach($areas_extra as $clave=>$titulo) { ?>

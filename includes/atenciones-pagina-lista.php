@@ -24,7 +24,7 @@ if(!in_array($fecha_filtro, array('todas','hoy','proximos','semana'), true) && !
 }
 $colab_filtro=isset($_GET['colaborador']) ? intval($_GET['colaborador']) : 0;
 
-$id_area_act=crm_area_id($area_cli);
+$id_area_act=acceso_id_por_clave('area', $area_cli);
 $colaboradores_area=($id_area_act>0 && function_exists('crm_empleados_de_area_id')) ? crm_empleados_de_area_id($id_area_act) : array();
 
 $etq=acceso_etiquetas_area();
@@ -118,8 +118,10 @@ $lista=crm_atenciones_listado($area_cli, array(
                         <label style="font-size:12px; margin-right:4px; font-weight:600;">Colaborador:</label>
                         <select name="colaborador" class="form-control input-sm" onchange="this.form.submit()">
                             <option value="0">Todos los colaboradores</option>
-                            <?php foreach($colaboradores_area as $c_opt) { ?>
-                            <option value="<?php echo intval($c_opt['id_empleado']); ?>" <?php if($colab_filtro===intval($c_opt['id_empleado'])) echo 'selected'; ?>><?php echo texto_mostrar($c_opt['name']); ?></option>
+                            <?php foreach($colaboradores_area as $c_opt) {
+                                $nom_c = isset($c_opt['name']) && trim($c_opt['name'])!=='' ? $c_opt['name'] : trim((isset($c_opt['nombres']) ? $c_opt['nombres'] : '').' '.(isset($c_opt['apellido']) ? $c_opt['apellido'] : ''));
+                            ?>
+                            <option value="<?php echo intval($c_opt['id_empleado']); ?>" <?php if($colab_filtro===intval($c_opt['id_empleado'])) echo 'selected'; ?>><?php echo texto_mostrar($nom_c); ?></option>
                             <?php } ?>
                         </select>
                     </div>

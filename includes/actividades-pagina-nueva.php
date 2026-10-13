@@ -311,7 +311,7 @@ $id_yo=crm_id_empleado_sesion();
 			sel.disabled = true;
 			if(aviso)
 			{
-				aviso.innerHTML = '<strong>Área sin empleados:</strong> Esta área no tiene personal asignado. No se puede crear una tarea para esta área porque nadie podrá recibir la notificación ni gestionarla. Seleccioná otra área.';
+				aviso.innerHTML = '<strong>Área sin colaboradores:</strong> Esta área no tiene personal asignado. No se puede crear una tarea para esta área porque nadie podrá recibir la notificación ni gestionarla. Seleccioná otra área.';
 				aviso.style.display = 'block';
 				aviso.style.background = '#f2dede';
 				aviso.style.color = '#a94442';

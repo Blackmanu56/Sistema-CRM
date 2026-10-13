@@ -303,7 +303,8 @@ $historial_seguimiento=function_exists('crm_atencion_seguimiento_historial') ? c
                                         <option value="0">-- Sin asignar --</option>
                                         <?php foreach($empleados_area as $emp) {
                                             $s_sel = (intval($at['id_empleado']) === intval($emp['id_empleado'])) ? 'selected' : '';
-                                            echo '<option value="'.intval($emp['id_empleado']).'" '.$s_sel.'>'.texto_mostrar($emp['name']).'</option>';
+                                            $nom_emp = isset($emp['name']) && trim($emp['name'])!=='' ? $emp['name'] : trim((isset($emp['nombres']) ? $emp['nombres'] : '').' '.(isset($emp['apellido']) ? $emp['apellido'] : ''));
+                                            echo '<option value="'.intval($emp['id_empleado']).'" '.$s_sel.'>'.texto_mostrar($nom_emp).'</option>';
                                         } ?>
                                     </select>
                                     <button type="submit" name="asignar_empleado" value="1" class="btn btn-white btn-sm" style="margin-left:6px;">
@@ -402,8 +403,10 @@ $historial_seguimiento=function_exists('crm_atencion_seguimiento_historial') ? c
                                         <label>Colaborador que atiende:</label>
                                         <select name="id_empleado" class="form-control" style="max-width:260px;">
                                             <option value="0">-- Asignarme a mí / Por defecto --</option>
-                                            <?php foreach($empleados_area as $emp) { ?>
-                                            <option value="<?php echo intval($emp['id_empleado']); ?>"><?php echo texto_mostrar($emp['name']); ?></option>
+                                            <?php foreach($empleados_area as $emp) {
+                                                $nom_emp = isset($emp['name']) && trim($emp['name'])!=='' ? $emp['name'] : trim((isset($emp['nombres']) ? $emp['nombres'] : '').' '.(isset($emp['apellido']) ? $emp['apellido'] : ''));
+                                            ?>
+                                            <option value="<?php echo intval($emp['id_empleado']); ?>"><?php echo texto_mostrar($nom_emp); ?></option>
                                             <?php } ?>
                                         </select>
                                     </div>

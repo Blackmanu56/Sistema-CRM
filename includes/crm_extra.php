@@ -240,6 +240,10 @@ function crm_empleados_de_area_id($id_area)
 			continue;
 		}
 		$ya[$id]=1;
+		if(!isset($row['name']) || trim((string)$row['name'])==='')
+		{
+			$row['name']=trim((isset($row['nombres']) ? $row['nombres'] : '').' '.(isset($row['apellido']) ? $row['apellido'] : ''));
+		}
 		$salida[]=$row;
 	}
 	return $salida;
@@ -1398,7 +1402,7 @@ function crm_marcar_coord_general($id_empleado)
 	$id_rol=acceso_id_por_clave('rol', 'coordinador_general');
 	if($id<=0)
 	{
-		return 'Seleccioná un empleado.';
+		return 'Seleccioná un colaborador.';
 	}
 	if($id_rol<=0)
 	{
@@ -1411,7 +1415,7 @@ function crm_marcar_coord_general($id_empleado)
 	);
 	if(!$emp)
 	{
-		return 'Ese empleado no puede ser coordinador general.';
+		return 'Ese colaborador no puede ser coordinador general.';
 	}
 	// Solo uno activo: se cierra cualquier marca vigente (fecha_hasta NULL).
 	acceso_ejecutar(
@@ -1458,7 +1462,7 @@ function crm_rol_adicional_agregar($id_empleado, $rol_clave, $area_clave='')
 	$id_rol=acceso_id_por_clave('rol', $rol_clave);
 	if($id<=0 || $id_rol<=0)
 	{
-		return 'Indicá un empleado y un rol válidos.';
+		return 'Indicá un colaborador y un rol válidos.';
 	}
 	if($rol_clave==='superadmin')
 	{
@@ -1475,7 +1479,7 @@ function crm_rol_adicional_agregar($id_empleado, $rol_clave, $area_clave='')
 	}
 	if(in_array($rol_clave, array('empleado','coordinador'), true) && $id_area<=0)
 	{
-		return 'Para empleado o coordinador adicional hay que indicar el área.';
+		return 'Para colaborador o coordinador adicional hay que indicar el área.';
 	}
 	if($rol_clave==='presidencia')
 	{
@@ -1574,7 +1578,7 @@ function crm_reset_clave_empleado($id_empleado)
 	$clave=crm_clave_desde_dni($row['dni']);
 	if($clave=='')
 	{
-		return 'Ese empleado no tiene un DNI válido para armar la clave.';
+		return 'Ese colaborador no tiene un DNI válido para armar la clave.';
 	}
 	$hash=acceso_hash_clave($clave);
 	acceso_ejecutar("UPDATE empleado SET contrasena_hash=?, primer_acceso=1 WHERE id_empleado=?", 'si', array($hash, $id));
@@ -2404,7 +2408,7 @@ function crm_tarea_asignar_responsable($id_tarea, $id_empleado)
 	);
 	if(!$emp)
 	{
-		return 'Ese empleado no es válido.';
+		return 'Ese colaborador no es válido.';
 	}
 	$tar_info=acceso_consulta_una("SELECT id_area FROM tarea WHERE id_tarea=? LIMIT 1", 'i', array($id_tarea));
 	if(!$tar_info || intval($tar_info['id_area'])<=0)
@@ -2414,7 +2418,7 @@ function crm_tarea_asignar_responsable($id_tarea, $id_empleado)
 	$id_area_tar=intval($tar_info['id_area']);
 	if(function_exists('crm_empleado_pertenece_a_area') && !crm_empleado_pertenece_a_area($id_empleado, $id_area_tar))
 	{
-		return 'El empleado seleccionado no pertenece al área de la tarea.';
+		return 'El colaborador seleccionado no pertenece al área de la tarea.';
 	}
 	acceso_ejecutar("DELETE FROM tarea_responsable WHERE id_tarea=?", 'i', array($id_tarea));
 	$ok=acceso_insertar(

@@ -530,7 +530,7 @@ function crm_cambiar_nombre_usuario($id_empleado, $nuevo)
 	$nuevo=trim((string)$nuevo);
 	if($id<=0)
 	{
-		return 'Empleado no válido.';
+		return 'Colaborador no válido.';
 	}
 	if($nuevo=='' || !preg_match('/^[a-zA-Z0-9._-]{3,40}$/', $nuevo))
 	{
@@ -539,7 +539,7 @@ function crm_cambiar_nombre_usuario($id_empleado, $nuevo)
 	$emp=acceso_empleado_por_id($id);
 	if(!$emp)
 	{
-		return 'No se encontró el empleado.';
+		return 'No se encontró el colaborador.';
 	}
 	if(isset($emp['rol']) && $emp['rol']=='superadmin')
 	{

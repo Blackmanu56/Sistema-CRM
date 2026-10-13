@@ -170,7 +170,7 @@ $pide_iniciar_al_avance=(!$eliminada && $yo_ses!='' && tarea_puede_cambiar_estad
                             <input type="hidden" name="id_tarea" value="<?php echo $id_tar; ?>">
                             <input type="hidden" name="crear_subtarea" value="1">
                             <?php if(count($equipo)==0) { ?>
-                            <p class="muted">No hay empleados activos en esta área para asignar. Cargá alguien en RRHH y volvé.</p>
+                            <p class="muted">No hay colaboradores activos en esta área para asignar. Cargá alguien en RRHH y volvé.</p>
                             <?php } else { ?>
                             <div class="form-group">
                                 <label>Qué hay que hacer</label>

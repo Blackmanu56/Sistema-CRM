@@ -87,7 +87,7 @@ $msg_form=function_exists('tareas_mensaje_form_tomar') ? tareas_mensaje_form_tom
                                         <?php if($modo=='nueva') { ?>
                                         <input type="hidden" name="responsables[]" value="<?php echo texto_mostrar(tareas_persona()); ?>">
                                         <input type="text" class="form-control" value="<?php echo texto_mostrar(tareas_persona()); ?>" readonly>
-                                        <p class="muted">Un empleado solo puede cargar la tarea a su nombre. Si hace falta otro, lo agrega el coordinador.</p>
+                                        <p class="muted">Un colaborador solo puede cargar la tarea a su nombre. Si hace falta otro, lo agrega el coordinador.</p>
                                         <?php } else { ?>
                                         <p class="form-control-static"><?php echo texto_mostrar(implode(', ', $responsables_actuales)); ?></p>
                                         <p class="muted">No podés agregar ni quitar responsables. Eso lo gestiona el coordinador.</p>

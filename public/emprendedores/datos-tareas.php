@@ -726,7 +726,7 @@ function tareas_datos_guardar_extras($id)
             if ($url!=='') { emp_consulta('INSERT INTO tarea_enlace (id_tarea,url) VALUES (?,?)','is',array($id,$url)); }
             if ($txt!=='') {
                 $empleado=isset($_SESSION['id_empleado']) ? intval($_SESSION['id_empleado']) : 0;
-                if ($empleado<=0) { throw new RuntimeException('Empleado no identificado.'); }
+                if ($empleado<=0) { throw new RuntimeException('Colaborador no identificado.'); }
                 emp_consulta('INSERT INTO tarea_comentario (id_tarea,id_empleado,texto) VALUES (?,?,?)','iis',array($id,$empleado,$txt));
             }
             return true;
@@ -744,7 +744,7 @@ function tareas_datos_guardar_extras($id)
         if ($enlace) { emp_consulta('INSERT INTO tarea_enlace (id_tarea,url) VALUES (?,?)','is',array($id,$texto)); }
         else {
             $empleado=isset($_SESSION['id_empleado']) ? intval($_SESSION['id_empleado']) : 0;
-            if ($empleado<=0) { throw new RuntimeException('Empleado no identificado.'); }
+            if ($empleado<=0) { throw new RuntimeException('Colaborador no identificado.'); }
             emp_consulta('INSERT INTO tarea_comentario (id_tarea,id_empleado,texto) VALUES (?,?,?)','iis',array($id,$empleado,$texto));
         }
         return true;
