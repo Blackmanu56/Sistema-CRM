@@ -2669,6 +2669,13 @@ function tareas_leer_responsables_post($area, $tarea_actual=null)
 		return ($yo!='' ? array($yo) : array());
 	}
 	$ok=acceso_nombres_equipo($area);
+	if(count($ok)===0 && !is_array($tarea_actual))
+	{
+		// No descartar un responsable enviado por POST sin avisar: no hay
+		// personal válido en esta área para recibir ni gestionar la tarea.
+		tareas_mensaje_form_set('No se puede crear la tarea porque el área seleccionada no tiene personal asignado. Asigná personal al área o elegí otra área.');
+		return array();
+	}
 	$elegidos=tareas_leer_lista_post('responsables');
 	$salida=array();
 	foreach($elegidos as $nom)
@@ -2691,6 +2698,19 @@ function tareas_leer_responsables_post($area, $tarea_actual=null)
 		$salida[]=$ok[0];
 	}
 	return $salida;
+}
+
+function tareas_validar_responsables_area($area)
+{
+	if(acceso_es_empleado())
+	{
+		return '';
+	}
+	if(count(acceso_nombres_equipo($area))===0)
+	{
+		return 'No se puede crear la tarea porque el área seleccionada no tiene personal asignado. Asigná personal al área o elegí otra área.';
+	}
+	return '';
 }
 
 function tareas_armar_comentarios_nuevos()
@@ -2869,6 +2889,12 @@ function tareas_guardar_nueva_desde_form()
 		return false;
 	}
 	$area=tareas_area_destino_alta();
+	$err_responsables=tareas_validar_responsables_area($area);
+	if($err_responsables!=='')
+	{
+		tareas_mensaje_form_set($err_responsables);
+		return false;
+	}
 	if(function_exists('tareas_datos_guardar_nueva'))
 	{
 		$area=tareas_datos_guardar_nueva($area);

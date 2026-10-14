@@ -227,6 +227,26 @@
         && function_exists('acceso_puede_armar_informes') && acceso_puede_armar_informes();
       $crm_es_inicio = in_array($crm_cur_script, array('dashboard.php', 'home.php', 'inicio.php'), true) && (strpos($crm_cur_uri, '/general/dashboard.php') === false) && !$crm_panel_op_activo;
       $dash_href=function_exists('crm_dashboard_destino') ? crm_dashboard_destino() : url_crm('admin/home.php');
+      // ¿El bloque de área de abajo imprime su propio "Clientes"? Si lo imprime (y el archivo existe),
+      // no repetir el "Clientes" global del super (manage-users.php).
+      $crm_area_muestra_clientes = false;
+      if($left_area_act !== '' && $left_area_act !== 'general' && $left_area_act !== 'admin') {
+        if($left_area_act === 'recepcion' || $left_area_act === 'vinculaciones'
+          || in_array($left_area_act, array('comercio','emprendedores','empresas','marketing','analista'), true)) {
+          $crm_area_muestra_clientes = true;
+        } elseif($left_area_act === 'rrhh') {
+          $crm_area_muestra_clientes = acceso_puede_clientes_de_area('rrhh');
+        } elseif($left_area_act === 'sistemas') {
+          $crm_area_muestra_clientes = acceso_puede_clientes_de_area('sistemas');
+        } elseif($left_area_act === 'administracion') {
+          $crm_area_muestra_clientes = acceso_puede_clientes_de_area('administracion');
+        } else {
+          $crm_area_muestra_clientes = acceso_puede_clientes_de_area($left_area_act);
+        }
+        if($crm_area_muestra_clientes && !is_file(BASE_PATH.'/public/'.$left_area_act.'/clientes.php')) {
+          $crm_area_muestra_clientes = false;
+        }
+      }
       ?>
       <li class="start <?php echo $crm_es_inicio ? 'active' : ''; ?>"> <a href="<?php echo $dash_href; ?>"> <i class="icon-custom-home"></i> <span class="title">Inicio</span>  </a>
 		    </li>
@@ -241,7 +261,7 @@
 		    </li>
       <?php } ?>
       <?php } ?>
-      <?php if(acceso_es_super()) { ?>
+      <?php if(acceso_es_super() && !$crm_area_muestra_clientes) { ?>
       <li class="<?php echo ($crm_cur_script === 'manage-users.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('admin/manage-users.php'); ?>"><span class="fa fa-users"></span> Clientes</a></li>
       <?php } ?>
       <?php if(acceso_puede('general') && (acceso_es_coord_general() || acceso_es_super())) { ?>
@@ -255,8 +275,12 @@
       if($left_area_act !== '' && $left_area_act !== 'general' && $left_area_act !== 'admin') {
       ?>
       <li class="crm-sidebar-separator" style="margin: 8px 14px 10px 14px; border-top: 1px solid rgba(255, 255, 255, 0.08); list-style: none;"></li>
+      <?php if(is_file(BASE_PATH.'/public/'.$left_area_act.'/tareas.php')) { ?>
       <li class="<?php echo in_array($crm_cur_script, array('tareas.php','nueva-tarea.php','ver-tarea.php','editar-tarea.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm($left_area_act.'/tareas.php'); ?>"><span class="fa fa-check-square-o"></span>&nbsp;&nbsp;Tareas</a></li>
+      <?php } ?>
+      <?php if(is_file(BASE_PATH.'/public/'.$left_area_act.'/actividades.php')) { ?>
       <li class="<?php echo in_array($crm_cur_script, array('actividades.php','nueva-actividad.php','editar-actividad.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm($left_area_act.'/actividades.php'); ?>"><span class="fa fa-calendar"></span>&nbsp;&nbsp;Actividades</a></li>
+      <?php } ?>
       <?php if($left_area_act === 'recepcion') { ?>
       <li class="<?php echo in_array($crm_cur_script, array('atenciones.php','nueva-atencion.php','atencion.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm('recepcion/atenciones.php'); ?>"><span class="fa fa-clock-o"></span>&nbsp;&nbsp;Atenciones</a></li>
       <li class="<?php echo in_array($crm_cur_script, array('clientes.php','alta-cliente.php','editar-cliente.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm('recepcion/clientes.php'); ?>"><span class="fa fa-users"></span>&nbsp;&nbsp;Clientes</a></li>
@@ -294,7 +318,7 @@
       <?php if(acceso_puede_clientes_de_area('administracion')) { ?>
       <li class="<?php echo in_array($crm_cur_script, array('clientes.php','alta-cliente.php','editar-cliente.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm('administracion/clientes.php'); ?>"><span class="fa fa-users"></span>&nbsp;&nbsp;Clientes</a></li>
       <?php } ?>
-      <?php } elseif(acceso_puede_clientes_de_area($left_area_act)) { ?>
+      <?php } elseif(acceso_puede_clientes_de_area($left_area_act) && is_file(BASE_PATH.'/public/'.$left_area_act.'/clientes.php')) { ?>
       <li class="<?php echo in_array($crm_cur_script, array('clientes.php','alta-cliente.php','editar-cliente.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm($left_area_act.'/clientes.php'); ?>"><span class="fa fa-users"></span>&nbsp;&nbsp;Clientes</a></li>
       <?php } ?>
       <?php } ?>

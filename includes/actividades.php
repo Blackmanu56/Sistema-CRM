@@ -36,7 +36,10 @@ function actividades_de_area($area='')
 function actividades_area_destino()
 {
 	$area=acceso_area_pantalla();
-	$ok=array_keys(acceso_etiquetas_area_con_tareas());
+	// Las actividades son eventos del área, aunque el área no tenga personal
+	// asignable para tareas. Usar el catálogo completo evita que Presidencia
+	// termine guardando sus actividades en Coordinación general.
+	$ok=array_keys(acceso_etiquetas_area());
 	if($area=='general' && acceso_es_general() && isset($_POST['area_actividad']) && in_array($_POST['area_actividad'], $ok))
 	{
 		return $_POST['area_actividad'];

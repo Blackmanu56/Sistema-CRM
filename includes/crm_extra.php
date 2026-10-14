@@ -1513,6 +1513,14 @@ function crm_rol_adicional_agregar($id_empleado, $rol_clave, $area_clave='')
 	{
 		return 'Ese rol no se puede asignar como adicional.';
 	}
+	// Coordinacion General solo la otorga un superadmin o un Coordinador general.
+	// Un coordinador de area no puede ascender a nadie (ni a si mismo) a ese nivel.
+	if($rol_clave==='coordinador_general'
+		&& !(function_exists('acceso_es_super') && acceso_es_super())
+		&& !(function_exists('acceso_es_coord_general') && acceso_es_coord_general()))
+	{
+		return 'Solo un superadmin o un Coordinador general puede asignar Coordinación General.';
+	}
 	$id_area=0;
 	if($area_clave!='')
 	{
