@@ -57,8 +57,9 @@ function crm_es_staff()
 function crm_proteger_staff($area=null)
 {
 	require_once BASE_PATH.'/includes/staff/checklogin.php';
-	check_login($area);
 	$pag=basename(isset($_SERVER['SCRIPT_NAME']) ? $_SERVER['SCRIPT_NAME'] : '');
+	$preservar_area=($pag==='actividades.php' || $pag==='nueva-actividad.php');
+	check_login($area,$preservar_area);
 	if($pag=='change-password.php' || $pag=='logout.php')
 	{
 		return;
@@ -116,6 +117,14 @@ function crm_header_staff()
 function crm_menu_staff()
 {
 	include BASE_PATH.'/includes/staff/leftbar.php';
+}
+
+function crm_menu_seccion_sala_reuniones()
+{
+	$ruta=isset($_SERVER['SCRIPT_NAME']) ? str_replace('\\', '/', $_SERVER['SCRIPT_NAME']) : '';
+	$activo=basename($ruta)==='salas-reuniones.php';
+	$clase=$activo ? 'btn-primary' : 'btn-white';
+	echo '<a href="'.htmlspecialchars(url_crm('salas-reuniones.php'), ENT_QUOTES, 'UTF-8').'" class="btn '.$clase.'"><i class="fa fa-calendar"></i> Sala de reuniones</a>';
 }
 
 function crm_header_cliente()

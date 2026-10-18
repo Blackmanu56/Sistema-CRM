@@ -199,7 +199,7 @@ $areas = acceso_consulta("SELECT id_area, clave, nombre, activo, atiende_cliente
     <div class="content">
       <ul class="breadcrumb"><li><p>ESTÁS AQUÍ</p></li><li><a href="#" class="active">Sistemas / Áreas</a></li></ul>
       <?php include('menu-seccion.php'); ?>
-      <div class="page-title"><h3>Áreas</h3></div>
+      <div class="page-title crm-compact-heading"><h3>Áreas</h3></div>
       <?php if(isset($_SESSION['msgsis']) && $_SESSION['msgsis']!='') { ?>
       <div class="alert alert-info"><?php echo htmlspecialchars($_SESSION['msgsis']); $_SESSION['msgsis']=''; ?></div>
       <?php } ?>

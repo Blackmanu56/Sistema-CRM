@@ -753,21 +753,49 @@ p { color: var(--crm-muted); }
 .table .btn-danger.btn-xs { background: var(--crm-danger) !important; }
 .table .btn-success.btn-xs { background: var(--crm-success) !important; }
 
-/* Avances de tarea: una fila (quién · comentario · link) */
+/* Avances de tarea: columnas compactas y acciones separadas */
 .crm-avance-row {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(125px, 180px) minmax(120px, 1.15fr) minmax(140px, 1fr) minmax(120px, 145px);
   gap: 10px 16px;
-  align-items: flex-start;
+  align-items: center;
   border: 1px solid #e6e6e6;
   border-radius: 8px;
-  padding: 10px 12px;
+  padding: 9px 12px;
   margin-bottom: 8px;
   background: #fafafa;
 }
-.crm-avance-meta { flex: 0 0 160px; color: #888; font-size: 12px; }
-.crm-avance-texto { flex: 1 1 180px; color: #333; word-break: break-word; }
-.crm-avance-link { flex: 1 1 160px; word-break: break-all; }
+.crm-avance-meta { min-width: 0; color: #888; font-size: 12px; }
+.crm-avance-texto { min-width: 0; color: #333; word-break: break-word; }
+.crm-avance-link { min-width: 0; overflow-wrap: anywhere; }
+.crm-avance-acciones { display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; }
+.crm-avance-acciones .btn { margin: 0; white-space: nowrap; }
+.crm-avance-acciones form { margin: 0 !important; }
+.crm-avance-edicion-modal { display: none; position: fixed; inset: 0; z-index: 100400; align-items: center; justify-content: center; padding: 18px; background: rgba(15, 23, 42, .52); }
+.crm-avance-edicion-modal.is-open { display: flex; }
+.crm-avance-edicion-dialog { width: min(520px, 100%); margin: 0; overflow: hidden; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; box-shadow: 0 16px 48px rgba(15, 23, 42, .25); }
+.crm-avance-edicion-encabezado { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 15px 20px; border-bottom: 1px solid #edf0f2; }
+.crm-avance-edicion-encabezado h4 { margin: 0; color: #1e293b; font-size: 17px; font-weight: 600; }
+.crm-avance-edicion-cerrar { flex: 0 0 auto; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: #64748b; font-size: 22px; line-height: 1; cursor: pointer; }
+.crm-avance-edicion-cerrar:hover { background: #f1f5f9; color: #1e293b; }
+.crm-avance-edicion-cuerpo { padding: 18px 20px 8px; }
+.crm-avance-edicion-cuerpo .form-group { margin-bottom: 14px; }
+.crm-avance-edicion-cuerpo label { display: block; margin-bottom: 5px; color: #475569; font-size: 12px; font-weight: 600; }
+.crm-avance-edicion-cuerpo .form-control { width: 100%; box-sizing: border-box; }
+.crm-avance-edicion-cuerpo textarea.form-control { min-height: 96px; resize: vertical; }
+.crm-avance-edicion-opcional { color: #7b8794; font-weight: 400; }
+.crm-avance-edicion-acciones { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px 16px; border-top: 1px solid #edf0f2; }
+.crm-avance-edicion-acciones .btn { margin: 0; }
+.crm-avance-confirmacion { position: fixed; inset: 0; z-index: 100500; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(20, 34, 52, .52); }
+.crm-avance-confirmacion__panel { width: min(460px, 100%); overflow: hidden; border: 1px solid #dce2e9; border-radius: 8px; background: #fff; box-shadow: 0 12px 36px rgba(20, 35, 55, .24); }
+.crm-avance-confirmacion__encabezado { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 18px; border-bottom: 1px solid #e5e9ee; background: #f7f8fa; }
+.crm-avance-confirmacion__panel h3 { margin: 0; color: #34495e; font-size: 16px; font-weight: 600; }
+.crm-avance-confirmacion__cerrar { flex: 0 0 auto; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: #718096; font-size: 22px; line-height: 1; cursor: pointer; }
+.crm-avance-confirmacion__cerrar:hover { background: #e9edf2; color: #34495e; }
+.crm-avance-confirmacion__cuerpo { padding: 18px; }
+.crm-avance-confirmacion__panel p { margin: 0; color: #5e6b7a; font-size: 14px; line-height: 1.5; }
+.crm-avance-confirmacion__acciones { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 18px; border-top: 1px solid #e5e9ee; background: #fafbfc; }
+.crm-avance-confirmacion__acciones .btn { min-width: 88px; margin: 0; }
 .crm-calendario td { text-align: center; }
 .crm-calendario td.crm-cal-con a { display: block; font-weight: 600; color: #1b7ab3; border-radius: 3px; }
 .crm-calendario td.crm-cal-con a:hover { background: #e8f2f9; text-decoration: none; }
@@ -792,6 +820,23 @@ p { color: var(--crm-muted); }
 .crm-avance-head .crm-avance-meta,
 .crm-avance-head .crm-avance-texto,
 .crm-avance-head .crm-avance-link { color: #6f7b8a; font-size: 11px; }
+.crm-avance-head .crm-avance-acciones { color: #6f7b8a; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; }
+@media (max-width: 1100px) {
+  .crm-avance-row { grid-template-columns: minmax(130px, 180px) minmax(0, 1fr) minmax(130px, 1fr); }
+  .crm-avance-acciones { grid-column: 1 / -1; justify-content: center; }
+  .crm-avance-head .crm-avance-acciones { display: none; }
+}
+@media (max-width: 600px) {
+  .crm-avance-row { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .crm-avance-head { display: none; }
+  .crm-avance-acciones { grid-column: auto; justify-content: center; }
+  .crm-avance-confirmacion__encabezado,
+  .crm-avance-confirmacion__cuerpo { padding-right: 15px; padding-left: 15px; }
+  .crm-avance-confirmacion__acciones { padding-right: 15px; padding-left: 15px; }
+  .crm-avance-edicion-encabezado { padding-right: 15px; padding-left: 15px; }
+  .crm-avance-edicion-cuerpo { padding: 15px 15px 5px; }
+  .crm-avance-edicion-acciones { padding: 12px 15px; }
+}
 .crm-avance-form-row {
   display: flex;
   flex-wrap: wrap;
@@ -946,5 +991,27 @@ p { color: var(--crm-muted); }
   margin: 0 4px 0 0 !important;
   display: inline-block !important;
   vertical-align: middle !important;
+}
+
+/* Compact, consistent page-heading spacing for module list screens. */
+.page-title.crm-compact-heading {
+  margin: 0 0 12px !important;
+}
+
+.page-title.crm-compact-heading > h3 {
+  top: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+.page-title.crm-compact-heading + p {
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+
+@media (max-width: 767px) {
+  .page-title.crm-compact-heading {
+    margin-bottom: 10px !important;
+  }
 }
 

@@ -15,6 +15,7 @@ if(!function_exists('acceso_puede_alta_cliente') || !acceso_puede_alta_cliente($
 
 clientes_asegurar_columnas();
 include_once BASE_PATH.'/includes/provincias.php';
+require_once BASE_PATH.'/includes/clientes_alta_proceso.php';
 
 $etq = acceso_etiquetas_area();
 $nombre_area = isset($etq[$area_act]) ? $etq[$area_act] : $area_act;
@@ -69,18 +70,10 @@ if(isset($_POST['vincular_existente']))
 // Acción 2: Alta de nuevo cliente
 if(isset($_POST['alta']))
 {
-	$cuil_post = isset($_POST['cuil_cuit']) ? trim($_POST['cuil_cuit']) : '';
-	$dni_post = isset($_POST['dni']) ? trim($_POST['dni']) : '';
-
-	// Chequeo previo de duplicados con identificador confiable
-	$cli_dup = cliente_buscar_por_identificador($cuil_post);
-	if(!$cli_dup && $dni_post !== '')
+	$resultado_alta = clientes_procesar_alta_formulario($area_act);
+	if($resultado_alta['duplicate'])
 	{
-		$cli_dup = cliente_buscar_por_identificador($dni_post);
-	}
-
-	if($cli_dup)
-	{
+		$cli_dup = $resultado_alta['duplicate'];
 		$id_dup = intval($cli_dup['id_cliente']);
 		$areas_dup = function_exists('crm_nombres_areas_cliente') ? crm_nombres_areas_cliente($id_dup) : '';
 		$mensaje_dup = array(
@@ -93,27 +86,9 @@ if(isset($_POST['alta']))
 	}
 	else
 	{
-		$err = cliente_alta(array(
-			'nombre' => isset($_POST['name']) ? trim($_POST['name']) : '',
-			'correo' => isset($_POST['email']) ? trim($_POST['email']) : '',
-			'telefono' => isset($_POST['mobile']) ? trim($_POST['mobile']) : '',
-			'genero' => isset($_POST['gender']) ? $_POST['gender'] : 'm',
-			'direccion' => isset($_POST['address']) ? trim($_POST['address']) : '',
-			'id_localidad' => isset($_POST['id_localidad']) ? intval($_POST['id_localidad']) : 0,
-			'cuil_cuit' => $cuil_post,
-			'area' => $area_act,
-			'areas' => array($area_act),
-			'tipo_cliente' => isset($_POST['tipo_cliente']) ? $_POST['tipo_cliente'] : 'emprendedor',
-			'dni' => $dni_post,
-			'origen' => isset($_POST['origen']) ? $_POST['origen'] : 'presencial',
-			'id_empleado_alta' => function_exists('crm_id_empleado_sesion') ? crm_id_empleado_sesion() : 0,
-			'abrir_turno' => false,
-			'representantes' => cliente_representantes_desde_post()
-		));
-
-		if($err === '')
+		if($resultado_alta['error'] === '')
 		{
-			$nuevo_id = isset($GLOBALS['crm_ultimo_cliente_alta_id']) ? intval($GLOBALS['crm_ultimo_cliente_alta_id']) : 0;
+			$nuevo_id = intval($resultado_alta['id']);
 			$nom_cli = isset($_POST['name']) ? trim($_POST['name']) : 'Nuevo cliente';
 			$_SESSION['msg_cliente_exito'] = 'Cliente "'.htmlspecialchars($nom_cli).'" registrado correctamente en '.$nombre_area.'.';
 			if($nuevo_id > 0)
@@ -128,7 +103,7 @@ if(isset($_POST['alta']))
 		}
 		else
 		{
-			$mensaje_error = $err;
+			$mensaje_error = $resultado_alta['error'];
 		}
 	}
 }

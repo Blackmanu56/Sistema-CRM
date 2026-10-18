@@ -55,7 +55,7 @@ $txt_ayuda=$es_padron_tipo
                     <i class="fa fa-check"></i> <?php echo texto_mostrar($_SESSION['msg_cliente_exito']); unset($_SESSION['msg_cliente_exito']); ?>
                 </div>
                 <?php } ?>
-                <div class="page-title" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                <div class="page-title crm-compact-heading" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
                     <h3 style="margin:0;">Clientes</h3>
                     <?php if(function_exists('acceso_puede_alta_cliente') && acceso_puede_alta_cliente($area_cli)) { ?>
                     <a href="<?php echo url_crm($area_cli.'/alta-cliente.php'); ?>" class="btn btn-primary btn-cons" style="margin-bottom:0;"><i class="fa fa-plus"></i> Nuevo cliente</a>

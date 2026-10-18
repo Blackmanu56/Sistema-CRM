@@ -165,9 +165,12 @@ if($q_iniciaron)
 
 $enlaces=array();
 
+$enlace_comentario_disponible=function_exists('crm_tarea_enlace_comentario_preparar') && crm_tarea_enlace_comentario_preparar();
+$columna_enlace_comentario=$enlace_comentario_disponible ? 'id_tarea_comentario' : 'NULL';
+
 $q_enlaces=mysqli_query(
     $con,
-    "SELECT url
+    "SELECT id, url, fecha_carga, ".$columna_enlace_comentario." AS id_tarea_comentario
      FROM tarea_enlace
      WHERE id_tarea='".intval($row['id_tarea'])."'
      ORDER BY fecha_carga ASC"
@@ -179,7 +182,12 @@ if($q_enlaces)
     {
         if(trim($enlace['url'])!='')
         {
-            $enlaces[]=$enlace['url'];
+            $enlaces[]=array(
+                'id'=>intval($enlace['id']),
+                'url'=>$enlace['url'],
+                'fecha_carga'=>isset($enlace['fecha_carga']) ? $enlace['fecha_carga'] : '',
+                'id_tarea_comentario'=>isset($enlace['id_tarea_comentario']) ? intval($enlace['id_tarea_comentario']) : 0
+            );
         }
     }	
 }
@@ -191,10 +199,15 @@ $q_comentarios=mysqli_query(
     "SELECT
         tc.texto,
         tc.fecha_carga,
+        tc.id,
+        tc.id_empleado,
+        tc.id_usuario_actor,
         e.nombres,
-        e.apellido
+        e.apellido,
+        u.nombre AS nombre_actor
      FROM tarea_comentario tc
-     INNER JOIN empleado e ON e.id_empleado=tc.id_empleado
+     LEFT JOIN empleado e ON e.id_empleado=tc.id_empleado
+     LEFT JOIN usuario_cliente u ON u.id_usuario=tc.id_usuario_actor
      WHERE tc.id_tarea='".intval($row['id_tarea'])."'
      ORDER BY tc.fecha_carga ASC"
 );
@@ -203,14 +216,15 @@ if($q_comentarios)
 {
     while($com=mysqli_fetch_assoc($q_comentarios))
     {
-        $nombre=trim($com['nombres'].' '.$com['apellido']);
+        $nombre=trim((isset($com['nombres']) ? $com['nombres'] : '').' '.(isset($com['apellido']) ? $com['apellido'] : ''));
+        $quien=$nombre!=='' ? acceso_armar_persona($nombre, 'empresas') : (isset($com['nombre_actor']) && trim($com['nombre_actor'])!=='' ? trim($com['nombre_actor']) : 'Usuario');
 
         $comentarios[]=array(
+            'id'=>intval($com['id']),
+            'id_empleado'=>isset($com['id_empleado']) ? intval($com['id_empleado']) : 0,
+            'id_usuario_actor'=>isset($com['id_usuario_actor']) ? intval($com['id_usuario_actor']) : 0,
             'texto'=>$com['texto'],
-            'quien'=>acceso_armar_persona(
-                $nombre,
-                'empresas'
-            ),
+            'quien'=>$quien,
             'cuando'=>date(
                 'd/m/Y H:i',
                 strtotime($com['fecha_carga'])

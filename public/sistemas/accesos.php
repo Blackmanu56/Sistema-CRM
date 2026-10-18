@@ -43,8 +43,16 @@ if(isset($_POST['toggle_activo']))
 {
 	$id=isset($_POST['id_empleado']) ? intval($_POST['id_empleado']) : 0;
 	$act=isset($_POST['activo']) ? intval($_POST['activo']) : 0;
-	crm_set_empleado_activo($id, $act ? 0 : 1);
-	$_SESSION['msgsis']='Acceso actualizado.';
+	$id_sesion=crm_id_empleado_sesion();
+	if($id>0 && $id===$id_sesion)
+	{
+		$_SESSION['msgsis']='No podés cambiar el estado de tu propia cuenta.';
+	}
+	else
+	{
+		$msg=crm_set_empleado_activo($id, $act ? 0 : 1);
+		$_SESSION['msgsis']=($msg==='') ? 'Acceso actualizado.' : $msg;
+	}
 	echo "<script>window.location.href='accesos.php'</script>";
 	exit();
 }
@@ -101,7 +109,7 @@ $clientes=acceso_consulta("SELECT id_usuario, nombre, correo, dni, primer_acceso
                     <li><a href="#" class="active">Sistemas / Accesos</a></li>
                 </ul>
                 <?php include("menu-seccion.php"); ?>
-                <div class="page-title"><h3>Accesos</h3></div>
+                <div class="page-title crm-compact-heading"><h3>Accesos</h3></div>
                 <p>Acá se restablecen claves (vuelve el DNI y el primer acceso). Coordinador general es una marca extra. Un solo a la vez.</p>
                 <?php if(isset($_SESSION['msgsis']) && $_SESSION['msgsis']!='') { ?>
                 <div class="alert alert-info"><?php echo htmlspecialchars($_SESSION['msgsis']); $_SESSION['msgsis']=''; ?></div>

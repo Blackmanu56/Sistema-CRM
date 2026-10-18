@@ -14,20 +14,21 @@ if(tareas_procesar_accion_si_vino())
 
 
 $lista=crm_tareas_preparar_lista(crm_tareas_filtrar_cliente(tareas_filtradas()));
-$contadores=crm_tareas_contar(tareas_visibles());
+$tareas_calendario=tareas_visibles();
+$contadores=crm_tareas_contar($tareas_calendario);
 
-// Mes del calendario: el que eligieron o el mes actual.
-$cal=isset($_GET['cal']) && $_GET['cal']!='' ? $_GET['cal'] : date('Y-m');
+// Mes visible del calendario; un día seleccionado determina el mes mostrado.
+$dia_cal=isset($_GET['dia']) && function_exists('crm_tarea_fecha_filtro_valida') && crm_tarea_fecha_filtro_valida($_GET['dia']) ? $_GET['dia'] : '';
+$cal=isset($_GET['cal']) && preg_match('/^\d{4}-(0[1-9]|1[0-2])$/',(string)$_GET['cal']) && checkdate(1,1,intval(substr($_GET['cal'],0,4))) ? $_GET['cal'] : date('Y-m');
+if($dia_cal!=='') { $cal=substr($dia_cal,0,7); }
 $cal_partes=explode('-', $cal);
-$cal_anio=isset($cal_partes[0]) ? intval($cal_partes[0]) : 2026;
-$cal_mes=isset($cal_partes[1]) ? intval($cal_partes[1]) : 2;
-if($cal_mes<1) { $cal_mes=1; }
-if($cal_mes>12) { $cal_mes=12; }
-$cal_prev=date('Y-m', strtotime($cal_anio.'-'.$cal_mes.'-01 -1 month'));
-$cal_next=date('Y-m', strtotime($cal_anio.'-'.$cal_mes.'-01 +1 month'));
-$dias_marcados=calendario_dias_con_tareas($cal_anio, $cal_mes, tareas_visibles());
-$primer_dia=intval(date('N', strtotime($cal_anio.'-'.$cal_mes.'-01')));
-$dias_del_mes=intval(date('t', strtotime($cal_anio.'-'.$cal_mes.'-01')));
+$cal_anio=intval($cal_partes[0]);
+$cal_mes=intval($cal_partes[1]);
+$cal_prev=date('Y-m', strtotime($cal.'-01 -1 month'));
+$cal_next=date('Y-m', strtotime($cal.'-01 +1 month'));
+$dias_marcados=array();
+$primer_dia=intval(date('N', strtotime($cal.'-01')));
+$dias_del_mes=intval(date('t', strtotime($cal.'-01')));
 $hoy=date('Y-m-d');
 ?>
 <!DOCTYPE html>
@@ -70,7 +71,7 @@ $hoy=date('Y-m-d');
                 <?php include("menu-seccion.php"); ?>
                 <?php include BASE_PATH.'/includes/tareas-avisos-caja.php'; ?>
 
-                <div class="page-title">
+                <div class="page-title crm-compact-heading">
                     <h3><?php echo acceso_es_empleado() ? 'Mis tareas' : 'Tareas'; ?></h3>
                     <a href="<?php echo tareas_link('nueva-tarea.php'); ?>" class="btn btn-primary btn-cons pull-right">Nueva tarea</a>
                 </div>
@@ -122,78 +123,8 @@ $hoy=date('Y-m-d');
 
                 <!-- Filtros de la lista. Al cambiar uno se recarga la pagina. -->
                 <div class="grid simple">
-                    <div class="grid-title">
-                        <h4>Filtros</h4>
-                    </div>
                     <div class="grid-body">
-                        <form method="get" action="tareas.php" class="form-inline">
-                            <input type="hidden" name="cal" value="<?php echo texto_mostrar($cal); ?>">
-                            <div class="form-group">
-                                <label>Mes</label>
-                                <select name="mes" class="form-control" onchange="this.form.submit()">
-                                    <option value="">Todos</option>
-                                    <?php foreach(tareas_meses_disponibles() as $m){
-                                        $partes=explode('-',$m);
-                                        $etiqueta=mes_nombre($partes[1]).' '.$partes[0];
-                                    ?>
-                                    <option value="<?php echo texto_mostrar($m); ?>" <?php if(isset($_GET['mes']) && $_GET['mes']==$m) echo 'selected'; ?>><?php echo texto_mostrar($etiqueta); ?></option>
-                                    <?php } ?>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Área</label>
-                                <select name="area" class="form-control" onchange="this.form.submit()">
-                                    <option value="">Todas</option>
-                                    <?php foreach(tareas_valores_unicos('area') as $op){ ?>
-                                    <option value="<?php echo texto_mostrar($op); ?>" <?php if(isset($_GET['area']) && $_GET['area']==$op) echo 'selected'; ?>><?php echo texto_mostrar($op); ?></option>
-                                    <?php } ?>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Prioridad</label>
-                                <select name="prioridad" class="form-control" onchange="this.form.submit()">
-                                    <option value="">Todas</option>
-                                    <?php foreach(tareas_valores_unicos('prioridad') as $op){ ?>
-                                    <option value="<?php echo texto_mostrar($op); ?>" <?php if(isset($_GET['prioridad']) && $_GET['prioridad']==$op) echo 'selected'; ?>><?php echo texto_mostrar($op); ?></option>
-                                    <?php } ?>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label><?php echo texto_mostrar(tareas_etiqueta_tipo()); ?></label>
-                                <select name="tipo" class="form-control" onchange="this.form.submit()">
-                                    <option value="">Todos</option>
-                                    <?php foreach(tareas_valores_unicos('tipo') as $op){ ?>
-                                    <option value="<?php echo texto_mostrar($op); ?>" <?php if(isset($_GET['tipo']) && $_GET['tipo']==$op) echo 'selected'; ?>><?php echo texto_mostrar($op); ?></option>
-                                    <?php } ?>
-                                </select>
-                            </div>
-                            <?php if(!acceso_es_empleado()) { ?>
-                            <div class="form-group">
-                                <label>Responsable</label>
-                                <select name="responsable" class="form-control" onchange="this.form.submit()">
-                                    <option value="">Todos</option>
-                                    <?php foreach(tareas_valores_unicos('responsable') as $op){ ?>
-                                    <option value="<?php echo texto_mostrar($op); ?>" <?php if(isset($_GET['responsable']) && $_GET['responsable']==$op) echo 'selected'; ?>><?php echo texto_mostrar($op); ?></option>
-                                    <?php } ?>
-                                </select>
-                            </div>
-                            <?php } ?>
-                            <div class="form-group">
-                                <label>Estado</label>
-                                <select name="estado" class="form-control" onchange="this.form.submit()">
-                                    <option value="">Todos</option>
-                                    <option value="No iniciada" <?php if(isset($_GET['estado']) && ($_GET['estado']=='No iniciada' || $_GET['estado']=='Pendiente')) echo 'selected'; ?>>No iniciada</option>
-                                    <option value="En proceso" <?php if(isset($_GET['estado']) && $_GET['estado']=='En proceso') echo 'selected'; ?>>En proceso</option>
-                                    <option value="Pausada" <?php if(isset($_GET['estado']) && $_GET['estado']=='Pausada') echo 'selected'; ?>>Pausada</option>
-                                    <option value="Terminada" <?php if(isset($_GET['estado']) && $_GET['estado']=='Terminada') echo 'selected'; ?>>Terminada</option>
-                                    <option value="Vencida" <?php if(isset($_GET['estado']) && $_GET['estado']=='Vencida') echo 'selected'; ?>>Vencida</option>
-                                    <option value="Eliminada" <?php if(isset($_GET['estado']) && ($_GET['estado']=='Eliminada' || $_GET['estado']=='cancelada')) echo 'selected'; ?>>Eliminada</option>
-                                </select>
-                            </div>
-                            <?php if(function_exists('crm_html_orden_tarea')) { echo crm_html_orden_tarea(); } ?>
-                            <?php if(function_exists('crm_html_filtro_cliente_tarea')) { echo crm_html_filtro_cliente_tarea(); } ?>
-                            <a href="<?php echo tareas_link('tareas.php'); ?>" class="btn btn-white btn-xs" style="margin-top:22px;">Limpiar</a>
-                        </form>
+                        <form method="get" action="tareas.php" class="form-inline crm-tareas-filtros"><?php echo crm_tareas_filtros_campos_html($cal,$dia_cal); ?></form>
                     </div>
                 </div>
 
@@ -213,7 +144,7 @@ $hoy=date('Y-m-d');
                         <div class="grid simple">
                             <div class="grid-title">
                                 <h4><?php echo texto_mostrar($tarea['titulo']); ?></h4>
-                                <div class="tools">
+                                <div class="tools crm-task-status">
                                     <span class="label <?php echo label_estado(tarea_texto_estado($tarea)); ?>"><?php echo texto_mostrar(tarea_texto_estado($tarea)); ?></span>
                                     <?php if(tarea_esta_vencida($tarea)){ ?>
                                     <span class="label label-important">Vencida</span>
@@ -229,37 +160,18 @@ $hoy=date('Y-m-d');
                     </div>
 
                     <div class="col-md-4">
-                        <!-- Calendario simple del mes, sin librerias nuevas. -->
+                        <!-- Calendario de tareas con filtros sincronizados. -->
                         <div class="grid simple">
-                            <div class="grid-title">
-                                <h4><?php echo mes_nombre($cal_mes).' '.$cal_anio; ?></h4>
-                                <div class="tools">
-                                    <a href="<?php echo tareas_link_filtro(array('cal'=>$cal_prev)); ?>">&lt;</a>
-                                    <a href="<?php echo tareas_link_filtro(array('cal'=>$cal_next)); ?>">&gt;</a>
-                                </div>
+                            <div class="grid-title crm-tareas-cal-grid-title">
+                                <h4><i class="fa fa-calendar text-info"></i>Calendario de tareas</h4>
+                                <?php echo crm_html_tareas_calendario_controles($cal_anio,$cal_mes); ?>
                             </div>
                             <div class="grid-body">
                                 <?php include BASE_PATH.'/includes/tareas-calendario.php'; ?>
                             </div>
                         </div>
 
-                        <div class="grid simple">
-                            <div class="grid-title">
-                                <h4>Actividad reciente</h4>
-                            </div>
-                            <div class="grid-body">
-                                <?php foreach(actividades_lista() as $act){ ?>
-                                <p>
-                                    <i class="fa <?php echo icono_actividad($act['tipo']); ?>"></i>
-                                    <strong><?php echo texto_mostrar($act['titulo']); ?></strong>
-                                    <span class="pull-right muted"><?php echo texto_mostrar($act['cuando']); ?></span><br>
-                                    <?php echo texto_mostrar($act['detalle']); ?><br>
-                                    <span class="muted"><?php echo texto_mostrar($act['extra']); ?></span>
-                                </p>
-                                <hr>
-                                <?php } ?>
-                            </div>
-                        </div>
+                        <?php include BASE_PATH.'/includes/tareas-historial.php'; ?>
                     </div>
                 </div>
 

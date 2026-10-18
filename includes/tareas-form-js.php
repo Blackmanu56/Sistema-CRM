@@ -2,6 +2,7 @@
 // Buscador de clientes vía AJAX (no carga todos los registros).
 var urlBuscarClientes = <?php echo json_encode(url_crm('ajax/clientes-buscar.php'), JSON_UNESCAPED_UNICODE); ?>;
 var timerBuscarCli = null;
+var solicitudClientesTarea = 0;
 function textoClienteItem(cli)
 {
 	var t = cli.nombre || '';
@@ -30,7 +31,19 @@ function mostrarResultadosCliente(lista)
 			fila.style.padding = '8px 10px';
 			fila.style.cursor = 'pointer';
 			fila.style.borderBottom = '1px solid #eee';
-			fila.appendChild(document.createTextNode(textoClienteItem(cli)));
+			fila.style.background = '#fff';
+			var nombre = document.createElement('strong');
+		nombre.appendChild(document.createTextNode(cli.nombre || 'Cliente'));
+			fila.appendChild(nombre);
+			var identificador = cli.cuil_cuit || (cli.dni ? 'DNI ' + cli.dni : '');
+			if(identificador)
+			{
+				var detalle = document.createElement('small');
+				detalle.style.display = 'block';
+				detalle.style.color = '#777';
+				detalle.appendChild(document.createTextNode(identificador));
+				fila.appendChild(detalle);
+			}
 			fila.onmouseover = function(){ fila.style.background = '#f5f5f5'; };
 			fila.onmouseout = function(){ fila.style.background = '#fff'; };
 			fila.onclick = function(){ elegirClienteTarea(cli); };
@@ -40,31 +53,30 @@ function mostrarResultadosCliente(lista)
 }
 function elegirClienteTarea(cli)
 {
+	solicitudClientesTarea++;
+	if(timerBuscarCli) { clearTimeout(timerBuscarCli); }
 	var id = document.getElementById('cliente_id');
 	var nom = document.getElementById('cliente_nombre');
 	var bus = document.getElementById('buscar_cliente');
 	if(id) { id.value = cli.id; }
 	if(nom) { nom.value = cli.nombre; }
 	if(bus) { bus.value = ''; }
+	if(nom) { nom.style.borderColor = '#5cb85c'; nom.style.background = '#f4fbf4'; }
+	var limpiar = document.getElementById('btn_quitar_cliente');
+	if(limpiar) { limpiar.disabled = false; }
 	mostrarResultadosCliente([]);
 }
-function filtrarClientesTarea()
+function buscarClientesTarea(q, limite, demora)
 {
-	var bus = document.getElementById('buscar_cliente');
-	var q = bus ? bus.value.replace(/^\s+|\s+$/g, '') : '';
 	if(timerBuscarCli) { clearTimeout(timerBuscarCli); }
-	if(q.length < 2)
-	{
-		mostrarResultadosCliente([]);
-		return;
-	}
+	var solicitud = ++solicitudClientesTarea;
 	timerBuscarCli = setTimeout(function()
 	{
 		var xhr = new XMLHttpRequest();
-		xhr.open('GET', urlBuscarClientes + '?q=' + encodeURIComponent(q) + '&limit=15', true);
+		xhr.open('GET', urlBuscarClientes + '?q=' + encodeURIComponent(q) + '&limit=' + limite, true);
 		xhr.onreadystatechange = function()
 		{
-			if(xhr.readyState !== 4) { return; }
+			if(xhr.readyState !== 4 || solicitud !== solicitudClientesTarea) { return; }
 			try
 			{
 				var data = JSON.parse(xhr.responseText || '{}');
@@ -73,20 +85,33 @@ function filtrarClientesTarea()
 			catch(e) { mostrarResultadosCliente([]); }
 		};
 		xhr.send();
-	}, 280);
+	}, demora);
+}
+function filtrarClientesTarea()
+{
+	var bus = document.getElementById('buscar_cliente');
+	var q = bus ? bus.value.replace(/^\s+|\s+$/g, '') : '';
+	if(q.length===0) { buscarClientesTarea('',10,180); return; }
+	if(q.length<2) { solicitudClientesTarea++; if(timerBuscarCli) { clearTimeout(timerBuscarCli); } mostrarResultadosCliente([]); return; }
+	buscarClientesTarea(q,15,280);
 }
 function quitarClienteTarea()
 {
+	solicitudClientesTarea++;
+	if(timerBuscarCli) { clearTimeout(timerBuscarCli); }
 	var id = document.getElementById('cliente_id');
 	var nom = document.getElementById('cliente_nombre');
 	if(id) { id.value = ''; }
 	if(nom) { nom.value = ''; }
+	if(nom) { nom.style.borderColor = ''; nom.style.background = ''; }
+	var limpiar = document.getElementById('btn_quitar_cliente');
+	if(limpiar) { limpiar.disabled = true; }
 	mostrarResultadosCliente([]);
 }
 var busCli = document.getElementById('buscar_cliente');
 if(busCli)
 {
-	busCli.onkeyup = filtrarClientesTarea;
+	busCli.oninput = filtrarClientesTarea;
 	busCli.onfocus = filtrarClientesTarea;
 }
 var btnQuitarCli = document.getElementById('btn_quitar_cliente');

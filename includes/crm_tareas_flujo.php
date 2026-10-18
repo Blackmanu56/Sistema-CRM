@@ -951,21 +951,148 @@ function crm_html_orden_tarea()
 	$orden = isset($_GET['orden']) ? trim($_GET['orden']) : '';
 	ob_start();
 	?>
-	<div class="form-group">
-		<label>Ordenar</label>
+	<div class="form-group crm-tareas-orden">
+		<label>Ordenar por</label>
 		<select name="orden" class="form-control" onchange="this.form.submit()">
 			<option value="recientes" <?php if($orden==='recientes' || $orden==='') echo 'selected'; ?>>Más recientes</option>
 			<option value="antiguas" <?php if($orden==='antiguas') echo 'selected'; ?>>Más antiguas</option>
+			<option value="vence" <?php if($orden==='vence') echo 'selected'; ?>>Próximas a vencer</option>
 		</select>
 	</div>
 	<?php
 	return ob_get_clean();
 }
 
+function crm_html_filtros_avanzados_tarea()
+{
+	$buscar=isset($_GET['buscar']) ? trim($_GET['buscar']) : '';
+	ob_start();
+	?>
+	<div class="form-group crm-tareas-buscar-group">
+		<label for="filtro_buscar_tarea">Tarea</label>
+		<input type="search" id="filtro_buscar_tarea" name="buscar" class="form-control" value="<?php echo htmlspecialchars($buscar, ENT_QUOTES, 'UTF-8'); ?>" placeholder="Nombre o descripción" autocomplete="off" oninput="clearTimeout(window.crmTareasBuscarTimer);var f=this.form;window.crmTareasBuscarTimer=setTimeout(function(){f.submit();},450);">
+	</div>
+	<?php
+	return ob_get_clean();
+}
+
+function crm_tareas_filtros_campos_html($cal, $dia_cal)
+{
+	$estado=isset($_GET['estado']) ? (string)$_GET['estado'] : '';
+	$mes=isset($_GET['mes']) ? (string)$_GET['mes'] : '';
+	$prioridad=isset($_GET['prioridad']) ? (string)$_GET['prioridad'] : '';
+	$responsable=isset($_GET['responsable']) ? (string)$_GET['responsable'] : '';
+	$objetivo=isset($_GET['tipo']) ? (string)$_GET['tipo'] : '';
+	$area=isset($_GET['area']) ? (string)$_GET['area'] : '';
+	$areas=tareas_valores_unicos('area');
+	$mostrar_area=(count($areas)>1);
+	ob_start();
+	?>
+	<style>
+	.crm-tareas-filtros{display:grid;grid-template-columns:minmax(0,1fr);width:100%;min-width:0;margin:0}
+	.crm-tareas-filtros-row{display:grid;align-items:end;gap:6px;min-width:0;width:100%}
+	.crm-tareas-filtros-row-principal{grid-template-columns:minmax(145px,1.45fr) minmax(180px,1.7fr) minmax(80px,.8fr) minmax(88px,.9fr) minmax(90px,.9fr) minmax(115px,1.15fr) minmax(110px,1.1fr) minmax(125px,1.25fr) auto}
+	.crm-tareas-filtros-row-principal.crm-tareas-filtros-con-area{grid-template-columns:minmax(130px,1.35fr) minmax(165px,1.55fr) minmax(72px,.72fr) minmax(78px,.78fr) minmax(82px,.82fr) minmax(100px,1fr) minmax(100px,1fr) minmax(100px,1fr) minmax(112px,1.12fr) auto}
+	.crm-tareas-filtros .form-group{display:block;margin:0;min-width:0;max-width:none}
+	.crm-tareas-filtros label{display:block;white-space:nowrap;margin:0 0 4px;font-size:11px;line-height:1.2;color:#64748b}
+	.crm-tareas-filtros .form-control{height:32px;width:100%;max-width:none;min-width:0;padding:5px 7px;font-size:12px;box-sizing:border-box}
+	.crm-tareas-filtros #filtro_cliente_input{width:100%!important}
+	.crm-tareas-filtros-row > a.btn{align-self:end;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;white-space:nowrap;height:36px;line-height:20px;padding:5px 8px;margin:0!important}
+	@media(min-width:768px) and (max-width:1199px){.crm-tareas-filtros-row-principal,.crm-tareas-filtros-row-principal.crm-tareas-filtros-con-area{grid-template-columns:minmax(140px,1.5fr) minmax(160px,1.6fr) repeat(3,minmax(85px,.9fr))}.crm-tareas-filtros-row-principal .crm-tareas-orden{grid-column:span 2}}
+	@media(max-width:767px){.crm-tareas-filtros-row-principal,.crm-tareas-filtros-row-principal.crm-tareas-filtros-con-area{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.crm-tareas-filtros-row-principal .crm-tareas-buscar-group,.crm-tareas-filtros-row-principal .crm-tareas-cliente-group{grid-column:span 2}.crm-tareas-filtros-row > a.btn{justify-self:start}}
+	@media(max-width:480px){.crm-tareas-filtros-row-principal,.crm-tareas-filtros-row-principal.crm-tareas-filtros-con-area{grid-template-columns:minmax(0,1fr)}}
+	</style>
+	<input type="hidden" name="cal" value="<?php echo htmlspecialchars((string)$cal,ENT_QUOTES,'UTF-8'); ?>">
+	<input type="hidden" name="dia" value="<?php echo htmlspecialchars((string)$dia_cal,ENT_QUOTES,'UTF-8'); ?>">
+	<div class="crm-tareas-filtros-row crm-tareas-filtros-row-principal<?php echo $mostrar_area?' crm-tareas-filtros-con-area':''; ?>">
+		<?php echo crm_html_filtros_avanzados_tarea(); ?>
+		<?php if(function_exists('crm_html_filtro_cliente_tarea')) { echo crm_html_filtro_cliente_tarea(); } ?>
+		<div class="form-group"><label>Estado</label><select name="estado" class="form-control" onchange="this.form.submit()">
+			<option value="">Todos</option>
+			<?php foreach(array('No iniciada','En proceso','Pausada','Terminada','Vencida','Eliminada') as $op) { $sel=($estado===$op || ($op==='No iniciada' && $estado==='Pendiente') || ($op==='Eliminada' && $estado==='cancelada'))?' selected':''; ?>
+			<option value="<?php echo htmlspecialchars($op,ENT_QUOTES,'UTF-8'); ?>"<?php echo $sel; ?>><?php echo htmlspecialchars($op,ENT_QUOTES,'UTF-8'); ?></option><?php } ?>
+		</select></div>
+		<div class="form-group"><label>Prioridad</label><select name="prioridad" class="form-control" onchange="this.form.submit()"><option value="">Todas</option><?php foreach(tareas_valores_unicos('prioridad') as $op) { ?><option value="<?php echo texto_mostrar($op); ?>"<?php if($prioridad===$op) echo ' selected'; ?>><?php echo texto_mostrar($op); ?></option><?php } ?></select></div>
+		<div class="form-group"><label>Mes</label><select name="mes" class="form-control" onchange="this.form.submit()"><option value="">Todos</option><?php foreach(tareas_meses_disponibles() as $m) { $partes=explode('-',$m); $etiqueta=mes_nombre($partes[1]).' '.$partes[0]; ?><option value="<?php echo texto_mostrar($m); ?>"<?php if($mes===$m) echo ' selected'; ?>><?php echo texto_mostrar($etiqueta); ?></option><?php } ?></select></div>
+		<?php if(!acceso_es_empleado()) { ?><div class="form-group"><label>Responsable</label><select name="responsable" class="form-control" onchange="this.form.submit()"><option value="">Todos</option><?php foreach(tareas_valores_unicos('responsable') as $op) { ?><option value="<?php echo texto_mostrar($op); ?>"<?php if($responsable===$op) echo ' selected'; ?>><?php echo texto_mostrar($op); ?></option><?php } ?></select></div><?php } ?>
+		<div class="form-group"><label><?php echo texto_mostrar(tareas_etiqueta_tipo()); ?></label><select name="tipo" class="form-control" onchange="this.form.submit()"><option value="">Todos</option><?php foreach(tareas_valores_unicos('tipo') as $op) { ?><option value="<?php echo texto_mostrar($op); ?>"<?php if($objetivo===$op) echo ' selected'; ?>><?php echo texto_mostrar($op); ?></option><?php } ?></select></div>
+		<?php if($mostrar_area) { $etq_area=acceso_etiquetas_area(); ?><div class="form-group"><label>Área</label><select name="area" class="form-control" onchange="this.form.submit()"><option value="">Todas</option><?php foreach($areas as $op) { ?><option value="<?php echo texto_mostrar($op); ?>"<?php if($area===$op) echo ' selected'; ?>><?php echo texto_mostrar(acceso_area_pantalla()==='general' && isset($etq_area[$op]) ? $etq_area[$op] : $op); ?></option><?php } ?></select></div><?php } ?>
+		<?php echo crm_html_orden_tarea(); ?>
+		<a href="<?php echo tareas_link('tareas.php'); ?>" class="btn btn-white"><i class="fa fa-times"></i> Limpiar</a>
+	</div>
+	<?php
+	return ob_get_clean();
+}
+
+function crm_tareas_calendario_eventos($tareas, $anio, $mes)
+{
+	$eventos=array();
+	$prefijo=sprintf('%04d-%02d-',$anio,$mes);
+	foreach((array)$tareas as $tarea)
+	{
+		if(function_exists('tarea_esta_eliminada') && tarea_esta_eliminada($tarea)) { continue; }
+		foreach(array('inicio'=>'fecha_inicio','vencimiento'=>'fecha_cierre') as $tipo=>$campo)
+		{
+			$fecha=substr(isset($tarea[$campo]) ? (string)$tarea[$campo] : '',0,10);
+			if(!crm_tarea_fecha_filtro_valida($fecha) || strpos($fecha,$prefijo)!==0) { continue; }
+			$dia=intval(substr($fecha,8,2));
+			if(!isset($eventos[$dia])) { $eventos[$dia]=array(); }
+			$eventos[$dia][$tipo]=true;
+		}
+	}
+	return $eventos;
+}
+
+function crm_tareas_link_filtro($cambios)
+{
+	$actual=array();
+	foreach(array('mes','area','prioridad','tipo','responsable','estado','cliente','orden','cal','dia','buscar','fecha_inicio','fecha_vencimiento','vence') as $clave)
+	{
+		$actual[$clave]=isset($_GET[$clave]) ? $_GET[$clave] : '';
+	}
+	return tareas_link('tareas.php',array_merge($actual,(array)$cambios));
+}
+
+function crm_html_tareas_calendario_controles($anio, $mes)
+{
+	$anio=intval($anio); $mes=intval($mes);
+	$cal=sprintf('%04d-%02d',$anio,$mes);
+	$meses=array(1=>'Enero',2=>'Febrero',3=>'Marzo',4=>'Abril',5=>'Mayo',6=>'Junio',7=>'Julio',8=>'Agosto',9=>'Septiembre',10=>'Octubre',11=>'Noviembre',12=>'Diciembre');
+	$anio_hoy=intval(date('Y'));
+	$anios=array_values(array_unique(array_merge(range(max(1,$anio_hoy-5),$anio_hoy+5),range(max(1,$anio-5),$anio+5))));
+	sort($anios);
+	$prev=date('Y-m',strtotime($cal.'-01 -1 month'));
+	$next=date('Y-m',strtotime($cal.'-01 +1 month'));
+	$prev_url=crm_tareas_link_filtro(array('cal'=>$prev,'dia'=>''));
+	$next_url=crm_tareas_link_filtro(array('cal'=>$next,'dia'=>''));
+	$clear_url=crm_tareas_link_filtro(array('cal'=>date('Y-m'),'dia'=>''));
+	ob_start();
+	?>
+	<div class="crm-tareas-cal-controls">
+		<a class="btn btn-white btn-xs" href="<?php echo htmlspecialchars($prev_url, ENT_QUOTES, 'UTF-8'); ?>" aria-label="Mes anterior"><i class="fa fa-chevron-left"></i></a>
+		<form method="get" action="<?php echo htmlspecialchars(tareas_link('tareas.php'), ENT_QUOTES, 'UTF-8'); ?>" class="crm-tareas-cal-selectores">
+			<input type="hidden" name="cal" value="<?php echo htmlspecialchars($cal, ENT_QUOTES, 'UTF-8'); ?>">
+			<?php foreach(array('mes','area','prioridad','tipo','responsable','estado','cliente','orden','buscar','fecha_inicio','fecha_vencimiento','vence') as $clave) { if(isset($_GET[$clave]) && $_GET[$clave]!=='') { ?><input type="hidden" name="<?php echo htmlspecialchars($clave, ENT_QUOTES, 'UTF-8'); ?>" value="<?php echo htmlspecialchars($_GET[$clave], ENT_QUOTES, 'UTF-8'); ?>"><?php } } ?>
+			<select name="cal_mes" aria-label="Mes del calendario" onchange="var f=this.form;f.elements['cal'].value=f.elements['cal_anio'].value+'-'+('0'+f.elements['cal_mes'].value).slice(-2);f.submit()"><?php foreach($meses as $numero=>$nombre) { ?><option value="<?php echo $numero; ?>" <?php if($numero===$mes) echo 'selected'; ?>><?php echo $nombre; ?></option><?php } ?></select>
+			<select name="cal_anio" aria-label="Año del calendario" onchange="var f=this.form;f.elements['cal'].value=f.elements['cal_anio'].value+'-'+('0'+f.elements['cal_mes'].value).slice(-2);f.submit()"><?php foreach($anios as $y) { ?><option value="<?php echo $y; ?>" <?php if($y===$anio) echo 'selected'; ?>><?php echo $y; ?></option><?php } ?></select>
+		</form>
+		<a class="btn btn-white btn-xs" href="<?php echo htmlspecialchars($clear_url, ENT_QUOTES, 'UTF-8'); ?>"><i class="fa fa-refresh"></i> Limpiar</a>
+		<a class="btn btn-white btn-xs" href="<?php echo htmlspecialchars($next_url, ENT_QUOTES, 'UTF-8'); ?>" aria-label="Mes siguiente"><i class="fa fa-chevron-right"></i></a>
+	</div>
+	<?php
+	return ob_get_clean();
+}
+
 /**
- * Lista de tareas de cualquier área: saca las eliminadas, aplica los filtros
- * del calendario (dia=AAAA-MM-DD, vence=hoy) y deja primero las abiertas.
+ * Lista de tareas de cualquier área: saca las eliminadas y aplica filtros de calendario y lista.
  */
+function crm_tarea_fecha_filtro_valida($fecha)
+{
+	if(!preg_match('/^\d{4}-\d{2}-\d{2}$/',(string)$fecha)) { return false; }
+	$partes=explode('-',$fecha);
+	return checkdate(intval($partes[1]),intval($partes[2]),intval($partes[0]));
+}
+
 function crm_tareas_preparar_lista($lista)
 {
 	if(!is_array($lista))
@@ -973,8 +1100,11 @@ function crm_tareas_preparar_lista($lista)
 		return array();
 	}
 	$hoy=date('Y-m-d');
-	$dia=isset($_GET['dia']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['dia']) ? $_GET['dia'] : '';
+	$dia=isset($_GET['dia']) && crm_tarea_fecha_filtro_valida($_GET['dia']) ? $_GET['dia'] : '';
 	$vence=isset($_GET['vence']) ? $_GET['vence'] : '';
+	$buscar=isset($_GET['buscar']) ? trim($_GET['buscar']) : '';
+	$fecha_inicio=isset($_GET['fecha_inicio']) && crm_tarea_fecha_filtro_valida($_GET['fecha_inicio']) ? $_GET['fecha_inicio'] : '';
+	$fecha_vencimiento=isset($_GET['fecha_vencimiento']) && crm_tarea_fecha_filtro_valida($_GET['fecha_vencimiento']) ? $_GET['fecha_vencimiento'] : '';
 	$estado_filtro=isset($_GET['estado']) ? trim($_GET['estado']) : '';
 	$ver_eliminadas=($estado_filtro==='Eliminada' || $estado_filtro==='cancelada');
 	$out=array();
@@ -992,6 +1122,16 @@ function crm_tareas_preparar_lista($lista)
 		$ini=substr(isset($t['fecha_inicio']) ? (string)$t['fecha_inicio'] : '', 0, 10);
 		$fin=substr(isset($t['fecha_cierre']) ? (string)$t['fecha_cierre'] : '', 0, 10);
 		$terminada=(tarea_texto_estado($t)=='Terminada');
+		if($buscar!=='')
+		{
+			$titulo=isset($t['titulo']) ? (string)$t['titulo'] : '';
+			$descripcion=isset($t['descripcion']) ? (string)$t['descripcion'] : '';
+			$en_titulo=function_exists('mb_stripos') ? mb_stripos($titulo,$buscar,0,'UTF-8')!==false : stripos($titulo,$buscar)!==false;
+			$en_descripcion=function_exists('mb_stripos') ? mb_stripos($descripcion,$buscar,0,'UTF-8')!==false : stripos($descripcion,$buscar)!==false;
+			if(!$en_titulo && !$en_descripcion) { continue; }
+		}
+		if($fecha_inicio!=='' && $ini!==$fecha_inicio) { continue; }
+		if($fecha_vencimiento!=='' && $fin!==$fecha_vencimiento) { continue; }
 		if($dia!='' && $ini!==$dia && $fin!==$dia)
 		{
 			continue;
@@ -1004,6 +1144,15 @@ function crm_tareas_preparar_lista($lista)
 	}
 	$orden = isset($_GET['orden']) ? trim($_GET['orden']) : '';
 	usort($out, function($a, $b) use ($orden) {
+		if($orden==='vence')
+		{
+			$ca=substr(isset($a['fecha_cierre']) ? (string)$a['fecha_cierre'] : '',0,10);
+			$cb=substr(isset($b['fecha_cierre']) ? (string)$b['fecha_cierre'] : '',0,10);
+			if($ca==='' && $cb!=='') { return 1; }
+			if($cb==='' && $ca!=='') { return -1; }
+			if($ca!=='' && $cb!=='' && $ca!==$cb) { return strcmp($ca,$cb); }
+			return intval(isset($a['id']) ? $a['id'] : 0)-intval(isset($b['id']) ? $b['id'] : 0);
+		}
 		$ca = isset($a['creado_en']) && $a['creado_en'] != '' ? (string)$a['creado_en'] : (isset($a['fecha_inicio']) ? (string)$a['fecha_inicio'] : '');
 		$cb = isset($b['creado_en']) && $b['creado_en'] != '' ? (string)$b['creado_en'] : (isset($b['fecha_inicio']) ? (string)$b['fecha_inicio'] : '');
 		$ida = intval(isset($a['id']) ? $a['id'] : 0);

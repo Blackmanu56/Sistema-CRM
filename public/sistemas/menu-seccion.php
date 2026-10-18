@@ -19,4 +19,5 @@ if(!isset($menu_activo)) { $menu_activo='tareas'; }
 	<a href="<?php echo url_crm('sistemas/areas.php'); ?>" class="btn <?php echo ($menu_activo=='areas' ? 'btn-primary' : 'btn-white'); ?>">Áreas</a>
 	<a href="<?php echo url_crm('sistemas/ajustes.php'); ?>" class="btn <?php echo ($menu_activo=='ajustes' ? 'btn-primary' : 'btn-white'); ?>">Ajustes</a>
 	<?php } ?>
+<?php crm_menu_seccion_sala_reuniones(); ?>
 </div>

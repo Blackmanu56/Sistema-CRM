@@ -2455,16 +2455,20 @@ function tarea_coincide_estado($tarea, $estado)
 
 function tarea_puede_agregar_extras($tarea)
 {
-	// Superadmin solo mira. No carga links ni comentarios en la tarea de otra persona.
-	if(acceso_es_super() || (function_exists('tarea_esta_eliminada') && tarea_esta_eliminada($tarea)))
+	if(!$tarea || (function_exists('tarea_esta_eliminada') && tarea_esta_eliminada($tarea)))
 	{
 		return false;
 	}
 	$est=isset($tarea['estado']) ? strtolower(trim($tarea['estado'])) : '';
 	$txt=function_exists('tarea_texto_estado') ? tarea_texto_estado($tarea) : '';
-	if($est==='terminada' || $txt==='Terminada')
+	if($est==='terminada' || $txt==='Terminada' || $est==='cancelada' || $est==='eliminada')
 	{
 		return false;
+	}
+	// Superadmin puede gestionar extras en cualquier tarea visible que siga activa.
+	if(acceso_es_super())
+	{
+		return true;
 	}
 	if(isset($tarea['area_origen']) && $tarea['area_origen']!='')
 	{
@@ -3139,11 +3143,11 @@ function tarea_puede_ver($tarea)
 	return function_exists('tarea_es_responsable') ? tarea_es_responsable($tarea) : false;
 }
 
-// El responsable y el coordinador del area pueden cambiar lo basico (titulo, responsables, fechas).
-// Superadmin no: solo ve. Las tareas terminadas tampoco se editan directamente.
+// El responsable, el coordinador del área y el Superadmin pueden cambiar lo básico
+// (título, responsables y fechas). Las tareas terminadas se deben reabrir antes.
 function tarea_puede_editar($tarea)
 {
-	if(acceso_es_super() || tarea_esta_eliminada($tarea))
+	if(tarea_esta_eliminada($tarea))
 	{
 		return false;
 	}
@@ -3152,6 +3156,10 @@ function tarea_puede_editar($tarea)
 	if($est==='terminada' || $txt==='Terminada')
 	{
 		return false;
+	}
+	if(acceso_es_super())
+	{
+		return true;
 	}
 	if(isset($tarea['area_origen']) && $tarea['area_origen']!='')
 	{
@@ -3288,6 +3296,28 @@ function tareas_procesar_accion_si_vino()
 	{
 		return true;
 	}
+	if(isset($_POST['gestionar_extra_tarea']) && isset($_POST['id_tarea']))
+	{
+		if(!function_exists('crm_tarea_extra_csrf_valido') || !crm_tarea_extra_csrf_valido(isset($_POST['csrf_tarea_extra']) ? $_POST['csrf_tarea_extra'] : ''))
+		{
+			$_SESSION['msgtarea']='La sesión expiró o el formulario no es válido. Actualizá la página e intentá nuevamente.';
+			return true;
+		}
+		$id_tarea=intval($_POST['id_tarea']);
+		$ok=function_exists('crm_tarea_extra_procesar') && crm_tarea_extra_procesar(
+			$id_tarea,
+			isset($_POST['accion_extra_tarea']) ? $_POST['accion_extra_tarea'] : '',
+			isset($_POST['id_comentario']) ? intval($_POST['id_comentario']) : 0,
+			isset($_POST['id_enlace']) ? intval($_POST['id_enlace']) : 0,
+			isset($_POST['texto_comentario']) ? $_POST['texto_comentario'] : '',
+			isset($_POST['url_enlace']) ? $_POST['url_enlace'] : ''
+		);
+		$accion_extra=isset($_POST['accion_extra_tarea']) ? $_POST['accion_extra_tarea'] : '';
+		$_SESSION['msgtarea']=$ok
+			? (strpos($accion_extra,'eliminar_')===0 ? 'El comentario o link se quitó correctamente.' : 'El comentario o link se actualizó correctamente.')
+			: 'No se pudo modificar ese comentario o link. Revisá los permisos y los datos ingresados.';
+		return true;
+	}
 	if(isset($_POST['cerrar_aviso_atencion']) && function_exists('crm_aviso_atencion_ok'))
 	{
 		crm_aviso_atencion_ok($_POST['cerrar_aviso_atencion']);
@@ -3366,18 +3396,15 @@ function tareas_procesar_accion_si_vino()
 			$_SESSION['msgtarea']='Para cargar comentarios y links la tarea debe estar iniciada.';
 			return true;
 		}
-		$ok=false;
-		if($txt!='' && function_exists('crm_tarea_agregar_comentario'))
-		{
-			$ok=crm_tarea_agregar_comentario($id, $txt) || $ok;
-		}
-		if($url!='' && function_exists('crm_tarea_agregar_enlace'))
-		{
-			$ok=crm_tarea_agregar_enlace($id, $url) || $ok;
-		}
+		$ok=function_exists('crm_tarea_agregar_comentario_con_enlace')
+			? crm_tarea_agregar_comentario_con_enlace($id, $txt, $url)
+			: false;
 		if(!$ok)
 		{
-			$_SESSION['msgtarea']='No se pudo guardar el avance. Revisá que la sesión esté activa.';
+			$error_esquema=function_exists('crm_tarea_enlace_comentario_error') ? crm_tarea_enlace_comentario_error() : '';
+			$_SESSION['msgtarea']=$error_esquema!==''
+				? $error_esquema
+				: 'No se pudo guardar el comentario y su enlace asociado. Revisá la sesión e intentá nuevamente.';
 			return true;
 		}
 		return true;

@@ -70,7 +70,7 @@ $ajustes=$_SESSION['sis_ajustes'];
                     <li><a href="#" class="active">Ajustes</a></li>
                 </ul>
                 <?php include("menu-seccion.php"); ?>
-                <div class="page-title">
+                <div class="page-title crm-compact-heading">
                     <h3>Ajustes del sistema</h3>
                 </div>
                 <p align="center" style="color:#FF0000"><?php echo isset($_SESSION['msgsis']) ? $_SESSION['msgsis'] : '';?><?php $_SESSION['msgsis']="";?></p>

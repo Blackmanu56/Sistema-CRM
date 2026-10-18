@@ -711,7 +711,7 @@ function crm_html_filtro_cliente_tarea()
 	$ajax_url = function_exists('url_crm') ? url_crm('ajax/clientes-buscar.php') : '../ajax/clientes-buscar.php';
 	ob_start();
 	?>
-	<div class="form-group" style="position:relative;">
+	<div class="form-group crm-tareas-cliente-group" style="position:relative;">
 		<label for="filtro_cliente_input">Cliente</label>
 		<div style="position:relative;">
 			<input type="text"
@@ -722,7 +722,7 @@ function crm_html_filtro_cliente_tarea()
 				placeholder="Buscar por nombre, DNI o CUIT..."
 				title="Buscar cliente por nombre, DNI o CUIT"
 				autocomplete="off"
-				style="min-width:250px; <?php echo $q!=='' ? 'padding-right:26px;' : ''; ?>">
+				style="width:100%; min-width:0; <?php echo $q!=='' ? 'padding-right:26px;' : ''; ?>">
 			<?php if($q !== '') { ?>
 			<button type="button"
 				id="btn_limpiar_cliente_filtro"
@@ -730,7 +730,7 @@ function crm_html_filtro_cliente_tarea()
 				style="position:absolute; right:6px; top:50%; transform:translateY(-50%); background:transparent; border:none; color:#888; font-size:16px; line-height:1; cursor:pointer; padding:0 4px;"
 				onclick="var inp=document.getElementById('filtro_cliente_input'); if(inp){ inp.value=''; inp.form.submit(); }">&times;</button>
 			<?php } ?>
-			<div id="filtro_cliente_sugerencias" style="display:none; position:absolute; left:0; top:100%; z-index:1050; background:#fff; border:1px solid #ccc; border-radius:4px; box-shadow:0 6px 12px rgba(0,0,0,0.175); width:100%; min-width:250px; max-height:220px; overflow-y:auto; margin-top:2px;"></div>
+			<div id="filtro_cliente_sugerencias" style="display:none; position:absolute; left:0; top:100%; z-index:1050; background:#fff; border:1px solid #ccc; border-radius:4px; box-shadow:0 6px 12px rgba(0,0,0,0.175); width:100%; max-height:220px; overflow-y:auto; margin-top:2px;"></div>
 		</div>
 	</div>
 	<script>

@@ -40,7 +40,7 @@ $bus=crm_clientes_buscar(array('area'=>''));
                     <li><a href="#" class="active">Recepción / Clientes</a></li>
                 </ul>
                 <?php include("menu-seccion.php"); ?>
-                <div class="page-title">
+                <div class="page-title crm-compact-heading">
                     <h3>Clientes</h3>
                     <a href="alta-cliente.php" class="btn btn-primary btn-cons">Nuevo cliente</a>
                 </div>

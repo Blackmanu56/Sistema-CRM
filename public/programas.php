@@ -42,7 +42,7 @@ foreach($mios as $m)
   <div class="page-content">
     <div class="content">
 		<ul class="breadcrumb"><li><p>ESTÁS AQUÍ</p></li><li><a href="dashboard.php">Inicio</a></li><li><a href="#" class="active">Programas</a></li></ul>
-		<div class="page-title"><h3>Programas</h3></div>
+		<div class="page-title crm-compact-heading"><h3>Programas</h3></div>
 
 		<div class="grid simple">
 			<div class="grid-title"><h4>En los que estás</h4></div>

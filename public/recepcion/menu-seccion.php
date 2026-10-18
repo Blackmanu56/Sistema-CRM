@@ -9,4 +9,5 @@ if(!isset($menu_activo)) { $menu_activo='tareas'; }
 	<a href="<?php echo url_crm('recepcion/clientes.php'); ?>" class="btn <?php echo (($menu_activo=='clientes' || $menu_activo=='alta') ? 'btn-primary' : 'btn-white'); ?>">Clientes</a>
 	<a href="<?php echo url_crm('recepcion/atenciones.php'); ?>" class="btn <?php echo ($menu_activo=='atenciones' ? 'btn-primary' : 'btn-white'); ?>">Atenciones</a>
 	<?php } ?>
+<?php crm_menu_seccion_sala_reuniones(); ?>
 </div>

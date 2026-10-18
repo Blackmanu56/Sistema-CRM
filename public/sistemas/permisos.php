@@ -135,7 +135,7 @@ if($id_ver>0)
                     <li><a href="#" class="active">Sistemas / Permisos</a></li>
                 </ul>
                 <?php include("menu-seccion.php"); ?>
-                <div class="page-title"><h3>Permisos adicionales</h3></div>
+                <div class="page-title crm-compact-heading"><h3>Permisos adicionales</h3></div>
                 <p class="muted">RRHH carga el rol y el área principales. Acá Sistemas suma o quita excepciones: otra área como colaborador/coordinador, o Coordinador general.</p>
                 <?php if(isset($_SESSION['msgsis']) && $_SESSION['msgsis']!='') { ?>
                 <div class="alert alert-info"><?php echo htmlspecialchars($_SESSION['msgsis']); $_SESSION['msgsis']=''; ?></div>

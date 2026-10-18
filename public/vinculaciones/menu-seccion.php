@@ -10,4 +10,5 @@ if(!isset($menu_activo)) { $menu_activo='tareas'; }
 	<a href="<?php echo tareas_link('atenciones.php'); ?>" class="btn <?php echo ($menu_activo=='atenciones' ? 'btn-primary' : 'btn-white'); ?>">Atenciones</a>
 	<?php } ?>
 	<a href="<?php echo tareas_link('capacitaciones.php'); ?>" class="btn <?php echo ($menu_activo=='Capacitaciones' ? 'btn-primary' : 'btn-white'); ?>">Capacitaciones</a>
+<?php crm_menu_seccion_sala_reuniones(); ?>
 </div>

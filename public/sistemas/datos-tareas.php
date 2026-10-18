@@ -449,13 +449,20 @@ function tareas_adjuntar_enlaces(&$tarea)
 	{
 		return;
 	}
-	$filas=tareas_bd_query("SELECT url FROM tarea_enlace WHERE id_tarea=? ORDER BY fecha_carga ASC, id ASC", 'i', array($id));
+	$enlace_comentario_disponible=function_exists('crm_tarea_enlace_comentario_preparar') && crm_tarea_enlace_comentario_preparar();
+	$columna_enlace_comentario=$enlace_comentario_disponible ? 'id_tarea_comentario' : 'NULL';
+	$filas=tareas_bd_query("SELECT id, url, fecha_carga, ".$columna_enlace_comentario." AS id_tarea_comentario FROM tarea_enlace WHERE id_tarea=? ORDER BY fecha_carga ASC, id ASC", 'i', array($id));
 	$enlaces=array();
 	foreach($filas as $f)
 	{
 		if(isset($f['url']) && trim($f['url'])!='')
 		{
-			$enlaces[]=$f['url'];
+			$enlaces[]=array(
+				'id'=>isset($f['id']) ? intval($f['id']) : 0,
+				'url'=>$f['url'],
+				'fecha_carga'=>isset($f['fecha_carga']) ? $f['fecha_carga'] : '',
+				'id_tarea_comentario'=>isset($f['id_tarea_comentario']) ? intval($f['id_tarea_comentario']) : 0
+			);
 		}
 	}
 	$tarea['enlaces']=$enlaces;
@@ -468,18 +475,25 @@ function tareas_adjuntar_comentarios(&$tarea)
 	{
 		return;
 	}
-	$filas=tareas_bd_query("SELECT tc.texto, tc.fecha_carga, e.nombres, e.apellido, a.clave AS area_clave
+	$filas=tareas_bd_query("SELECT tc.id, tc.id_empleado, tc.id_usuario_actor, tc.texto, tc.fecha_carga,
+		e.nombres, e.apellido, a.clave AS area_clave, u.nombre AS nombre_actor
 		FROM tarea_comentario tc
-		INNER JOIN empleado e ON e.id_empleado=tc.id_empleado
-		INNER JOIN area a ON a.id_area=e.id_area
+		LEFT JOIN empleado e ON e.id_empleado=tc.id_empleado
+		LEFT JOIN area a ON a.id_area=e.id_area
+		LEFT JOIN usuario_cliente u ON u.id_usuario=tc.id_usuario_actor
 		WHERE tc.id_tarea=?
 		ORDER BY tc.fecha_carga ASC, tc.id ASC", 'i', array($id));
 	$comentarios=array();
 	foreach($filas as $f)
 	{
+		$nombre=tareas_nombre_persona_fila($f);
+		if($nombre==='' && isset($f['nombre_actor'])) { $nombre=trim($f['nombre_actor']); }
 		$comentarios[]=array(
+			'id'=>isset($f['id']) ? intval($f['id']) : 0,
+			'id_empleado'=>isset($f['id_empleado']) ? intval($f['id_empleado']) : 0,
+			'id_usuario_actor'=>isset($f['id_usuario_actor']) ? intval($f['id_usuario_actor']) : 0,
 			'texto'=>isset($f['texto']) ? $f['texto'] : '',
-			'quien'=>tareas_nombre_persona_fila($f),
+			'quien'=>$nombre,
 			'cuando'=>isset($f['fecha_carga']) ? date('d/m/Y H:i', strtotime($f['fecha_carga'])) : ''
 		);
 	}

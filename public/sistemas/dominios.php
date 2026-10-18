@@ -691,7 +691,7 @@ $opciones_filtros = crm_dominios_opciones_filtros();
 		<?php include("menu-seccion.php"); ?>
 
 		<!-- Page Header Title & Action Button -->
-		<div class="page-title" style="margin-bottom:15px;">
+		<div class="page-title crm-compact-heading" style="margin-bottom:15px;">
 			<h3>Dominios y Vencimientos</h3>
 			<?php if ($puede_gestionar) { ?>
 				<button type="button" class="btn btn-primary btn-cons pull-right" onclick="crmNuevoDominioModal()">

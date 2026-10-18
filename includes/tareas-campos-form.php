@@ -116,12 +116,12 @@ $msg_form=function_exists('tareas_mensaje_form_tomar') ? tareas_mensaje_form_tom
                                     <div class="col-md-6">
                                         <input type="hidden" name="id_atencion" value="<?php echo intval($id_atencion_form); ?>">
                                         <input type="hidden" name="cliente_id" id="cliente_id" value="<?php echo intval($cliente_id); ?>">
-                                        <input type="text" name="cliente_nombre" id="cliente_nombre" class="form-control" value="<?php echo texto_mostrar($cliente_nombre); ?>" readonly placeholder="Todavía no hay un cliente elegido">
+                                        <input type="text" name="cliente_nombre" id="cliente_nombre" class="form-control" value="<?php echo texto_mostrar($cliente_nombre); ?>" readonly placeholder="Seleccioná un cliente" style="<?php echo $cliente_id>0 ? 'border-color:#5cb85c;background:#f4fbf4;' : ''; ?>">
                                         <p style="margin-top:8px;">
-                                            <input type="text" id="buscar_cliente" class="form-control" placeholder="Nombre, DNI, CUIL/CUIT o localidad…" autocomplete="off">
+                                            <input type="search" id="buscar_cliente" class="form-control" placeholder="Buscar por nombre, DNI o CUIT/CUIL" autocomplete="off">
                                         </p>
-                                        <div id="resultados_cliente" style="display:none; border:1px solid #ddd; max-height:180px; overflow:auto; background:#fff; margin-bottom:8px;"></div>
-                                        <p><button type="button" class="btn btn-white" id="btn_quitar_cliente">Quitar cliente</button></p>
+                                        <div id="resultados_cliente" style="display:none; border:1px solid #ddd; border-radius:4px; max-height:180px; overflow:auto; background:#fff; margin-bottom:8px;"></div>
+                                        <p><button type="button" class="btn btn-white" id="btn_quitar_cliente" <?php if($cliente_id<=0) echo 'disabled'; ?>>Limpiar</button></p>
                                         <p class="muted">Si no va con un cliente, dejalo vacío. Links y comentarios se cargan después, al ver la tarea.</p>
                                     </div>
                                 </div>

@@ -270,6 +270,7 @@
       <?php if(acceso_es_coord_general() || acceso_es_super() || acceso_es_general()) { ?>
       <li class="<?php echo (strpos($crm_cur_uri, 'mapa-interactivo') !== false) ? 'active' : ''; ?>"><a href="<?php echo url_crm('general/mapa-interactivo/index.php'); ?>"><span class="fa fa-map-marker"></span>&nbsp;&nbsp;Mapa de eventos</a></li>
       <?php } ?>
+       <li class="<?php echo ($crm_cur_script === 'salas-reuniones.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('salas-reuniones.php'); ?>"><span class="fa fa-calendar"></span>&nbsp;&nbsp;Sala de reuniones</a></li>
 
       <?php
       if($left_area_act !== '' && $left_area_act !== 'general' && $left_area_act !== 'admin') {

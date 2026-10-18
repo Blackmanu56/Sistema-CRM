@@ -32,8 +32,16 @@ function crm_tarea_avances_juntos($enlaces, $comentarios)
 		{
 			continue;
 		}
-		$cuando=is_array($link) && isset($link['fecha_carga']) ? $link['fecha_carga'] : '';
-		$links[]=array('url'=>$url, 'ts'=>($cuando!='' ? strtotime($cuando) : 0), 'usado'=>false);
+		$id_comentario=is_array($link) && isset($link['id_tarea_comentario']) ? intval($link['id_tarea_comentario']) : 0;
+		$links[]=array('id'=>is_array($link) && isset($link['id']) ? intval($link['id']) : 0, 'url'=>$url, 'id_tarea_comentario'=>$id_comentario, 'usado'=>false);
+	}
+	$links_por_comentario=array();
+	foreach($links as $k=>$link)
+	{
+		if($link['id_tarea_comentario']>0)
+		{
+			$links_por_comentario[$link['id_tarea_comentario']]=$k;
+		}
 	}
 	$salida=array();
 	foreach($comentarios as $com)
@@ -41,33 +49,260 @@ function crm_tarea_avances_juntos($enlaces, $comentarios)
 		$txt=is_array($com) ? (isset($com['texto']) ? $com['texto'] : '') : $com;
 		$quien=is_array($com) && isset($com['quien']) ? $com['quien'] : '';
 		$cuando=is_array($com) && isset($com['cuando']) ? $com['cuando'] : '';
-		$raw=is_array($com) && isset($com['fecha_carga']) ? $com['fecha_carga'] : '';
-		$ts=($raw!='' ? strtotime($raw) : ($cuando!='' ? strtotime(str_replace('/', '-', $cuando)) : 0));
 		$url='';
-		// Solo emparejar link con comentario si fueron cargados casi juntos (mismo avance).
-		foreach($links as $k=>$l)
+		$id_enlace=0;
+		$id_comentario=is_array($com) && isset($com['id']) ? intval($com['id']) : 0;
+		if($id_comentario>0 && isset($links_por_comentario[$id_comentario]))
 		{
-			if($l['usado'])
-			{
-				continue;
-			}
-			if($ts>0 && $l['ts']>0 && abs($l['ts']-$ts)<=30)
-			{
-				$url=$l['url'];
-				$links[$k]['usado']=true;
-				break;
-			}
+			$k=$links_por_comentario[$id_comentario];
+			$url=$links[$k]['url'];
+			$id_enlace=intval($links[$k]['id']);
+			$links[$k]['usado']=true;
 		}
-		$salida[]=array('texto'=>$txt, 'quien'=>$quien, 'cuando'=>$cuando, 'url'=>$url);
+		$salida[]=array(
+			'texto'=>$txt,
+			'quien'=>$quien,
+			'cuando'=>$cuando,
+			'url'=>$url,
+			'id_comentario'=>$id_comentario,
+			'id_enlace'=>$id_enlace,
+			'asociado'=>($url!=='')
+		);
 	}
 	foreach($links as $l)
 	{
 		if(!$l['usado'])
 		{
-			$salida[]=array('texto'=>'','quien'=>'','cuando'=>'','url'=>$l['url']);
+			$salida[]=array('texto'=>'','quien'=>'','cuando'=>'','url'=>$l['url'],'id_comentario'=>0,'id_enlace'=>intval($l['id']),'asociado'=>false);
 		}
 	}
 	return $salida;
+}
+
+/** Only task contributors/coordinators may correct entries, matching the existing add-extras policy. */
+function crm_tarea_puede_gestionar_extras($tarea)
+{
+	if(!$tarea || !function_exists('tarea_puede_ver') || !tarea_puede_ver($tarea))
+	{
+		return false;
+	}
+	if(!function_exists('tarea_puede_agregar_extras') || !tarea_puede_agregar_extras($tarea))
+	{
+		return false;
+	}
+	return true;
+}
+
+/** Session-bound CSRF protection for task comment/link mutations. */
+function crm_tarea_extra_csrf_token()
+{
+	if(session_status()!==PHP_SESSION_ACTIVE) { return ''; }
+	if(empty($_SESSION['crm_tarea_extra_csrf']) || !is_string($_SESSION['crm_tarea_extra_csrf']))
+	{
+		try { $_SESSION['crm_tarea_extra_csrf']=bin2hex(random_bytes(32)); }
+		catch(Exception $e) { return ''; }
+	}
+	return $_SESSION['crm_tarea_extra_csrf'];
+}
+
+function crm_tarea_extra_csrf_valido($token)
+{
+	$esperado=crm_tarea_extra_csrf_token();
+	$token=is_string($token) ? $token : '';
+	return $esperado!=='' && $token!=='' && hash_equals($esperado,$token);
+}
+
+function crm_tarea_extra_url_valida($url, $opcional=false)
+{
+	$url=trim((string)$url);
+	if($url==='' && $opcional) { return true; }
+	if($url==='' || strlen($url)>500 || filter_var($url, FILTER_VALIDATE_URL)===false) { return false; }
+	$partes=@parse_url($url);
+	return is_array($partes) && isset($partes['scheme']) && in_array(strtolower($partes['scheme']), array('http','https'), true) && !empty($partes['host']);
+}
+
+/** Updates or removes a task comment/link after reloading and validating every relationship server-side. */
+function crm_tarea_extra_procesar($id_tarea, $accion, $id_comentario=0, $id_enlace=0, $texto='', $url='')
+{
+	global $con;
+	$id_tarea=intval($id_tarea);
+	$id_comentario=intval($id_comentario);
+	$id_enlace=intval($id_enlace);
+	$accion=(string)$accion;
+	$texto=trim((string)$texto);
+	$url=trim((string)$url);
+	if($id_tarea<=0 || !$con || !function_exists('tarea_por_id')) { return false; }
+	if(!in_array($accion, array('editar_comentario','eliminar_comentario','editar_enlace','eliminar_enlace'), true)) { return false; }
+	if(($accion==='editar_comentario' || $accion==='editar_enlace') && !crm_tarea_extra_url_valida($url, $accion==='editar_comentario')) { return false; }
+	if($accion==='editar_comentario' && $texto==='') { return false; }
+	if(($accion==='editar_comentario' || $accion==='eliminar_comentario') && $id_comentario<=0) { return false; }
+	if(($accion==='editar_enlace' || $accion==='eliminar_enlace') && $id_enlace<=0) { return false; }
+	if(!@mysqli_begin_transaction($con)) { return false; }
+	$tarea_bloqueada=acceso_consulta_una("SELECT id_tarea FROM tarea WHERE id_tarea=? LIMIT 1 FOR UPDATE", 'i', array($id_tarea));
+	$tarea=$tarea_bloqueada ? tarea_por_id($id_tarea) : null;
+	if(!crm_tarea_puede_gestionar_extras($tarea))
+	{
+		@mysqli_rollback($con);
+		return false;
+	}
+	$ok=false;
+	if($accion==='editar_comentario' || $accion==='eliminar_comentario')
+	{
+		$comentario=acceso_consulta_una("SELECT id FROM tarea_comentario WHERE id=? AND id_tarea=? LIMIT 1 FOR UPDATE", 'ii', array($id_comentario,$id_tarea));
+		if($comentario)
+		{
+			$enlace=acceso_consulta_una("SELECT id, url FROM tarea_enlace WHERE id_tarea=? AND id_tarea_comentario=? LIMIT 1 FOR UPDATE", 'ii', array($id_tarea,$id_comentario));
+			if($accion==='editar_comentario')
+			{
+				$actualizado=acceso_ejecutar("UPDATE tarea_comentario SET texto=? WHERE id=? AND id_tarea=?", 'sii', array($texto,$id_comentario,$id_tarea));
+				if($actualizado)
+				{
+					if($enlace && $url==='')
+					{
+						$ok=acceso_ejecutar("DELETE FROM tarea_enlace WHERE id=? AND id_tarea=? AND id_tarea_comentario=?", 'iii', array(intval($enlace['id']),$id_tarea,$id_comentario));
+					}
+					else if($enlace)
+					{
+						$ok=acceso_ejecutar("UPDATE tarea_enlace SET url=? WHERE id=? AND id_tarea=? AND id_tarea_comentario=?", 'siii', array($url,intval($enlace['id']),$id_tarea,$id_comentario));
+					}
+					else if($url!=='')
+					{
+						$ok=acceso_ejecutar("INSERT INTO tarea_enlace (id_tarea,id_tarea_comentario,url,fecha_carga) VALUES (?,?,?,NOW())", 'iis', array($id_tarea,$id_comentario,$url));
+					}
+					else { $ok=true; }
+				}
+			}
+			else
+			{
+				$ok=true;
+				if($enlace)
+				{
+					$ok=acceso_ejecutar("DELETE FROM tarea_enlace WHERE id=? AND id_tarea=? AND id_tarea_comentario=?", 'iii', array(intval($enlace['id']),$id_tarea,$id_comentario));
+				}
+				if($ok) { $ok=acceso_ejecutar("DELETE FROM tarea_comentario WHERE id=? AND id_tarea=?", 'ii', array($id_comentario,$id_tarea)); }
+			}
+		}
+	}
+	else
+	{
+		$enlace=acceso_consulta_una("SELECT id FROM tarea_enlace WHERE id=? AND id_tarea=? AND id_tarea_comentario IS NULL LIMIT 1 FOR UPDATE", 'ii', array($id_enlace,$id_tarea));
+		if($enlace)
+		{
+			$sql=$accion==='editar_enlace' ? "UPDATE tarea_enlace SET url=? WHERE id=? AND id_tarea=? AND id_tarea_comentario IS NULL" : "DELETE FROM tarea_enlace WHERE id=? AND id_tarea=? AND id_tarea_comentario IS NULL";
+			$ok=$accion==='editar_enlace'
+				? acceso_ejecutar($sql, 'sii', array($url,$id_enlace,$id_tarea))
+				: acceso_ejecutar($sql, 'ii', array($id_enlace,$id_tarea));
+		}
+	}
+	if($ok) { return @mysqli_commit($con); }
+	@mysqli_rollback($con);
+	return false;
+}
+
+/** Devuelve el motivo por el que no está disponible la relación comentario-enlace. */
+function crm_tarea_enlace_comentario_error()
+{
+	return isset($GLOBALS['crm_tarea_enlace_comentario_error']) ? $GLOBALS['crm_tarea_enlace_comentario_error'] : '';
+}
+
+/** Verifica la relación comentario-enlace sin modificar el esquema durante el uso normal. */
+function crm_tarea_enlace_comentario_preparar()
+{
+	static $preparado=null;
+	if($preparado!==null) { return $preparado; }
+	global $con;
+	$GLOBALS['crm_tarea_enlace_comentario_error']='';
+	if(!$con || !acceso_tabla_existe('tarea_enlace') || !acceso_tabla_existe('tarea_comentario'))
+	{
+		$GLOBALS['crm_tarea_enlace_comentario_error']='No se pudo comprobar el esquema de comentarios y enlaces. Revisá la conexión y que existan las tablas requeridas.';
+		$preparado=false;
+		return false;
+	}
+	$columna=@mysqli_query($con,"SHOW COLUMNS FROM tarea_enlace LIKE 'id_tarea_comentario'");
+	$indice=@mysqli_query($con,"SHOW INDEX FROM tarea_enlace WHERE Key_name='uq_tarea_enlace_comentario'");
+	if(!$columna || !$indice)
+	{
+		$GLOBALS['crm_tarea_enlace_comentario_error']='No se pudo verificar el esquema de comentarios y enlaces. Revisá la conexión y los permisos de lectura del esquema.';
+		$preparado=false;
+		return false;
+	}
+	$columna_correcta=(mysqli_num_rows($columna)>0);
+	$indice_correcto=false;
+	while($fila=mysqli_fetch_assoc($indice))
+	{
+		if(isset($fila['Non_unique'],$fila['Column_name']) && intval($fila['Non_unique'])===0 && $fila['Column_name']==='id_tarea_comentario')
+		{
+			$indice_correcto=true;
+			break;
+		}
+	}
+	$preparado=($columna_correcta && $indice_correcto);
+	if(!$preparado)
+	{
+		$GLOBALS['crm_tarea_enlace_comentario_error']='Falta aplicar la migración sql/migrations/20261017_001_tarea_enlace_comentario.sql para habilitar comentarios con enlace. No se modificó la base de datos.';
+	}
+	return $preparado;
+}
+
+/** Guarda comentario y enlace opcional en una operación atómica, vinculados por ID. */
+function crm_tarea_agregar_comentario_con_enlace($id_tarea, $texto, $url='')
+{
+	global $con;
+	$id=intval($id_tarea);
+	$texto=trim((string)$texto);
+	$url=trim((string)$url);
+	$emp=crm_id_empleado_sesion();
+	if($id<=0 || $texto==='' || $emp<=0 || !$con) { return false; }
+	if(!crm_tarea_enlace_comentario_preparar()) { return false; }
+	if(!@mysqli_begin_transaction($con)) { return false; }
+	$chk=acceso_consulta_una("SELECT estado FROM tarea WHERE id_tarea=? LIMIT 1 FOR UPDATE", 'i', array($id));
+	if(!$chk || !isset($chk['estado']))
+	{
+		@mysqli_rollback($con);
+		return false;
+	}
+	$estado=strtolower(trim($chk['estado']));
+	if($estado==='no_iniciada' || $estado==='terminada' || $estado==='cancelada')
+	{
+		@mysqli_rollback($con);
+		return false;
+	}
+	$sql_duplicado="SELECT tc.id FROM tarea_comentario tc
+		LEFT JOIN tarea_enlace te ON te.id_tarea_comentario=tc.id
+		WHERE tc.id_tarea=? AND tc.id_empleado=? AND tc.texto=?
+		AND tc.fecha_carga >= (NOW() - INTERVAL 15 SECOND) AND ".($url==='' ? 'te.id IS NULL' : 'te.url=?')." LIMIT 1 FOR UPDATE";
+	$tipos_duplicado=$url==='' ? 'iis' : 'iiss';
+	$valores_duplicado=$url==='' ? array($id,$emp,$texto) : array($id,$emp,$texto,$url);
+	$duplicado=acceso_consulta_una($sql_duplicado,$tipos_duplicado,$valores_duplicado);
+	if($duplicado)
+	{
+		return @mysqli_commit($con);
+	}
+	$id_comentario=acceso_insertar(
+		"INSERT INTO tarea_comentario (id_tarea,id_empleado,texto,fecha_carga) VALUES (?,?,?,NOW())",
+		'iis',
+		array($id,$emp,$texto)
+	);
+	if($id_comentario<=0)
+	{
+		@mysqli_rollback($con);
+		return false;
+	}
+	if($url!=='' && acceso_insertar(
+		"INSERT INTO tarea_enlace (id_tarea,id_tarea_comentario,url,fecha_carga) VALUES (?,?,?,NOW())",
+		'iis',
+		array($id,$id_comentario,$url)
+	)<=0)
+	{
+		@mysqli_rollback($con);
+		return false;
+	}
+	if(!@mysqli_commit($con))
+	{
+		@mysqli_rollback($con);
+		return false;
+	}
+	return true;
 }
 
 function crm_tarea_agregar_enlace($id_tarea, $url)
@@ -1791,7 +2026,7 @@ function crm_agrupar_modelos_por_objetivo_area($modelos)
 	return $salida;
 }
 
-function crm_eventos_de_area($area_clave)
+function crm_eventos_de_area($area_clave, $incluir_inactivos=false)
 {
 	$id_area=acceso_id_por_clave('area', $area_clave);
 	if($id_area<=0 || !acceso_tabla_existe('evento'))
@@ -1799,10 +2034,12 @@ function crm_eventos_de_area($area_clave)
 		return array();
 	}
 	$id_emp=function_exists('crm_id_empleado_sesion') ? crm_id_empleado_sesion() : 0;
+	$condicion_activo=$incluir_inactivos ? 'ev.activo IN (0,1)' : 'ev.activo=1';
 	return acceso_consulta(
-		"SELECT DISTINCT ev.*, a.clave AS area_clave, c.nombre AS cliente_nombre,
+		"SELECT DISTINCT ev.*, a.clave AS area_clave, a.nombre AS area_nombre, c.nombre AS cliente_nombre,
 			CONCAT(IFNULL(e.nombres,''),' ',IFNULL(e.apellido,'')) AS responsable,
-			(SELECT COUNT(*) FROM evento_inscripcion ei WHERE ei.id_evento=ev.id_evento) AS n_inscriptos
+			(SELECT COUNT(*) FROM evento_inscripcion ei WHERE ei.id_evento=ev.id_evento) AS n_inscriptos,
+			(SELECT COUNT(*) FROM evento_inscripcion ei WHERE ei.id_evento=ev.id_evento AND ei.estado='asistio') AS n_asistieron
 		FROM evento ev
 		INNER JOIN area a ON a.id_area=ev.id_area
 		LEFT JOIN cliente c ON c.id_cliente=ev.id_cliente
@@ -1810,7 +2047,7 @@ function crm_eventos_de_area($area_clave)
 		LEFT JOIN evento_tarea et ON et.id_evento=ev.id_evento
 		LEFT JOIN tarea t ON t.id_tarea=et.id_tarea
 		LEFT JOIN tarea_responsable tr ON tr.id_tarea=t.id_tarea
-		WHERE ev.activo=1
+		WHERE ".$condicion_activo."
 		  AND (
 		      ev.id_area=?
 		      OR t.id_area=?

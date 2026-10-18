@@ -536,6 +536,8 @@ function rec_tareas_completar($tareas)
 	{
 		return array();
 	}
+	$enlace_comentario_disponible=function_exists('crm_tarea_enlace_comentario_preparar') && crm_tarea_enlace_comentario_preparar();
+	$columna_enlace_comentario=$enlace_comentario_disponible ? 'id_tarea_comentario' : 'NULL';
 	$ids=array_map('intval', array_keys($tareas));
 	$ph=implode(',', array_fill(0, count($ids), '?'));
 	$types=str_repeat('i', count($ids));
@@ -551,30 +553,36 @@ function rec_tareas_completar($tareas)
 		$ini[intval($row['id_tarea'])][]=$row;
 	}
 	$enl=array();
-	foreach(acceso_consulta("SELECT id_tarea, url, fecha_carga FROM tarea_enlace WHERE id_tarea IN (".$ph.") ORDER BY id ASC", $types, $ids) as $row)
+	foreach(acceso_consulta("SELECT id, id_tarea, url, fecha_carga, ".$columna_enlace_comentario." AS id_tarea_comentario FROM tarea_enlace WHERE id_tarea IN (".$ph.") ORDER BY id ASC", $types, $ids) as $row)
 	{
-		$enl[intval($row['id_tarea'])][]=array('url'=>$row['url'], 'fecha_carga'=>isset($row['fecha_carga']) ? $row['fecha_carga'] : '');
+		$enl[intval($row['id_tarea'])][]=array('id'=>intval($row['id']), 'url'=>$row['url'], 'fecha_carga'=>isset($row['fecha_carga']) ? $row['fecha_carga'] : '', 'id_tarea_comentario'=>isset($row['id_tarea_comentario']) ? intval($row['id_tarea_comentario']) : 0);
 	}
 	$coms=array();
 	foreach(acceso_consulta(
-		"SELECT tc.id_tarea, tc.texto, tc.fecha_carga, e.nombres, e.apellido, a.clave AS area_clave
+		"SELECT tc.id, tc.id_tarea, tc.id_empleado, tc.id_usuario_actor, tc.texto, tc.fecha_carga,
+			e.nombres, e.apellido, a.clave AS area_clave, u.nombre AS nombre_actor
 		FROM tarea_comentario tc
-		INNER JOIN empleado e ON e.id_empleado=tc.id_empleado
-		INNER JOIN area a ON a.id_area=e.id_area
+		LEFT JOIN empleado e ON e.id_empleado=tc.id_empleado
+		LEFT JOIN area a ON a.id_area=e.id_area
+		LEFT JOIN usuario_cliente u ON u.id_usuario=tc.id_usuario_actor
 		WHERE tc.id_tarea IN (".$ph.")
 		ORDER BY tc.id ASC",
 		$types,
 		$ids
 	) as $row)
 	{
-		$nombre=trim($row['nombres'].' '.$row['apellido']);
-		$quien=function_exists('acceso_armar_persona') ? acceso_armar_persona($nombre, $row['area_clave']) : $nombre;
+		$nombre=trim((isset($row['nombres']) ? $row['nombres'] : '').' '.(isset($row['apellido']) ? $row['apellido'] : ''));
+		$area_clave=isset($row['area_clave']) ? $row['area_clave'] : '';
+		$quien=$nombre!=='' ? (function_exists('acceso_armar_persona') ? acceso_armar_persona($nombre, $area_clave) : $nombre) : (isset($row['nombre_actor']) && trim($row['nombre_actor'])!=='' ? trim($row['nombre_actor']) : 'Usuario');
 		$cuando='';
 		if(isset($row['fecha_carga']) && $row['fecha_carga']!='')
 		{
 			$cuando=date('d/m/Y H:i', strtotime($row['fecha_carga']));
 		}
 		$coms[intval($row['id_tarea'])][]=array(
+			'id'=>intval($row['id']),
+			'id_empleado'=>isset($row['id_empleado']) ? intval($row['id_empleado']) : 0,
+			'id_usuario_actor'=>isset($row['id_usuario_actor']) ? intval($row['id_usuario_actor']) : 0,
 			'texto'=>$row['texto'],
 			'quien'=>$quien,
 			'cuando'=>$cuando,

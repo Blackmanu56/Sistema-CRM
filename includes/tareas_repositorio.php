@@ -319,7 +319,9 @@ function _repo_tareas_cargar_relacionados($id_tarea, &$tarea)
 
 	// Enlaces de la tarea
 	$tarea['enlaces']=array();
-	$sql_e="SELECT id, url, fecha_carga FROM tarea_enlace WHERE id_tarea=? ORDER BY fecha_carga";
+	$enlace_comentario_disponible=function_exists('crm_tarea_enlace_comentario_preparar') && crm_tarea_enlace_comentario_preparar();
+	$columna_enlace_comentario=$enlace_comentario_disponible ? 'id_tarea_comentario' : 'NULL';
+	$sql_e="SELECT id, url, fecha_carga, ".$columna_enlace_comentario." AS id_tarea_comentario FROM tarea_enlace WHERE id_tarea=? ORDER BY fecha_carga";
 	$stmt_e=@mysqli_prepare($con, $sql_e);
 	if($stmt_e)
 	{
@@ -333,7 +335,8 @@ function _repo_tareas_cargar_relacionados($id_tarea, &$tarea)
 				$tarea['enlaces'][]=array(
 					'id'=>intval($row['id']),
 					'url'=>$row['url'],
-					'fecha_carga'=>$row['fecha_carga']
+					'fecha_carga'=>$row['fecha_carga'],
+					'id_tarea_comentario'=>isset($row['id_tarea_comentario']) ? intval($row['id_tarea_comentario']) : 0
 				);
 			}
 		}
@@ -344,11 +347,13 @@ function _repo_tareas_cargar_relacionados($id_tarea, &$tarea)
 	// Se usa a.clave + acceso_etiqueta_corta_area() para consistencia con
 	// los nombres de display del sistema (ej: "Juan - Comercio Exterior").
 	$tarea['comentarios']=array();
-	$sql_c="SELECT tc.texto, CONCAT(e.nombres,' ',e.apellido) AS nombre_completo, a.clave AS clave_area,
-		tc.fecha_carga
+	$sql_c="SELECT tc.id, tc.id_empleado, tc.id_usuario_actor, tc.texto,
+		NULLIF(TRIM(CONCAT(IFNULL(e.nombres,''),' ',IFNULL(e.apellido,''))), '') AS nombre_completo,
+		a.clave AS clave_area, u.nombre AS nombre_actor, tc.fecha_carga
 		FROM tarea_comentario tc
-		INNER JOIN empleado e ON e.id_empleado=tc.id_empleado
-		INNER JOIN area a ON a.id_area=e.id_area
+		LEFT JOIN empleado e ON e.id_empleado=tc.id_empleado
+		LEFT JOIN area a ON a.id_area=e.id_area
+		LEFT JOIN usuario_cliente u ON u.id_usuario=tc.id_usuario_actor
 		WHERE tc.id_tarea=? ORDER BY tc.fecha_carga";
 	$stmt_c=@mysqli_prepare($con, $sql_c);
 	if($stmt_c)
@@ -360,10 +365,15 @@ function _repo_tareas_cargar_relacionados($id_tarea, &$tarea)
 		{
 			while($row=mysqli_fetch_assoc($result_c))
 			{
-				$area_label=acceso_etiqueta_corta_area($row['clave_area']);
+				$nombre=isset($row['nombre_completo']) ? trim($row['nombre_completo']) : '';
+				$area_label=isset($row['clave_area']) && $row['clave_area']!==null ? acceso_etiqueta_corta_area($row['clave_area']) : '';
+				$quien=$nombre!=='' ? $nombre.($area_label!=='' ? ' - '.$area_label : '') : (isset($row['nombre_actor']) && trim($row['nombre_actor'])!=='' ? trim($row['nombre_actor']) : 'Usuario');
 				$tarea['comentarios'][]=array(
+					'id'=>intval($row['id']),
+					'id_empleado'=>isset($row['id_empleado']) ? intval($row['id_empleado']) : 0,
+					'id_usuario_actor'=>isset($row['id_usuario_actor']) ? intval($row['id_usuario_actor']) : 0,
 					'texto'=>$row['texto'],
-					'quien'=>trim($row['nombre_completo']).' - '.$area_label,
+					'quien'=>$quien,
 					'cuando'=>($row['fecha_carga']!='' ? date('d/m/Y H:i', strtotime($row['fecha_carga'])) : ''),
 					'fecha_carga'=>$row['fecha_carga']
 				);
@@ -1566,6 +1576,49 @@ function repo_tarea_actividad($id_area)
 		);
 	}
 	@mysqli_stmt_close($stmt);
+	return $salida;
+}
+
+/** Historial legible, limitado estrictamente a los IDs de tareas visibles. */
+function repo_tarea_historial_por_ids($tareas)
+{
+	global $con;
+	$ids=array();
+	foreach((array)$tareas as $tarea)
+	{
+		$id=isset($tarea['id_tarea']) ? intval($tarea['id_tarea']) : (isset($tarea['id']) ? intval($tarea['id']) : 0);
+		if($id>0) { $ids[$id]=$id; }
+	}
+	if(!$con || count($ids)===0) { return array(); }
+	$lista_ids=implode(',',array_values($ids));
+	$sql="SELECT MAX(act.id_actividad) AS id_actividad, act.id_tarea, t.titulo AS tarea_titulo,
+		act.tipo, act.descripcion, act.fecha_actividad, act.id_empleado,
+		t.estado AS tarea_estado_actual, t.prioridad AS tarea_prioridad_actual,
+		t.descripcion AS tarea_descripcion, t.fecha_inicio AS tarea_fecha_inicio,
+		t.fecha_cierre AS tarea_fecha_vencimiento, ar.nombre AS tarea_area_nombre,
+		(SELECT GROUP_CONCAT(DISTINCT NULLIF(TRIM(CONCAT(IFNULL(er.nombres,''),' ',IFNULL(er.apellido,''))),'') ORDER BY tr.es_principal DESC, er.apellido, er.nombres SEPARATOR ', ')
+			FROM tarea_responsable tr INNER JOIN empleado er ON er.id_empleado=tr.id_empleado
+			WHERE tr.id_tarea=t.id_tarea) AS tarea_responsables,
+		NULLIF(TRIM(CONCAT(IFNULL(e.nombres,''),' ',IFNULL(e.apellido,''))),'') AS usuario_nombre
+		FROM actividad act
+		INNER JOIN tarea t ON t.id_tarea=act.id_tarea
+		LEFT JOIN area ar ON ar.id_area=t.id_area
+		LEFT JOIN empleado e ON e.id_empleado=act.id_empleado
+		WHERE act.id_tarea IN ($lista_ids)
+		GROUP BY act.id_tarea, t.titulo, t.estado, t.prioridad, t.descripcion, t.fecha_inicio, t.fecha_cierre,
+			ar.nombre, act.tipo, act.descripcion, act.fecha_actividad, act.id_empleado, usuario_nombre
+		ORDER BY act.fecha_actividad DESC, MAX(act.id_actividad) DESC LIMIT 20";
+	$result=@mysqli_query($con,$sql);
+	if(!$result) { return array(); }
+	$salida=array();
+	while($row=mysqli_fetch_assoc($result))
+	{
+		$acciones=array('creada'=>'Tarea creada','proceso'=>'Estado cambiado a En proceso','completada'=>'Tarea finalizada');
+		if(!isset($acciones[$row['tipo']])) { continue; }
+		$row['accion']=$acciones[$row['tipo']];
+		$row['usuario_nombre']=trim((string)$row['usuario_nombre']);
+		$salida[]=$row;
+	}
 	return $salida;
 }
 

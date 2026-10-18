@@ -9,12 +9,18 @@ function actividades_de_area($area='')
 		$area=acceso_area_pantalla();
 	}
 	$lista=array();
-	foreach(crm_eventos_de_area($area) as $ev)
+	foreach(crm_eventos_de_area($area, true) as $ev)
 	{
 		if(actividad_puede_ver($ev))
 		{
 			$lista[]=array(
 				'id'=>intval($ev['id_evento']),
+				'creado_en'=>isset($ev['creado_en']) ? trim((string)$ev['creado_en']) : '',
+				'area_nombre'=>isset($ev['area_nombre']) ? $ev['area_nombre'] : '',
+				'activo'=>isset($ev['activo']) ? intval($ev['activo']) : 1,
+				'estado'=>actividad_estado_lista($ev),
+				'resultado'=>isset($ev['resultado']) ? trim((string)$ev['resultado']) : '',
+				'n_asistieron'=>isset($ev['n_asistieron']) ? intval($ev['n_asistieron']) : 0,
 				'titulo'=>$ev['titulo'],
 				'descripcion'=>isset($ev['descripcion']) ? $ev['descripcion'] : '',
 				'fecha'=>isset($ev['fecha']) ? $ev['fecha'] : '',
@@ -179,6 +185,10 @@ function actividad_puede_gestionar($ev)
 	{
 		return false;
 	}
+	if(isset($ev['activo']) && intval($ev['activo'])!==1)
+	{
+		return false;
+	}
 	if(acceso_es_super() || acceso_es_coord_general() || acceso_es_general())
 	{
 		return true;
@@ -229,6 +239,23 @@ function actividad_puede_ver($ev)
 	$id_ev=intval(isset($ev['id_evento']) ? $ev['id_evento'] : (isset($ev['id']) ? $ev['id'] : 0));
 	$area_ev=isset($ev['area_clave']) ? $ev['area_clave'] : (isset($ev['area']) ? $ev['area'] : '');
 	$id_emp_sesion=function_exists('crm_id_empleado_sesion') ? crm_id_empleado_sesion() : 0;
+
+	// Read-only access to activities in the user's own area. Management remains separately guarded.
+	if($area_ev!=='' && function_exists('acceso_area') && acceso_area()===$area_ev)
+	{
+		return true;
+	}
+	if($area_ev!=='')
+	{
+		$roles_area=function_exists('acceso_roles_adicionales_sesion') ? acceso_roles_adicionales_sesion() : array();
+		foreach($roles_area as $rol_area)
+		{
+			if(isset($rol_area['area']) && $rol_area['area']===$area_ev)
+			{
+				return true;
+			}
+		}
+	}
 
 	if($id_emp_sesion>0 && intval(isset($ev['id_empleado']) ? $ev['id_empleado'] : 0)===$id_emp_sesion)
 	{
@@ -635,32 +662,118 @@ function actividades_marcar_asistencia($id_inscripcion, $estado)
 	return crm_evento_marcar_asistencia(intval($id_inscripcion), $estado) ? '' : 'No se pudo guardar.';
 }
 
-// Filtros del listado: q (texto), tipo, desde/hasta, cuando (proximas|pasadas).
+function actividad_fecha_valida($fecha)
+{
+	if(!preg_match('/^\d{4}-\d{2}-\d{2}$/',(string)$fecha)) { return false; }
+	$p=explode('-',$fecha);
+	return checkdate(intval($p[1]),intval($p[2]),intval($p[0]));
+}
+
+function actividad_estado_lista($ev,$hoy=null)
+{
+	if(isset($ev['activo']) && intval($ev['activo'])===0) { return 'cancelada'; }
+	if($hoy===null) { $hoy=date('Y-m-d'); }
+	$fecha=substr(isset($ev['fecha']) ? (string)$ev['fecha'] : '',0,10);
+	if($fecha>=$hoy) { return 'proxima'; }
+	if(trim((string)(isset($ev['resultado']) ? $ev['resultado'] : ''))!=='' || intval(isset($ev['n_asistieron']) ? $ev['n_asistieron'] : 0)>0)
+	{
+		return 'realizada';
+	}
+	return 'pasada';
+}
+
+function actividades_eventos_calendario($lista,$anio,$mes)
+{
+	$eventos=array();
+	$prefijo=sprintf('%04d-%02d-',$anio,$mes);
+	foreach((array)$lista as $actividad)
+	{
+		$fecha=substr(isset($actividad['fecha']) ? (string)$actividad['fecha'] : '',0,10);
+		if(!actividad_fecha_valida($fecha) || strpos($fecha,$prefijo)!==0) { continue; }
+		$dia=intval(substr($fecha,8,2));
+		$estado=isset($actividad['estado']) ? $actividad['estado'] : actividad_estado_lista($actividad);
+		if(!isset($eventos[$dia])) { $eventos[$dia]=array(); }
+		$eventos[$dia][$estado]=true;
+	}
+	return $eventos;
+}
+
+function actividades_link_filtro($cambios=array())
+{
+	$actual=array();
+	foreach(array('q','tipo','estado','area','responsable','desde','hasta','orden','cal','dia') as $clave)
+	{
+		$actual[$clave]=isset($_GET[$clave]) ? $_GET[$clave] : '';
+	}
+	return tareas_link('actividades.php',array_merge($actual,(array)$cambios));
+}
+
+function actividades_calendario_controles($anio,$mes)
+{
+	$anio=intval($anio); $mes=intval($mes); $cal=sprintf('%04d-%02d',$anio,$mes);
+	$meses=array(1=>'Enero',2=>'Febrero',3=>'Marzo',4=>'Abril',5=>'Mayo',6=>'Junio',7=>'Julio',8=>'Agosto',9=>'Septiembre',10=>'Octubre',11=>'Noviembre',12=>'Diciembre');
+	$anios=array_values(array_unique(array_merge(range(max(1,intval(date('Y'))-5),intval(date('Y'))+5),range(max(1,$anio-5),$anio+5))));
+	sort($anios);
+	$prev=date('Y-m',strtotime($cal.'-01 -1 month'));
+	$next=date('Y-m',strtotime($cal.'-01 +1 month'));
+	$limpiar=actividades_link_filtro(array('cal'=>date('Y-m'),'dia'=>''));
+	ob_start();
+	?>
+	<div class="crm-act-cal-controles">
+		<a class="btn btn-white btn-xs" href="<?php echo htmlspecialchars(actividades_link_filtro(array('cal'=>$prev,'dia'=>'')),ENT_QUOTES,'UTF-8'); ?>" aria-label="Mes anterior"><i class="fa fa-chevron-left"></i></a>
+		<form method="get" action="<?php echo htmlspecialchars(tareas_link('actividades.php'),ENT_QUOTES,'UTF-8'); ?>" class="crm-act-cal-selectores">
+			<input type="hidden" name="cal" value="<?php echo htmlspecialchars($cal,ENT_QUOTES,'UTF-8'); ?>">
+			<?php foreach(array('q','tipo','estado','area','responsable','desde','hasta','orden') as $clave) { if(isset($_GET[$clave]) && $_GET[$clave]!=='') { ?><input type="hidden" name="<?php echo htmlspecialchars($clave,ENT_QUOTES,'UTF-8'); ?>" value="<?php echo htmlspecialchars($_GET[$clave],ENT_QUOTES,'UTF-8'); ?>"><?php } } ?>
+			<select name="cal_mes" aria-label="Mes del calendario" onchange="var f=this.form;f.elements['cal'].value=f.elements['cal_anio'].value+'-'+('0'+f.elements['cal_mes'].value).slice(-2);f.submit()"><?php foreach($meses as $n=>$nombre) { ?><option value="<?php echo $n; ?>" <?php if($n===$mes) echo 'selected'; ?>><?php echo $nombre; ?></option><?php } ?></select>
+			<select name="cal_anio" aria-label="Año del calendario" onchange="var f=this.form;f.elements['cal'].value=f.elements['cal_anio'].value+'-'+('0'+f.elements['cal_mes'].value).slice(-2);f.submit()"><?php foreach($anios as $y) { ?><option value="<?php echo $y; ?>" <?php if($y===$anio) echo 'selected'; ?>><?php echo $y; ?></option><?php } ?></select>
+		</form>
+		<a class="btn btn-white btn-xs" href="<?php echo htmlspecialchars($limpiar,ENT_QUOTES,'UTF-8'); ?>"><i class="fa fa-refresh"></i> Limpiar</a>
+		<a class="btn btn-white btn-xs" href="<?php echo htmlspecialchars(actividades_link_filtro(array('cal'=>$next,'dia'=>'')),ENT_QUOTES,'UTF-8'); ?>" aria-label="Mes siguiente"><i class="fa fa-chevron-right"></i></a>
+	</div>
+	<?php
+	return ob_get_clean();
+}
+
+// Los filtros se aplican después de la consulta autorizada de la actividad.
 function actividades_filtrar($lista)
 {
 	$q=isset($_GET['q']) ? trim($_GET['q']) : '';
 	$tipo=isset($_GET['tipo']) ? trim($_GET['tipo']) : '';
 	$cuando=isset($_GET['cuando']) ? $_GET['cuando'] : '';
-	$desde=isset($_GET['desde']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['desde']) ? $_GET['desde'] : '';
-	$hasta=isset($_GET['hasta']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['hasta']) ? $_GET['hasta'] : '';
+	$estado=isset($_GET['estado']) ? trim($_GET['estado']) : '';
+	$area=isset($_GET['area']) ? trim($_GET['area']) : '';
+	$responsable=isset($_GET['responsable']) ? trim($_GET['responsable']) : '';
+	$desde=isset($_GET['desde']) && actividad_fecha_valida($_GET['desde']) ? $_GET['desde'] : '';
+	$hasta=isset($_GET['hasta']) && actividad_fecha_valida($_GET['hasta']) ? $_GET['hasta'] : '';
+	$dia=isset($_GET['dia']) && actividad_fecha_valida($_GET['dia']) ? $_GET['dia'] : '';
+	$orden=isset($_GET['orden']) ? trim($_GET['orden']) : 'recientes';
 	$hoy=date('Y-m-d');
-	$q_l=mb_strtolower($q, 'UTF-8');
-	$out=array();
-	foreach($lista as $it)
+	$lower=function($s){ return function_exists('mb_strtolower') ? mb_strtolower((string)$s,'UTF-8') : strtolower((string)$s); };
+	$q_l=$lower($q); $out=array();
+	foreach((array)$lista as $it)
 	{
-		$f=substr((string)$it['fecha'], 0, 10);
+		$f=substr((string)(isset($it['fecha'])?$it['fecha']:''),0,10);
 		if($q!=='')
 		{
-			$texto=mb_strtolower($it['titulo'].' '.$it['descripcion'].' '.$it['organismo'].' '.$it['responsable'], 'UTF-8');
-			if(strpos($texto, $q_l)===false) { continue; }
+			$texto=$lower((isset($it['titulo'])?$it['titulo']:'').' '.(isset($it['descripcion'])?$it['descripcion']:'').' '.(isset($it['organismo'])?$it['organismo']:'').' '.(isset($it['responsable'])?$it['responsable']:''));
+			if(strpos($texto,$q_l)===false) { continue; }
 		}
-		if($tipo!=='' && $it['tipo']!==$tipo) { continue; }
+		if($tipo!=='' && (!isset($it['tipo']) || $it['tipo']!==$tipo)) { continue; }
+		if($estado!=='' && actividad_estado_lista($it,$hoy)!==$estado) { continue; }
+		if($area!=='' && (!isset($it['area_clave']) || $it['area_clave']!==$area)) { continue; }
+		if($responsable!=='' && (!isset($it['responsable']) || trim((string)$it['responsable'])!==$responsable)) { continue; }
 		if($cuando==='proximas' && $f<$hoy) { continue; }
 		if($cuando==='pasadas' && $f>=$hoy) { continue; }
 		if($desde!=='' && $f<$desde) { continue; }
 		if($hasta!=='' && $f>$hasta) { continue; }
+		if($dia!=='' && $f!==$dia) { continue; }
 		$out[]=$it;
 	}
+	usort($out,function($a,$b) use($orden) {
+		$fa=substr((string)$a['fecha'],0,10); $fb=substr((string)$b['fecha'],0,10);
+		if($orden==='antiguas') { return strcmp($fa,$fb); }
+		return strcmp($fb,$fa);
+	});
 	return $out;
 }
 

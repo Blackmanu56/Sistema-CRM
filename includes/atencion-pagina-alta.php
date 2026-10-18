@@ -70,6 +70,11 @@ if(isset($_POST['guardar_atencion']))
 	$id_empleado_asig = isset($_POST['id_empleado']) ? intval($_POST['id_empleado']) : 0;
 
 	$errores = array();
+	if($area_cli === 'recepcion' && !acceso_es_super() && !acceso_es_coord_general() && $id_empleado_asig > 0)
+	{
+		$errores[] = 'Recepción no puede asignar un colaborador. El área destinataria lo asignará desde Atenciones.';
+		$id_empleado_asig = 0;
+	}
 	if($id_cli <= 0 || !cliente_traer($id_cli))
 	{
 		$errores[] = 'Seleccioná un cliente registrado de la lista.';
@@ -107,10 +112,6 @@ if(isset($_POST['guardar_atencion']))
 		$datos_alta['modalidad'] = 'atencion_espontanea';
 		$datos_alta['fecha'] = date('Y-m-d');
 		$datos_alta['hora'] = date('H:i');
-		if($iniciar_ya && $id_empleado_asig <= 0)
-		{
-			$datos_alta['id_empleado'] = crm_id_empleado_sesion();
-		}
 	}
 	else
 	{
@@ -174,6 +175,7 @@ $colaboradores_disp = ($id_area_act > 0 && function_exists('crm_empleados_de_are
 $horarios_disp = function_exists('crm_turno_horarios_disponibles') ? crm_turno_horarios_disponibles($area_def, $fecha_def) : array();
 $url_ajax_clientes = url_crm('ajax/clientes-buscar.php');
 $url_ajax_horarios = url_crm('ajax/turnos-horarios.php');
+$url_ajax_alta_cliente = url_crm('recepcion/ajax/cliente-rapido.php');
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -234,6 +236,7 @@ $url_ajax_horarios = url_crm('ajax/turnos-horarios.php');
     <?php crm_menu_staff();?>
     <div class="clearfix"></div>
 </div>
+</div>
 <div class="page-content">
     <div class="clearfix"></div>
     <div class="content">
@@ -273,7 +276,7 @@ $url_ajax_horarios = url_crm('ajax/turnos-horarios.php');
                                     </div>
                                     <p class="muted" style="margin-top:6px; font-size:12px;">
                                         Escribí al menos 2 caracteres y seleccioná al cliente de la lista desplegable. 
-                                        ¿No está registrado? <a href="alta-cliente.php" target="_blank" style="font-weight:600;"><i class="fa fa-plus-circle"></i> Dar de alta nuevo cliente</a>
+                                        ¿No está registrado? <button type="button" class="btn btn-link btn-xs" data-toggle="modal" data-target="#nuevoClienteModal" style="font-weight:600;padding:0 2px;"><i class="fa fa-plus-circle"></i> Nuevo cliente</button>
                                     </p>
                                 </div>
 
@@ -341,7 +344,9 @@ $url_ajax_horarios = url_crm('ajax/turnos-horarios.php');
                                 <div class="col-sm-6">
                                     <div class="form-group">
                                         <label style="font-weight:600;"><i class="fa fa-user-circle-o"></i> Colaborador responsable</label>
-                                        <?php if(empty($colaboradores_disp)) { ?>
+                                        <?php if($area_cli === 'recepcion' && !acceso_es_super() && !acceso_es_coord_general()) { ?>
+                                        <div class="form-control-static" style="color:#64748b;">Recepción deriva la atención al área. El coordinador destinatario asignará al responsable.</div>
+                                        <?php } else if(empty($colaboradores_disp)) { ?>
                                         <input type="hidden" name="id_empleado" value="">
                                         <div style="background:#fffbeb; border:1px solid #fcd34d; border-radius:6px; padding:8px 12px; font-size:12px; color:#92400e;">
                                             <i class="fa fa-info-circle"></i> Esta área no tiene colaboradores activos. El turno queda <strong>sin asignar</strong> y se coordina después desde Atenciones.
@@ -460,12 +465,32 @@ $url_ajax_horarios = url_crm('ajax/turnos-horarios.php');
         </div>
     </div>
 </div>
+<div class="modal fade" id="nuevoClienteModal" tabindex="-1" role="dialog" aria-labelledby="nuevoClienteTitulo">
+  <div class="modal-dialog" role="document"><div class="modal-content">
+    <form id="formNuevoClienteRapido" novalidate>
+      <div class="modal-header"><button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">&times;</button><h4 class="modal-title" id="nuevoClienteTitulo">Nuevo cliente</h4></div>
+      <div class="modal-body">
+        <div id="nuevoClienteError" class="alert alert-danger" style="display:none;" role="alert"></div>
+        <div class="form-group"><label for="nuevoClienteNombre">Nombre completo / Razón social *</label><input class="form-control" id="nuevoClienteNombre" name="name" required maxlength="180"></div>
+        <div class="form-group"><label for="nuevoClienteEmail">Correo electrónico *</label><input class="form-control" type="email" id="nuevoClienteEmail" name="email" required maxlength="180"></div>
+        <div class="form-group"><label for="nuevoClienteTipo">Tipo de cliente</label><select class="form-control" id="nuevoClienteTipo" name="tipo_cliente"><option value="emprendedor">Emprendedor</option><option value="empresa">Empresa</option><option value="municipalidad">Municipalidad</option><option value="organismo">Organismo</option></select></div>
+        <div class="form-group"><label for="nuevoClienteTelefono">Teléfono</label><input class="form-control" id="nuevoClienteTelefono" name="mobile" maxlength="80"></div>
+        <div class="form-group"><label for="nuevoClienteDni">DNI (opcional)</label><input class="form-control" id="nuevoClienteDni" name="dni" maxlength="30"></div>
+        <div class="form-group"><label for="nuevoClienteCuit">CUIL / CUIT (opcional)</label><input class="form-control" id="nuevoClienteCuit" name="cuil_cuit" maxlength="30"></div>
+        <div class="form-group"><label for="nuevoClienteDireccion">Dirección (opcional)</label><input class="form-control" id="nuevoClienteDireccion" name="address" maxlength="180"></div>
+        <input type="hidden" name="gender" value="m"><input type="hidden" name="origen" value="presencial">
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-white" data-dismiss="modal">Cancelar</button><button type="submit" id="guardarClienteRapido" class="btn btn-primary"><i class="fa fa-save"></i> Guardar cliente</button></div>
+    </form>
+  </div></div>
+</div>
 <script src="../assets/plugins/jquery-1.8.3.min.js" type="text/javascript"></script>
 <script src="../assets/plugins/boostrapv3/js/bootstrap.min.js" type="text/javascript"></script>
 <script src="../assets/js/core.js?v=20260926" type="text/javascript"></script>
 <script type="text/javascript">
 var urlBuscarCli = <?php echo json_encode($url_ajax_clientes, JSON_UNESCAPED_UNICODE); ?>;
 var urlHorariosAjax = <?php echo json_encode($url_ajax_horarios, JSON_UNESCAPED_UNICODE); ?>;
+var urlAltaClienteRapido = <?php echo json_encode($url_ajax_alta_cliente, JSON_UNESCAPED_UNICODE); ?>;
 var timerBuscar = null;
 
 function seleccionarModalidad(mod) {
@@ -502,6 +527,33 @@ function elegirCliente(cli) {
     document.getElementById('caja_busqueda_cli').style.display = 'none';
     document.getElementById('resultados_cliente').style.display = 'none';
 }
+
+$('#formNuevoClienteRapido').on('submit', function(e) {
+    e.preventDefault();
+    var form = this;
+    if(!form.checkValidity()) { form.reportValidity(); return; }
+    var $button = $('#guardarClienteRapido');
+    $('#nuevoClienteError').hide().text('');
+    $button.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Guardando…');
+    $.ajax({
+        url: urlAltaClienteRapido,
+        method: 'POST',
+        data: $(form).serialize(),
+        dataType: 'json'
+    }).done(function(r) {
+        if(!r || !r.ok) {
+            $('#nuevoClienteError').text(r && r.error ? r.error : 'No se pudo guardar el cliente.').show();
+            return;
+        }
+        elegirCliente({id: r.id, nombre: r.nombre});
+        $('#nuevoClienteModal').modal('hide');
+        form.reset();
+    }).fail(function() {
+        $('#nuevoClienteError').text('No se pudo guardar el cliente. Revisá la conexión e intentá nuevamente.').show();
+    }).always(function() {
+        $button.prop('disabled', false).html('<i class="fa fa-save"></i> Guardar cliente');
+    });
+});
 
 function buscarClientes() {
     var val = document.getElementById('buscar_cliente').value.trim();

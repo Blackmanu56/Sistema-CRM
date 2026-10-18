@@ -33,6 +33,8 @@ if($puede_desglosar && function_exists('crm_tarea_equipo_ids'))
 	$equipo=crm_tarea_equipo_ids($area_eq);
 }
 $avances=function_exists('crm_tarea_avances_juntos') ? crm_tarea_avances_juntos($enlaces, $comentarios) : array();
+$puede_gestionar_avances=function_exists('crm_tarea_puede_gestionar_extras') && crm_tarea_puede_gestionar_extras($tarea);
+$csrf_extra_tarea=function_exists('crm_tarea_extra_csrf_token') ? crm_tarea_extra_csrf_token() : '';
 $yo_ses=isset($_SESSION['tareas_persona']) ? $_SESSION['tareas_persona'] : '';
 $pide_iniciar_al_avance=(!$eliminada && $yo_ses!='' && tarea_puede_cambiar_estado($tarea)
 	&& $estado_txt!='Terminada' && $estado_txt!='Pausada'
@@ -218,6 +220,9 @@ $pide_iniciar_al_avance=(!$eliminada && $yo_ses!='' && tarea_puede_cambiar_estad
                         <?php if(!$tiene_partes) { ?>
                         <hr>
                         <h5>Comentarios y links cargados (<?php echo count($avances); ?>)</h5>
+                        <?php if(function_exists('crm_tarea_enlace_comentario_preparar') && !crm_tarea_enlace_comentario_preparar()) { ?>
+                        <div class="alert alert-warning" role="alert"><?php echo texto_mostrar(crm_tarea_enlace_comentario_error()); ?></div>
+                        <?php } ?>
                         <?php if(count($avances)==0) { ?>
                         <p class="muted">Todavía no se cargó nada.</p>
                         <?php } else { ?>
@@ -225,14 +230,179 @@ $pide_iniciar_al_avance=(!$eliminada && $yo_ses!='' && tarea_puede_cambiar_estad
                             <div class="crm-avance-meta">Quién / cuándo</div>
                             <div class="crm-avance-texto">Comentario</div>
                             <div class="crm-avance-link">Link</div>
+                            <div class="crm-avance-acciones">Acciones</div>
                         </div>
                         <?php } foreach($avances as $av) { ?>
                         <div class="crm-avance-row">
                             <div class="crm-avance-meta"><?php echo texto_mostrar(trim(($av['quien']!='' ? $av['quien'].' · ' : '').$av['cuando'])); ?></div>
                             <div class="crm-avance-texto"><?php echo $av['texto']!='' ? texto_mostrar($av['texto']) : '<span class="muted">—</span>'; ?></div>
                             <div class="crm-avance-link"><?php if($av['url']!='') { ?><a href="<?php echo texto_mostrar($av['url']); ?>" target="_blank" rel="noopener"><?php echo texto_mostrar($av['url']); ?></a><?php } else { ?><span class="muted">—</span><?php } ?></div>
+                            <div class="crm-avance-acciones">
+                                <?php if($puede_gestionar_avances && !empty($av['id_comentario'])) { ?>
+                                <?php $payload_edicion_extra=json_encode(array('tipo'=>'comentario','id_comentario'=>intval($av['id_comentario']),'texto'=>(string)$av['texto'],'url'=>(string)$av['url']), JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP); ?>
+                                <button type="button" class="btn btn-white btn-xs" data-crm-abrir-edicion-extra="<?php echo texto_mostrar($payload_edicion_extra); ?>" aria-label="Editar comentario y link"><i class="fa fa-pencil" aria-hidden="true"></i> Editar</button>
+                                <form method="post" action="<?php echo texto_mostrar($ver_url); ?>" style="margin-top:5px;">
+                                    <input type="hidden" name="id_tarea" value="<?php echo $id_tar; ?>">
+                                    <input type="hidden" name="gestionar_extra_tarea" value="1">
+                                    <input type="hidden" name="csrf_tarea_extra" value="<?php echo texto_mostrar($csrf_extra_tarea); ?>">
+                                    <input type="hidden" name="accion_extra_tarea" value="eliminar_comentario">
+                                    <input type="hidden" name="id_comentario" value="<?php echo intval($av['id_comentario']); ?>">
+                                    <button type="button" class="btn btn-white btn-xs" data-crm-confirmar-quitar="1" data-titulo="¿Quitar este comentario?" data-mensaje="<?php echo !empty($av['asociado']) ? 'Se quitarán el comentario, el autor, la fecha y el link asociado. La tarea se conservará.' : 'Se quitarán el comentario, el autor y la fecha. La tarea se conservará.'; ?>" aria-label="Quitar comentario<?php echo !empty($av['asociado']) ? ' y link asociado' : ''; ?>"><i class="fa fa-trash" aria-hidden="true"></i> Quitar</button>
+                                </form>
+                                <?php } else if($puede_gestionar_avances && !empty($av['id_enlace'])) { ?>
+                                <?php $payload_edicion_extra=json_encode(array('tipo'=>'enlace','id_enlace'=>intval($av['id_enlace']),'url'=>(string)$av['url']), JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP); ?>
+                                <button type="button" class="btn btn-white btn-xs" data-crm-abrir-edicion-extra="<?php echo texto_mostrar($payload_edicion_extra); ?>" aria-label="Editar link"><i class="fa fa-pencil" aria-hidden="true"></i> Editar</button>
+                                <form method="post" action="<?php echo texto_mostrar($ver_url); ?>" style="margin-top:5px;">
+                                    <input type="hidden" name="id_tarea" value="<?php echo $id_tar; ?>">
+                                    <input type="hidden" name="gestionar_extra_tarea" value="1">
+                                    <input type="hidden" name="csrf_tarea_extra" value="<?php echo texto_mostrar($csrf_extra_tarea); ?>">
+                                    <input type="hidden" name="accion_extra_tarea" value="eliminar_enlace">
+                                    <input type="hidden" name="id_enlace" value="<?php echo intval($av['id_enlace']); ?>">
+                                    <button type="button" class="btn btn-white btn-xs" data-crm-confirmar-quitar="1" data-titulo="¿Quitar este link?" data-mensaje="Se quitará únicamente este link. La tarea y los comentarios se conservarán." aria-label="Quitar link"><i class="fa fa-trash" aria-hidden="true"></i> Quitar</button>
+                                </form>
+                                <?php } ?>
+                            </div>
                         </div>
                         <?php } ?>
+
+                        <div class="crm-avance-edicion-modal" id="crm-avance-edicion-modal" aria-hidden="true">
+                            <form method="post" action="<?php echo texto_mostrar($ver_url); ?>" class="crm-avance-edicion-dialog" role="dialog" aria-modal="true" aria-labelledby="crm-avance-edicion-titulo">
+                                <div class="crm-avance-edicion-encabezado">
+                                    <h4 id="crm-avance-edicion-titulo">Editar comentario y link</h4>
+                                    <button type="button" class="crm-avance-edicion-cerrar" data-crm-cerrar-edicion-extra="1" aria-label="Cerrar">&times;</button>
+                                </div>
+                                <div class="crm-avance-edicion-cuerpo">
+                                    <input type="hidden" name="id_tarea" value="<?php echo $id_tar; ?>">
+                                    <input type="hidden" name="gestionar_extra_tarea" value="1">
+                                    <input type="hidden" name="csrf_tarea_extra" value="<?php echo texto_mostrar($csrf_extra_tarea); ?>">
+                                    <input type="hidden" name="accion_extra_tarea" id="crm-avance-edicion-accion" value="editar_comentario">
+                                    <input type="hidden" name="id_comentario" id="crm-avance-edicion-id-comentario" value="">
+                                    <input type="hidden" name="id_enlace" id="crm-avance-edicion-id-enlace" value="">
+                                    <div class="form-group" id="crm-avance-edicion-grupo-comentario">
+                                        <label for="crm-avance-edicion-texto">Comentario</label>
+                                        <textarea name="texto_comentario" id="crm-avance-edicion-texto" class="form-control" rows="4" required></textarea>
+                                    </div>
+                                    <div class="form-group" id="crm-avance-edicion-grupo-link">
+                                        <label for="crm-avance-edicion-url">Link <span class="crm-avance-edicion-opcional">(opcional; dejalo vacío para quitarlo)</span></label>
+                                        <input type="url" name="url_enlace" id="crm-avance-edicion-url" class="form-control" maxlength="500" placeholder="https://">
+                                    </div>
+                                </div>
+                                <div class="crm-avance-edicion-acciones">
+                                    <button type="button" class="btn btn-white" data-crm-cerrar-edicion-extra="1">Cancelar</button>
+                                    <button type="submit" class="btn btn-primary"><i class="fa fa-save" aria-hidden="true"></i> Guardar cambios</button>
+                                </div>
+                            </form>
+                        </div>
+                        <script type="text/javascript">
+                        (function() {
+                            var modal = document.getElementById('crm-avance-edicion-modal');
+                            if(!modal) { return; }
+                            var form = modal.querySelector('form');
+                            var title = document.getElementById('crm-avance-edicion-titulo');
+                            var action = document.getElementById('crm-avance-edicion-accion');
+                            var commentId = document.getElementById('crm-avance-edicion-id-comentario');
+                            var linkId = document.getElementById('crm-avance-edicion-id-enlace');
+                            var commentGroup = document.getElementById('crm-avance-edicion-grupo-comentario');
+                            var commentInput = document.getElementById('crm-avance-edicion-texto');
+                            var linkGroup = document.getElementById('crm-avance-edicion-grupo-link');
+                            var linkInput = document.getElementById('crm-avance-edicion-url');
+                            var previousFocus = null;
+                            function close() {
+                                modal.classList.remove('is-open');
+                                modal.setAttribute('aria-hidden', 'true');
+                                if(previousFocus && previousFocus.focus) { previousFocus.focus(); }
+                            }
+                            document.addEventListener('click', function(event) {
+                                var trigger = event.target.closest('[data-crm-abrir-edicion-extra]');
+                                if(trigger) {
+                                    var data = {};
+                                    try { data = JSON.parse(trigger.getAttribute('data-crm-abrir-edicion-extra') || '{}'); } catch(e) { return; }
+                                    previousFocus = trigger;
+                                    commentId.value = data.tipo === 'comentario' ? (data.id_comentario || '') : '';
+                                    linkId.value = data.tipo === 'enlace' ? (data.id_enlace || '') : '';
+                                    action.value = data.tipo === 'enlace' ? 'editar_enlace' : 'editar_comentario';
+                                    title.textContent = data.tipo === 'enlace' ? 'Editar link' : 'Editar comentario y link';
+                                    commentInput.value = data.texto || '';
+                                    commentGroup.style.display = data.tipo === 'enlace' ? 'none' : '';
+                                    commentInput.required = data.tipo !== 'enlace';
+                                    linkInput.value = data.url || '';
+                                    linkInput.required = data.tipo === 'enlace';
+                                    linkGroup.querySelector('label').innerHTML = data.tipo === 'enlace' ? 'Dirección del link' : 'Link <span class="crm-avance-edicion-opcional">(opcional; dejalo vacío para quitarlo)</span>';
+                                    modal.classList.add('is-open');
+                                    modal.setAttribute('aria-hidden', 'false');
+                                    (data.tipo === 'enlace' ? linkInput : commentInput).focus();
+                                    return;
+                                }
+                                // Keep the editor open during text selection/paste. A drag that ends on the
+                                // backdrop can dispatch its click there; dismiss only through explicit controls.
+                                if(event.target.closest('[data-crm-cerrar-edicion-extra]')) { close(); }
+                            });
+                            document.addEventListener('keydown', function(event) {
+                                if(event.key === 'Escape' && modal.classList.contains('is-open')) { close(); }
+                            });
+                        })();
+                        </script>
+
+                        <div class="crm-avance-confirmacion" id="crm-avance-confirmacion" style="display:none;" aria-hidden="true">
+                            <div class="crm-avance-confirmacion__panel" role="dialog" aria-modal="true" aria-labelledby="crm-avance-confirmacion-titulo" aria-describedby="crm-avance-confirmacion-mensaje" tabindex="-1">
+                                <div class="crm-avance-confirmacion__encabezado">
+                                    <h3 id="crm-avance-confirmacion-titulo">¿Quitar este elemento?</h3>
+                                    <button type="button" class="crm-avance-confirmacion__cerrar" data-crm-cerrar-confirmacion="1" aria-label="Cerrar">&times;</button>
+                                </div>
+                                <div class="crm-avance-confirmacion__cuerpo">
+                                    <p id="crm-avance-confirmacion-mensaje"></p>
+                                </div>
+                                <div class="crm-avance-confirmacion__acciones">
+                                    <button type="button" class="btn btn-white" data-crm-cerrar-confirmacion="1">Cancelar</button>
+                                    <button type="button" class="btn btn-danger" data-crm-ejecutar-quitar="1">Quitar</button>
+                                </div>
+                            </div>
+                        </div>
+                        <script type="text/javascript">
+                        (function() {
+                            var modal = document.getElementById('crm-avance-confirmacion');
+                            if(!modal) { return; }
+                            var titulo = document.getElementById('crm-avance-confirmacion-titulo');
+                            var mensaje = document.getElementById('crm-avance-confirmacion-mensaje');
+                            var formularioPendiente = null;
+                            var focoAnterior = null;
+                            function cerrarConfirmacion() {
+                                modal.style.display = 'none';
+                                modal.setAttribute('aria-hidden', 'true');
+                                formularioPendiente = null;
+                                if(focoAnterior && focoAnterior.focus) { focoAnterior.focus(); }
+                            }
+                            document.addEventListener('click', function(evento) {
+                                var disparador = evento.target.closest('[data-crm-confirmar-quitar]');
+                                if(disparador) {
+                                    evento.preventDefault();
+                                    formularioPendiente = disparador.closest('form');
+                                    focoAnterior = disparador;
+                                    titulo.textContent = disparador.getAttribute('data-titulo') || '¿Quitar este elemento?';
+                                    mensaje.textContent = disparador.getAttribute('data-mensaje') || 'Esta acción no se puede deshacer.';
+                                    modal.style.display = 'flex';
+                                    modal.setAttribute('aria-hidden', 'false');
+                                    var cancelar = modal.querySelector('[data-crm-cerrar-confirmacion]');
+                                    if(cancelar) { cancelar.focus(); }
+                                    return;
+                                }
+                                if(evento.target === modal || evento.target.closest('[data-crm-cerrar-confirmacion]')) {
+                                    cerrarConfirmacion();
+                                    return;
+                                }
+                                if(evento.target.closest('[data-crm-ejecutar-quitar]')) {
+                                    var formulario = formularioPendiente;
+                                    cerrarConfirmacion();
+                                    if(formulario) { formulario.submit(); }
+                                }
+                            });
+                            document.addEventListener('keydown', function(evento) {
+                                if(evento.key === 'Escape' && modal.getAttribute('aria-hidden') === 'false') {
+                                    cerrarConfirmacion();
+                                }
+                            });
+                        })();
+                        </script>
 
                         <?php if(tarea_puede_agregar_extras($tarea)) { ?>
                         <h5 style="margin-top:18px;">Cargar comentario</h5>

@@ -8,4 +8,5 @@ if(!isset($menu_activo)) { $menu_activo='tareas'; }
 	<?php if(acceso_puede_clientes_de_area('administracion')) { ?>
 	<a href="<?php echo tareas_link('clientes.php'); ?>" class="btn <?php echo ($menu_activo=='clientes' ? 'btn-primary' : 'btn-white'); ?>">Clientes</a>
 	<?php } ?>
+<?php crm_menu_seccion_sala_reuniones(); ?>
 </div>

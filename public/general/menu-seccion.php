@@ -21,4 +21,5 @@ if(!isset($menu_activo)) { $menu_activo='tareas'; }
 	?>
 	<a href="<?php echo tareas_link('solicitudes-alta.php'); ?>" class="btn <?php echo ($menu_activo=='solicitudes_alta' ? 'btn-primary' : 'btn-white'); ?>">Solicitudes alta<?php if($n_sol>0) { ?> <span class="badge"><?php echo intval($n_sol); ?></span><?php } ?></a>
 	<?php } ?>
+<?php crm_menu_seccion_sala_reuniones(); ?>
 </div>
