@@ -1836,6 +1836,49 @@ function acceso_es_coord_de_area($area='')
 }
 
 /**
+ * Acceso transversal exclusivo al Mapa de Eventos.
+ * No altera los permisos de los demás módulos.
+ */
+function acceso_puede_ver_mapa_eventos()
+{
+	if(acceso_es_super() || acceso_es_coord_general())
+	{
+		return true;
+	}
+
+	// Leer claves directamente para no invocar helpers de presentación que
+	// pueden intentar asegurar columnas del esquema durante la petición.
+	$areas=acceso_consulta("SELECT clave FROM area");
+	$claves_area=array();
+	foreach($areas as $fila)
+	{
+		$clave=strtolower(trim(isset($fila['clave']) ? (string)$fila['clave'] : ''));
+		if($clave==='' || in_array($clave, array('general', 'admin'), true))
+		{
+			continue;
+		}
+		$claves_area[]=$clave;
+	}
+
+	$area_principal=isset($_SESSION['area_usuario']) ? strtolower(trim((string)$_SESSION['area_usuario'])) : '';
+	$rol_principal=isset($_SESSION['rol_area']) ? (string)$_SESSION['rol_area'] : '';
+	if($rol_principal==='coordinador' && in_array($area_principal, $claves_area, true))
+	{
+		return true;
+	}
+
+	foreach(acceso_roles_adicionales_sesion() as $extra)
+	{
+		$area_extra=isset($extra['area']) ? strtolower(trim((string)$extra['area'])) : '';
+		if(isset($extra['rol']) && $extra['rol']==='coordinador' && in_array($area_extra, $claves_area, true))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
  * Devuelve la lista de áreas y roles asignados válidos del usuario actual.
  */
 function acceso_mis_areas_asignadas()

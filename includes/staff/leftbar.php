@@ -267,7 +267,7 @@
       <?php if(acceso_puede('general') && (acceso_es_coord_general() || acceso_es_super())) { ?>
       <li class="<?php echo ($crm_cur_script === 'dashboard.php' && strpos($crm_cur_uri, '/general/dashboard.php') !== false) ? 'active' : ''; ?>"><a href="<?php echo url_crm('general/dashboard.php'); ?>"><span class="fa fa-sitemap"></span>&nbsp;&nbsp;Coordinación general</a></li>
       <?php } ?>
-      <?php if(acceso_es_coord_general() || acceso_es_super() || acceso_es_general()) { ?>
+      <?php if(function_exists('acceso_puede_ver_mapa_eventos') && acceso_puede_ver_mapa_eventos()) { ?>
       <li class="<?php echo (strpos($crm_cur_uri, 'mapa-interactivo') !== false) ? 'active' : ''; ?>"><a href="<?php echo url_crm('general/mapa-interactivo/index.php'); ?>"><span class="fa fa-map-marker"></span>&nbsp;&nbsp;Mapa de eventos</a></li>
       <?php } ?>
        <li class="<?php echo ($crm_cur_script === 'salas-reuniones.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('salas-reuniones.php'); ?>"><span class="fa fa-calendar"></span>&nbsp;&nbsp;Sala de reuniones</a></li>

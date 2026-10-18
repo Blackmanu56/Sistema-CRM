@@ -4,7 +4,7 @@ crm_proteger_staff();
 include __DIR__.'/../datos-tareas.php';
 tareas_iniciar_contexto();
 
-if(!acceso_es_coord_general() && !acceso_es_super() && !acceso_es_general())
+if(!acceso_puede_ver_mapa_eventos())
 {
 	http_response_code(403);
 	exit('No tenés permiso para ver este mapa.');
@@ -26,12 +26,16 @@ $geojson_url=is_file($geojson)
 <link href="../../assets/plugins/font-awesome/css/font-awesome.css" rel="stylesheet" type="text/css"/>
 <link href="../../assets/css/style.css" rel="stylesheet" type="text/css"/>
 <link href="../../assets/css/responsive.css" rel="stylesheet" type="text/css"/>
+<link href="../../assets/css/custom-icon-set.css" rel="stylesheet" type="text/css"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
 <style>
 #mapa-eventos { height:68vh; min-height:420px; border:1px solid #d8d8d8; }
 .mapa-controles { margin:10px 0; }
+.mapa-filtros { display:flex; flex-wrap:wrap; align-items:flex-end; gap:10px; margin:14px 0; }
+.mapa-filtro { min-width:190px; flex:1 1 190px; }
+.mapa-filtro label { display:block; margin-bottom:4px; }
 .mapa-contador { display:inline-block; margin-right:18px; font-weight:600; }
 .mapa-aviso { display:none; }
 .mapa-popup h4 { margin:0 0 8px; }
@@ -64,6 +68,29 @@ $geojson_url=is_file($geojson)
 					<button type="button" id="mapa-actualizar" class="btn btn-white btn-small"><i class="fa fa-refresh"></i> Actualizar</button>
 					<span id="mapa-ultima-actualizacion" class="text-muted"></span>
 				</div>
+				<div class="mapa-filtros" aria-label="Filtros del mapa">
+					<div class="mapa-filtro">
+						<label for="mapa-filtro-area">Área</label>
+						<select id="mapa-filtro-area" class="form-control"><option value="">Todas las áreas</option></select>
+					</div>
+					<div class="mapa-filtro">
+						<label for="mapa-filtro-tipo">Tipo de evento</label>
+						<select id="mapa-filtro-tipo" class="form-control"><option value="">Todos los tipos</option></select>
+					</div>
+					<div class="mapa-filtro">
+						<label for="mapa-filtro-localidad">Localidad</label>
+						<select id="mapa-filtro-localidad" class="form-control"><option value="">Todas las localidades</option></select>
+					</div>
+					<div class="mapa-filtro">
+						<label for="mapa-filtro-activo">Estado</label>
+						<select id="mapa-filtro-activo" class="form-control">
+							<option value="1" selected>Activos</option>
+							<option value="0">No activos</option>
+							<option value="todos">Todos</option>
+						</select>
+					</div>
+					<button type="button" id="mapa-limpiar-filtros" class="btn btn-white">Limpiar filtros</button>
+				</div>
 				<div id="mapa-aviso" class="alert alert-warning mapa-aviso" role="status"></div>
 				<div id="mapa-error" class="alert alert-danger mapa-aviso" role="alert"></div>
 				<div id="mapa-eventos"
@@ -71,7 +98,7 @@ $geojson_url=is_file($geojson)
 					data-geojson="<?php echo htmlspecialchars($geojson_url, ENT_QUOTES, 'UTF-8'); ?>"></div>
 				<div style="margin-top:8px;">
 					<i class="fa fa-map-marker" style="color:#337ab7;"></i>
-					Cada marcador indica una localidad; el número representa los eventos activos en ella.
+					Cada marcador indica una localidad; el número representa los eventos que coinciden con los filtros actuales.
 					Los polígonos muestran los límites municipales; pasá el cursor para ver el nombre (Fuente: Gobierno de Misiones).
 				</div>
 				<p class="text-muted" style="margin-top:8px;">Actualización automática cada minuto mientras esta página esté visible.</p>
@@ -88,9 +115,14 @@ $geojson_url=is_file($geojson)
 	var mapaEl = document.getElementById('mapa-eventos');
 	var aviso = document.getElementById('mapa-aviso');
 	var error = document.getElementById('mapa-error');
+	var filtroArea = document.getElementById('mapa-filtro-area');
+	var filtroTipo = document.getElementById('mapa-filtro-tipo');
+	var filtroLocalidad = document.getElementById('mapa-filtro-localidad');
+	var filtroActivo = document.getElementById('mapa-filtro-activo');
 	var mapa = L.map(mapaEl).setView([-27.4, -54.5], 7);
 	var marcadores = L.markerClusterGroup();
 	var actualizando = false;
+	var actualizarPendiente = false;
 	var temporizador = null;
 	var geojsonUrl = mapaEl.getAttribute('data-geojson');
 
@@ -108,6 +140,24 @@ $geojson_url=is_file($geojson)
 		return elemento;
 	}
 
+	function cargarOpciones(select, opciones, valor, etiqueta, opcionVacia)
+	{
+		var seleccionado = select.value;
+		select.innerHTML = '';
+		var opcion = document.createElement('option');
+		opcion.value = '';
+		opcion.textContent = opcionVacia;
+		select.appendChild(opcion);
+		for(var i = 0; i < opciones.length; i++)
+		{
+			opcion = document.createElement('option');
+			opcion.value = opciones[i][valor];
+			opcion.textContent = opciones[i][etiqueta];
+			select.appendChild(opcion);
+		}
+		select.value = seleccionado;
+	}
+
 	function crearPopup(feature)
 	{
 		var propiedades = feature.properties;
@@ -121,7 +171,21 @@ $geojson_url=is_file($geojson)
 			var fecha = evento.fecha
 				? new Date(evento.fecha + 'T00:00:00').toLocaleDateString('es-AR')
 				: 'Fecha sin especificar';
-			agregarTexto(lista, 'li', evento.titulo + ' · ' + fecha);
+			var item = document.createElement('li');
+			if(evento.url)
+			{
+				var enlace = document.createElement('a');
+				enlace.href = evento.url;
+				enlace.title = 'Ver actividad en ' + (evento.area || 'el área correspondiente');
+				enlace.textContent = evento.titulo;
+				item.appendChild(enlace);
+			}
+			else
+			{
+				item.appendChild(document.createTextNode(evento.titulo));
+			}
+			item.appendChild(document.createTextNode(' · ' + fecha + ' · ' + (evento.area || 'Área sin especificar') + ' · ' + (evento.activo === 1 ? 'Activo' : 'No activo')));
+			lista.appendChild(item);
 		}
 		contenedor.appendChild(lista);
 		return contenedor;
@@ -166,10 +230,22 @@ $geojson_url=is_file($geojson)
 
 	function actualizar()
 	{
-		if(actualizando || document.visibilityState === 'hidden') { return; }
+		if(document.visibilityState === 'hidden') { return; }
+		if(actualizando)
+		{
+			actualizarPendiente = true;
+			return;
+		}
 		actualizando = true;
 		error.style.display = 'none';
-		fetch(mapaEl.getAttribute('data-endpoint'), {cache:'no-store', credentials:'same-origin'}).then(function(respuesta){
+		var parametros = [];
+		if(filtroArea.value !== '') { parametros.push('id_area=' + encodeURIComponent(filtroArea.value)); }
+		if(filtroTipo.value !== '') { parametros.push('tipo=' + encodeURIComponent(filtroTipo.value)); }
+		if(filtroLocalidad.value !== '') { parametros.push('id_localidad=' + encodeURIComponent(filtroLocalidad.value)); }
+		if(filtroActivo.value !== '') { parametros.push('activo=' + encodeURIComponent(filtroActivo.value)); }
+		var endpoint = mapaEl.getAttribute('data-endpoint');
+		if(parametros.length > 0) { endpoint += '?' + parametros.join('&'); }
+		fetch(endpoint, {cache:'no-store', credentials:'same-origin'}).then(function(respuesta){
 			return respuesta.json().then(function(datos){
 				if(!respuesta.ok || datos.ok === false)
 				{
@@ -178,6 +254,12 @@ $geojson_url=is_file($geojson)
 				return datos;
 			});
 		}).then(function(datos){
+			if(datos.filters)
+			{
+				cargarOpciones(filtroArea, datos.filters.areas, 'id', 'nombre', 'Todas las áreas');
+				cargarOpciones(filtroTipo, datos.filters.tipos.map(function(tipo){ return {id:tipo, nombre:tipo}; }), 'id', 'nombre', 'Todos los tipos');
+				cargarOpciones(filtroLocalidad, datos.filters.localidades, 'id', 'nombre', 'Todas las localidades');
+			}
 			marcadores.clearLayers();
 			var totalEventos = 0;
 			for(var i = 0; i < datos.features.length; i++)
@@ -187,7 +269,7 @@ $geojson_url=is_file($geojson)
 				totalEventos += propiedades.cantidad_eventos;
 				var icono = L.divIcon({
 					className:'',
-					html:'<span class="mapa-icono">' + propiedades.cantidad_eventos + '</span>',
+					html:'<span class="mapa-icono">' + parseInt(propiedades.cantidad_eventos, 10) + '</span>',
 					iconSize:[42,42],
 					iconAnchor:[21,21]
 				});
@@ -201,26 +283,38 @@ $geojson_url=is_file($geojson)
 			document.getElementById('mapa-total-localidades').textContent = datos.features.length;
 			document.getElementById('mapa-total-eventos').textContent = totalEventos;
 			document.getElementById('mapa-ultima-actualizacion').textContent = 'Actualizado: ' + new Date().toLocaleTimeString('es-AR');
-			if(datos.meta && datos.meta.eventos_sin_coordenadas > 0)
-			{
-				aviso.textContent = datos.meta.eventos_sin_coordenadas + ' evento(s) no aparecen porque falta cargar coordenadas en su localidad.';
-				aviso.style.display = 'block';
-			}
-			else if(geojsonUrl)
-			{
-				aviso.style.display = 'none';
-			}
+			var avisos = [];
+			if(!geojsonUrl) { avisos.push('Para ver los límites municipales, colocá el GeoJSON en public/general/mapa-interactivo/geojson/misiones-municipios.geojson.'); }
+			if(datos.meta && datos.meta.eventos_sin_localidad > 0) { avisos.push(datos.meta.eventos_sin_localidad + ' evento(s) no tienen localidad (ubicación desconocida; no se presume que sean de Misiones).'); }
+			if(datos.meta && datos.meta.eventos_sin_coordenadas > 0) { avisos.push(datos.meta.eventos_sin_coordenadas + ' evento(s) tienen localidad sin coordenadas. No se asignaron ubicaciones automáticamente.'); }
+			aviso.textContent = avisos.join(' ');
+			aviso.style.display = avisos.length ? 'block' : 'none';
 		}).catch(function(err){
 			error.textContent = err.message;
 			error.style.display = 'block';
 		}).then(function(){
 			actualizando = false;
+			if(actualizarPendiente && document.visibilityState !== 'hidden')
+			{
+				actualizarPendiente = false;
+				actualizar();
+			}
 		});
 	}
 
 	cargarLimites();
 	actualizar();
 	document.getElementById('mapa-actualizar').onclick = actualizar;
+	[filtroArea, filtroTipo, filtroLocalidad, filtroActivo].forEach(function(filtro){
+		filtro.addEventListener('change', actualizar);
+	});
+	document.getElementById('mapa-limpiar-filtros').addEventListener('click', function(){
+		filtroArea.value = '';
+		filtroTipo.value = '';
+		filtroLocalidad.value = '';
+		filtroActivo.value = '1';
+		actualizar();
+	});
 	function actualizarTemporizador()
 	{
 		if(temporizador) { window.clearInterval(temporizador); }

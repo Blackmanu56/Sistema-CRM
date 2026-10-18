@@ -167,15 +167,15 @@ $id_yo=crm_id_empleado_sesion();
                             </div>
                             <div class="form-group">
                                 <label>Localidad del evento</label>
-                                <select name="id_localidad" class="form-control" required>
-                                    <option value="">Seleccioná una localidad de Misiones</option>
+                                <select name="id_localidad" class="form-control">
+                                    <option value="">Sin localidad seleccionada</option>
                                     <?php foreach($localidades_misiones as $localidad) { ?>
                                     <option value="<?php echo intval($localidad['id_localidad']); ?>" <?php if(intval($v['id_localidad'])===intval($localidad['id_localidad'])) echo 'selected'; ?>>
                                         <?php echo texto_mostrar($localidad['nombre']); ?>
                                     </option>
                                     <?php } ?>
                                 </select>
-                                <p class="muted" style="margin-top:4px;">La localidad se guarda directamente en la actividad; no depende del cliente asociado.</p>
+                                <p class="muted" style="margin-top:4px;">Opcional. La localidad se guarda directamente en la actividad; no depende del cliente asociado.</p>
                             </div>
                             <div class="form-group">
                                 <label>Organismo / aliado (opcional)</label>

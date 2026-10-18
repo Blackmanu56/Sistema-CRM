@@ -57,6 +57,37 @@ function actividades_area_destino()
 	return $area;
 }
 
+/** Validate an optional event locality and keep the database value nullable. */
+function actividades_localidad_desde_post($valor)
+{
+	$raw=trim((string)$valor);
+	if($raw==='')
+	{
+		return array('valida'=>true, 'id'=>0);
+	}
+	if(!preg_match('/^\d+$/', $raw))
+	{
+		return array('valida'=>false, 'id'=>0);
+	}
+	$id=intval($raw);
+	if($id===0)
+	{
+		return array('valida'=>true, 'id'=>0);
+	}
+	$localidad=acceso_consulta_una(
+		"SELECT l.id_localidad
+		FROM localidad l INNER JOIN provincia p ON p.id_provincia=l.id_provincia
+		WHERE l.id_localidad=? AND p.nombre='Misiones' LIMIT 1",
+		'i',
+		array($id)
+	);
+	if(!$localidad)
+	{
+		return array('valida'=>false, 'id'=>0);
+	}
+	return array('valida'=>true, 'id'=>$id);
+}
+
 function actividad_puede_crear($area_clave='')
 {
 	if(acceso_es_super() || acceso_es_coord_general() || acceso_es_general())
@@ -118,18 +149,12 @@ function actividades_guardar_nueva_desde_form()
 	}
 	$id_org=intval($org['id']);
 	$organismo=$org['nombre'];
-	$id_localidad=isset($_POST['id_localidad']) ? intval($_POST['id_localidad']) : 0;
-	$localidad_valida=acceso_consulta_una(
-		"SELECT l.id_localidad
-		FROM localidad l INNER JOIN provincia p ON p.id_provincia=l.id_provincia
-		WHERE l.id_localidad=? AND p.nombre='Misiones' LIMIT 1",
-		'i',
-		array($id_localidad)
-	);
-	if(!$localidad_valida)
+	$localidad=actividades_localidad_desde_post(isset($_POST['id_localidad']) ? $_POST['id_localidad'] : '');
+	if(!$localidad['valida'])
 	{
-		return array('area'=>$area, 'id'=>0, 'msg'=>'Seleccioná una localidad válida de Misiones para la actividad.');
+		return array('area'=>$area, 'id'=>0, 'msg'=>'La localidad seleccionada no es válida de Misiones.');
 	}
+	$id_localidad=$localidad['id'];
 	$f_nueva = isset($_POST['fecha']) ? trim($_POST['fecha']) : date('Y-m-d');
 	if($f_nueva !== '' && $f_nueva < date('Y-m-d'))
 	{
@@ -462,18 +487,13 @@ function actividades_actualizar_desde_form($id_evento)
 		return $org['error'];
 	}
 	$envio_org=(isset($_POST['organismo_id']) || isset($_POST['organismo_limpiar']));
-	$id_localidad=isset($_POST['id_localidad']) ? intval($_POST['id_localidad']) : 0;
-	$localidad_valida=acceso_consulta_una(
-		"SELECT l.id_localidad
-		FROM localidad l INNER JOIN provincia p ON p.id_provincia=l.id_provincia
-		WHERE l.id_localidad=? AND p.nombre='Misiones' LIMIT 1",
-		'i',
-		array($id_localidad)
-	);
-	if(!$localidad_valida)
+	$id_localidad_actual=intval(isset($ev['id_localidad']) ? $ev['id_localidad'] : 0);
+	$localidad=actividades_localidad_desde_post(isset($_POST['id_localidad']) ? $_POST['id_localidad'] : $id_localidad_actual);
+	if(!$localidad['valida'])
 	{
-		return 'Seleccioná una localidad válida de Misiones para la actividad.';
+		return 'La localidad seleccionada no es válida de Misiones.';
 	}
+	$id_localidad=$localidad['id'];
 	if(!$envio_org)
 	{
 		$id_org=intval(isset($ev['id_cliente']) ? $ev['id_cliente'] : 0);
@@ -486,7 +506,7 @@ function actividades_actualizar_desde_form($id_evento)
 	}
 	$ok=acceso_ejecutar(
 		"UPDATE evento SET titulo=?, descripcion=?, tipo=?, fecha=?,
-			id_empleado=NULLIF(?,0), id_cliente=NULLIF(?,0), id_localidad=?, organismo=?,
+			id_empleado=NULLIF(?,0), id_cliente=NULLIF(?,0), id_localidad=NULLIF(?,0), organismo=?,
 			autoinscripcion=?, publico=?
 		WHERE id_evento=?",
 		'ssssiiisisi',
