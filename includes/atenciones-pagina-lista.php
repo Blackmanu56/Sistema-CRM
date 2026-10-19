@@ -70,7 +70,7 @@ $lista=crm_atenciones_listado($area_cli, array(
                 <?php include("menu-seccion.php"); ?>
                 <div class="page-title">
                     <h3>Atenciones y Derivaciones<?php if($area_cli=='recepcion' && isset($_GET['fecha']) && $_GET['fecha']=='hoy') { echo ' de hoy'; } ?></h3>
-                    <?php if((acceso_puede_alta_cliente($area_cli) || $area_cli==='recepcion' || $area_cli==='superadmin' || $area_cli==='administracion') && area_capacidad($area_cli, 'recibe_turnos')) { ?>
+                    <?php if($area_cli!=='sistemas' && (acceso_puede_alta_cliente($area_cli) || $area_cli==='recepcion' || $area_cli==='superadmin' || $area_cli==='administracion') && area_capacidad($area_cli, 'recibe_turnos')) { ?>
                     <a href="nueva-atencion.php" class="btn btn-primary btn-cons pull-right"><i class="fa fa-calendar-plus-o"></i> Nuevo turno / atención</a>
                     <?php } ?>
                 </div>
@@ -223,7 +223,7 @@ $lista=crm_atenciones_listado($area_cli, array(
                                             </td>
                                             <td><?php echo texto_mostrar(crm_motivo_texto($row['motivo'])); ?></td>
                                             <td><?php echo texto_mostrar(function_exists('crm_turno_fecha_texto') ? crm_turno_fecha_texto($ft) : $ft); ?></td>
-                                            <td><a href="atencion.php?id=<?php echo intval($row['id_atencion']); ?>" class="btn btn-white btn-xs" style="font-weight:600;"><i class="fa fa-folder-open-o"></i> Abrir</a></td>
+                                            <td><?php if($area_cli==='sistemas') { ?><span class="muted">Solo consulta</span><?php } else { ?><a href="atencion.php?id=<?php echo intval($row['id_atencion']); ?>" class="btn btn-white btn-xs" style="font-weight:600;"><i class="fa fa-folder-open-o"></i> Abrir</a><?php } ?></td>
                                         </tr>
                                     <?php } } ?>
                                     </tbody>

@@ -296,6 +296,8 @@
             <div class="iconset top-settings-dark "></div>
             </a>
             <ul class="dropdown-menu  pull-right" role="menu" aria-labelledby="user-options">
+              <li><a href="<?php echo url_crm('perfil-empleado.php'); ?>"><i class="fa fa-user"></i>&nbsp;&nbsp;Mi perfil</a></li>
+              <li class="divider"></li>
               <li><a href="<?php echo url_crm('change-password.php'); ?>"><i class="fa fa-lock"></i>&nbsp;&nbsp;Cambiar contraseña</a></li>
               <li class="divider"></li>
               <li><a href="<?php echo url_crm('admin/logout.php'); ?>"><i class="fa fa-power-off"></i>&nbsp;&nbsp;Cerrar sesión</a></li>

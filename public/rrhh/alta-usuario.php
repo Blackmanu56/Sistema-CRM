@@ -71,6 +71,16 @@ $mostrar_area=($rol_sel==='empleado' || $rol_sel==='coordinador');
 <link href="../assets/css/style.css" rel="stylesheet" type="text/css"/>
 <link href="../assets/css/responsive.css" rel="stylesheet" type="text/css"/>
 <link href="../assets/css/custom-icon-set.css" rel="stylesheet" type="text/css"/>
+<style>
+.rrhh-empleado-form { max-width:1120px; margin:0 auto; }
+.rrhh-form-section { margin:0 0 16px; padding:18px 20px 6px; border:1px solid #e2e9f1; border-radius:9px; background:#fff; }
+.rrhh-form-section h4 { margin:0 0 16px; color:#263b53; font-size:15px; font-weight:600; }
+.rrhh-form-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:22px; }
+.rrhh-form-fields .form-group { min-width:0; margin-bottom:14px; }
+.rrhh-form-fields .form-group-full { grid-column:1 / -1; }
+.rrhh-form-actions { display:flex; justify-content:flex-end; gap:8px; padding:4px 0 2px; }
+@media (max-width:767px) { .rrhh-form-section { padding:15px 14px 4px; } .rrhh-form-fields { grid-template-columns:1fr; column-gap:0; } .rrhh-form-fields .form-group-full { grid-column:auto; } .rrhh-form-actions { justify-content:flex-start; flex-wrap:wrap; } }
+</style>
 <script type="text/javascript">
 function crmToggleAreaPorRol()
 {
@@ -126,34 +136,41 @@ function valid()
                         <div class="grid simple">
                         <div class="grid-title no-border"><h4>Datos del colaborador</h4></div>
                         <div class="grid-body no-border">
-                        <form name="form1" method="post" action="" accept-charset="UTF-8" onSubmit="return valid();">
+                        <form name="form1" method="post" action="" accept-charset="UTF-8" onSubmit="return valid();" class="rrhh-empleado-form">
                                 <?php if(isset($_SESSION['msgrrhh']) && $_SESSION['msgrrhh']!='') { ?>
                                 <div class="alert alert-info"><?php echo htmlspecialchars($_SESSION['msgrrhh']); $_SESSION['msgrrhh']=''; ?></div>
                                 <?php } ?>
 
-                                <div class="form-group">
-                                    <label>Rol</label>
-                                    <select name="rol" id="rol_empleado" class="form-control" required onchange="crmToggleAreaPorRol();">
-                                        <?php foreach($roles as $clave=>$titulo) { ?>
-                                        <option value="<?php echo htmlspecialchars($clave); ?>" <?php if($rol_sel===$clave) echo 'selected'; ?>><?php echo htmlspecialchars($titulo); ?></option>
-                                        <?php } ?>
-                                    </select>
-                                </div>
-                                <div class="form-group" id="caja_area" style="<?php echo $mostrar_area ? '' : 'display:none;'; ?>">
-                                    <label>Área</label>
-                                    <select name="area" id="area_empleado" class="form-control" <?php if($mostrar_area) echo 'required'; ?>>
-                                        <option value="">Elegir área</option>
-                                        <?php foreach($areas_operativas as $clave=>$titulo) { ?>
-                                        <option value="<?php echo htmlspecialchars($clave); ?>" <?php if(crm_campo('area')==$clave) echo 'selected'; ?>><?php echo htmlspecialchars($titulo); ?></option>
-                                        <?php } ?>
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <label>Usuario</label>
-                                    <input type="text" name="usuario" id="usuario" required class="form-control" value="<?php echo htmlspecialchars(crm_campo('usuario')); ?>"/>
-                                </div>
+                                <section class="rrhh-form-section">
+                                    <h4><i class="fa fa-key"></i> Acceso y asignación</h4>
+                                    <div class="rrhh-form-fields">
+                                    <div class="form-group">
+                                        <label>Usuario</label>
+                                        <input type="text" name="usuario" id="usuario" required class="form-control" value="<?php echo htmlspecialchars(crm_campo('usuario')); ?>"/>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Rol</label>
+                                        <select name="rol" id="rol_empleado" class="form-control" required onchange="crmToggleAreaPorRol();">
+                                            <?php foreach($roles as $clave=>$titulo) { ?>
+                                            <option value="<?php echo htmlspecialchars($clave); ?>" <?php if($rol_sel===$clave) echo 'selected'; ?>><?php echo htmlspecialchars($titulo); ?></option>
+                                            <?php } ?>
+                                        </select>
+                                    </div>
+                                    <div class="form-group" id="caja_area" style="<?php echo $mostrar_area ? '' : 'display:none;'; ?>">
+                                        <label>Área</label>
+                                        <select name="area" id="area_empleado" class="form-control" <?php if($mostrar_area) echo 'required'; ?>>
+                                            <option value="">Elegir área</option>
+                                            <?php foreach($areas_operativas as $clave=>$titulo) { ?>
+                                            <option value="<?php echo htmlspecialchars($clave); ?>" <?php if(crm_campo('area')==$clave) echo 'selected'; ?>><?php echo htmlspecialchars($titulo); ?></option>
+                                            <?php } ?>
+                                        </select>
+                                    </div>
+                                    </div>
+                                </section>
 
-                                <hr>
+                                <section class="rrhh-form-section">
+                                    <h4><i class="fa fa-user"></i> Datos personales</h4>
+                                    <div class="rrhh-form-fields">
                                 <div class="form-group">
                                     <label>Nombres</label>
                                     <input type="text" name="nombres" id="nombres" required class="form-control" value="<?php echo htmlspecialchars(crm_campo('nombres')); ?>"/>
@@ -191,6 +208,12 @@ function valid()
                                     <label>Fecha de nacimiento</label>
                                     <input type="date" name="fecha_nacimiento" class="form-control" value="<?php echo htmlspecialchars(crm_campo('fecha_nacimiento')); ?>"/>
                                 </div>
+                                    </div>
+                                </section>
+
+                                <section class="rrhh-form-section">
+                                    <h4><i class="fa fa-briefcase"></i> Información laboral</h4>
+                                    <div class="rrhh-form-fields">
                                 <div class="form-group">
                                     <label>Fecha de ingreso</label>
                                     <input type="date" name="fecha_ingreso" value="<?php echo htmlspecialchars(crm_campo('fecha_ingreso', date('Y-m-d'))); ?>" class="form-control"/>
@@ -237,7 +260,9 @@ function valid()
                                         <?php } ?>
                                     </select>
                                 </div>
-                                <div class="form-actions">
+                                    </div>
+                                </section>
+                                <div class="form-actions rrhh-form-actions">
                                     <a href="empleados.php" class="btn btn-white">Cancelar</a>
                                     <input type="submit" value="Dar de alta" name="alta" class="btn btn-primary">
                                 </div>

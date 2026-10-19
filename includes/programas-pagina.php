@@ -176,6 +176,15 @@ $titulo_pag=$id_ver>0
 .crm-prog-item form { margin:0; }
 .crm-prog-check { display:block; margin:4px 0 4px 12px; }
 .crm-prog-lista a { display:block; padding:10px 0; border-bottom:1px solid #eee; }
+.crm-programas-listado > .page-title { margin-top:0; margin-bottom:6px; }
+.crm-programas-listado > .page-title h3 { margin-top:0; margin-bottom:0; }
+.crm-programas-listado > .crm-programas-descripcion { margin:0 0 12px; line-height:1.45; }
+.crm-programas-listado > .grid.simple { margin-top:0; margin-bottom:14px; }
+.crm-programas-listado .crm-prog-lista a { padding-top:8px; padding-bottom:8px; }
+@media (max-width:767px) {
+	.crm-programas-listado > .crm-programas-descripcion { margin-bottom:10px; }
+	.crm-programas-listado > .grid.simple { margin-bottom:12px; }
+}
 </style>
 </head>
 <body class="">
@@ -297,8 +306,9 @@ $titulo_pag=$id_ver>0
                 </div>
 
 <?php } else { ?>
+                <div class="crm-programas-listado">
                 <div class="page-title"><h3>Programas</h3></div>
-                <p class="muted">Catálogo de objetivos y tareas · armá programas · al entrar a uno gestionás sus tareas y anotás clientes.</p>
+                <p class="muted crm-programas-descripcion">Catálogo de objetivos y tareas · armá programas · al entrar a uno gestionás sus tareas y anotás clientes.</p>
 
                 <div class="grid simple">
                     <div class="grid-title no-border"><h4>Programas</h4></div>
@@ -315,6 +325,7 @@ $titulo_pag=$id_ver>0
                         </a>
                         <?php } ?>
                     </div>
+                </div>
                 </div>
 
                 <div class="grid simple">

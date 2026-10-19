@@ -95,6 +95,7 @@ function crm_aviso_etiqueta_tipo($tipo)
 		'vencimiento'=>'Vencida',
 		'baja'=>'Eliminar',
 		'actividad'=>'Actividad',
+		'dominio'=>'Dominio',
 		'tarea'=>'Tarea',
 		'info'=>'Aviso'
 	);
@@ -117,6 +118,7 @@ function crm_avisos_extra_mios()
 		array($yo)
 	);
 	$salida=array();
+	$dominios_notificacion_vistos=array();
 	foreach($rows as $r)
 	{
 		$url=isset($r['url']) && $r['url']!='' ? $r['url'] : '';
@@ -139,6 +141,67 @@ function crm_avisos_extra_mios()
 		}
 		$id_entidad=intval($r['id_tarea']);
 		$tipo_av=isset($r['tipo']) ? trim($r['tipo']) : 'info';
+		$es_aviso_dominio=($tipo_av==='dominio');
+		if(!$es_aviso_dominio && isset($r['titulo']) && preg_match('/^Dominio (?:vencido|próximo a vencer)\s*[·-]/u', $r['titulo']))
+		{
+			$es_aviso_dominio=true;
+		}
+		if($tipo_av==='vencimiento' && $url!=='')
+		{
+			$partes_url=parse_url($url);
+			$es_aviso_dominio=isset($partes_url['path']) && strpos($partes_url['path'], 'dominios.php')!==false;
+		}
+		if($es_aviso_dominio)
+		{
+			$nombre_dominio='';
+			$partes_url=parse_url($url);
+			if(isset($partes_url['query']))
+			{
+				parse_str($partes_url['query'], $parametros_url);
+				$nombre_dominio=isset($parametros_url['q']) ? trim((string)$parametros_url['q']) : '';
+			}
+			if($nombre_dominio==='' && isset($r['titulo'])
+				&& preg_match('/^Dominio (?:vencido|próximo a vencer)\s*[·-]\s*(.+)$/u', $r['titulo'], $coincidencia_dominio))
+			{
+				$nombre_dominio=trim($coincidencia_dominio[1]);
+			}
+			$dominio_actual=($nombre_dominio!=='' && acceso_tabla_existe('dominio'))
+				? acceso_consulta_una("SELECT id_dominio, nombre, fecha_vencimiento, activo FROM dominio WHERE nombre=? LIMIT 1", 's', array($nombre_dominio))
+				: null;
+			if($dominio_actual && !empty($dominio_actual['fecha_vencimiento']))
+			{
+				$id_dominio_notificacion=intval($dominio_actual['id_dominio']);
+				if(isset($dominios_notificacion_vistos[$id_dominio_notificacion])) { continue; }
+				$dominios_notificacion_vistos[$id_dominio_notificacion]=true;
+				$fecha_dom=DateTime::createFromFormat('!Y-m-d', substr($dominio_actual['fecha_vencimiento'], 0, 10));
+				if(!$fecha_dom) { continue; }
+				if($fecha_dom)
+				{
+					$hoy_dom=new DateTime('today');
+					$dias_dom=(int)$hoy_dom->diff($fecha_dom)->format('%r%a');
+					$unidad_dias_dom=(abs($dias_dom)===1 ? 'día' : 'días');
+					if(intval($dominio_actual['activo'])===1 && $dias_dom>30) { continue; }
+					if(intval($dominio_actual['activo'])===1 && $dias_dom>=0)
+					{
+						$r['titulo']='Dominio próximo a vencer';
+						$r['detalle']=$dominio_actual['nombre'].' · Vence '.$fecha_dom->format('d/m/Y').' · Faltan '.$dias_dom.' '.$unidad_dias_dom.'.';
+					}
+					else if(intval($dominio_actual['activo'])===1)
+					{
+						$r['titulo']='Dominio vencido';
+						$r['detalle']=$dominio_actual['nombre'].' · Venció '.$fecha_dom->format('d/m/Y').' · Atraso de '.abs($dias_dom).' '.$unidad_dias_dom.'.';
+					}
+					else
+					{
+						continue;
+					}
+				}
+			}
+			if(!$dominio_actual || empty($dominio_actual['fecha_vencimiento']))
+			{
+				continue;
+			}
+		}
 		if($tipo_av==='actividad')
 		{
 			$ev_id=0;
@@ -338,7 +401,7 @@ function crm_tarea_crear_subtarea($id_padre, $titulo, $id_empleado_resp, $fecha_
 	{
 		return 'Esa tarea no admite subtareas nuevas porque se encuentra finalizada o eliminada.';
 	}
-	if(function_exists('tarea_puede_ver') && !tarea_puede_ver($padre))
+	if(!function_exists('crm_tarea_puede_desglosar') || !crm_tarea_puede_desglosar(array('id'=>$id_padre)))
 	{
 		return 'No tenés permisos para agregar subtareas en esta tarea.';
 	}
@@ -824,6 +887,10 @@ function crm_tarea_solicitar_baja($id_tarea, $motivo)
 	{
 		return 'Esa tarea no se puede eliminar.';
 	}
+	if(!function_exists('tarea_puede_ver') || !tarea_puede_ver($fila))
+	{
+		return 'No tenés permisos para solicitar la eliminación de esta tarea.';
+	}
 	if($motivo==='')
 	{
 		return 'Indicá el motivo.';
@@ -888,7 +955,8 @@ function crm_tarea_baja_decidir($id_solicitud, $aceptar, $nota='')
 	}
 	if($sol['estado']=='pendiente_coord')
 	{
-		if(!acceso_es_coord_de_area() && !$es_final)
+		$area_tarea=isset($fila['area_clave']) ? $fila['area_clave'] : '';
+		if((!function_exists('acceso_es_coord_de_area') || !acceso_es_coord_de_area($area_tarea)) && !$es_final)
 		{
 			return 'Solo el coordinador de área puede resolver esto.';
 		}
@@ -1068,16 +1136,16 @@ function crm_html_tareas_calendario_controles($anio, $mes)
 	$clear_url=crm_tareas_link_filtro(array('cal'=>date('Y-m'),'dia'=>''));
 	ob_start();
 	?>
-	<div class="crm-tareas-cal-controls">
-		<a class="btn btn-white btn-xs" href="<?php echo htmlspecialchars($prev_url, ENT_QUOTES, 'UTF-8'); ?>" aria-label="Mes anterior"><i class="fa fa-chevron-left"></i></a>
-		<form method="get" action="<?php echo htmlspecialchars(tareas_link('tareas.php'), ENT_QUOTES, 'UTF-8'); ?>" class="crm-tareas-cal-selectores">
+	<div class="crm-calendar-controls crm-tareas-cal-controls">
+		<a class="btn btn-white btn-xs crm-calendar-arrow" href="<?php echo htmlspecialchars($prev_url, ENT_QUOTES, 'UTF-8'); ?>" aria-label="Mes anterior"><i class="fa fa-chevron-left"></i></a>
+		<form method="get" action="<?php echo htmlspecialchars(tareas_link('tareas.php'), ENT_QUOTES, 'UTF-8'); ?>" class="crm-calendar-selectors crm-tareas-cal-selectores">
 			<input type="hidden" name="cal" value="<?php echo htmlspecialchars($cal, ENT_QUOTES, 'UTF-8'); ?>">
 			<?php foreach(array('mes','area','prioridad','tipo','responsable','estado','cliente','orden','buscar','fecha_inicio','fecha_vencimiento','vence') as $clave) { if(isset($_GET[$clave]) && $_GET[$clave]!=='') { ?><input type="hidden" name="<?php echo htmlspecialchars($clave, ENT_QUOTES, 'UTF-8'); ?>" value="<?php echo htmlspecialchars($_GET[$clave], ENT_QUOTES, 'UTF-8'); ?>"><?php } } ?>
 			<select name="cal_mes" aria-label="Mes del calendario" onchange="var f=this.form;f.elements['cal'].value=f.elements['cal_anio'].value+'-'+('0'+f.elements['cal_mes'].value).slice(-2);f.submit()"><?php foreach($meses as $numero=>$nombre) { ?><option value="<?php echo $numero; ?>" <?php if($numero===$mes) echo 'selected'; ?>><?php echo $nombre; ?></option><?php } ?></select>
 			<select name="cal_anio" aria-label="Año del calendario" onchange="var f=this.form;f.elements['cal'].value=f.elements['cal_anio'].value+'-'+('0'+f.elements['cal_mes'].value).slice(-2);f.submit()"><?php foreach($anios as $y) { ?><option value="<?php echo $y; ?>" <?php if($y===$anio) echo 'selected'; ?>><?php echo $y; ?></option><?php } ?></select>
 		</form>
-		<a class="btn btn-white btn-xs" href="<?php echo htmlspecialchars($clear_url, ENT_QUOTES, 'UTF-8'); ?>"><i class="fa fa-refresh"></i> Limpiar</a>
-		<a class="btn btn-white btn-xs" href="<?php echo htmlspecialchars($next_url, ENT_QUOTES, 'UTF-8'); ?>" aria-label="Mes siguiente"><i class="fa fa-chevron-right"></i></a>
+		<a class="btn btn-white btn-xs crm-calendar-clear" href="<?php echo htmlspecialchars($clear_url, ENT_QUOTES, 'UTF-8'); ?>"><i class="fa fa-refresh"></i> Limpiar</a>
+		<a class="btn btn-white btn-xs crm-calendar-arrow" href="<?php echo htmlspecialchars($next_url, ENT_QUOTES, 'UTF-8'); ?>" aria-label="Mes siguiente"><i class="fa fa-chevron-right"></i></a>
 	</div>
 	<?php
 	return ob_get_clean();

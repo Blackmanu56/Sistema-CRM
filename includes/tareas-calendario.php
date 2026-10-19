@@ -16,9 +16,9 @@ $eventos_mes=isset($tareas_calendario) ? crm_tareas_calendario_eventos($tareas_c
 .dot{width:6px;height:6px;border-radius:50%;display:inline-block}
 .dot-blue{background-color:#0088cc}.dot-orange{background-color:#f8a900}
 .cal-legend{display:flex;justify-content:space-around;margin-top:14px;padding-top:12px;border-top:1px solid #f1f5f9;font-size:12px;color:#64748b;font-weight:500}
-.crm-tareas-cal-leyenda{gap:10px;flex-wrap:wrap}
-.crm-tareas-cal-grid-title{display:block;padding:14px 16px!important;border-bottom:1px solid #e5e9ec;background:#fafbfc}
-.crm-tareas-cal-grid-title h4{margin:0 0 10px;font-size:14px;font-weight:700;color:#1e293b;display:flex;align-items:center;gap:8px}
+.crm-tareas-cal-leyenda{gap:8px;flex-wrap:wrap;margin-top:10px;padding-top:8px}
+.crm-tareas-cal-grid-title{display:block;padding:11px 14px!important;border-bottom:1px solid #e5e9ec;background:#fafbfc}
+.crm-tareas-cal-grid-title h4{margin:0 0 7px;font-size:14px;font-weight:700;color:#1e293b;display:flex;align-items:center;gap:8px}
 .crm-tareas-cal-grid-title + .grid-body{padding:10px 15px!important}
 .crm-tareas-cal-controls{display:flex;align-items:center;gap:6px;width:100%;margin:0;white-space:nowrap;box-sizing:border-box}
 .crm-tareas-cal-selectores{display:flex;align-items:center;gap:6px;flex:1;min-width:0;margin:0}
@@ -28,7 +28,22 @@ $eventos_mes=isset($tareas_calendario) ? crm_tareas_calendario_eventos($tareas_c
 .crm-tareas-cal-selectores select{height:32px;max-width:none;padding:4px 8px;font-size:12px;font-weight:600;border:1px solid #dce1e5;border-radius:4px;color:#1e293b;background:#fff;cursor:pointer}
 .crm-tareas-cal-selectores select:first-of-type{flex:1;min-width:0}
 .crm-tareas-cal-selectores select:last-of-type{width:72px;flex:0 0 72px}
-.crm-cal-links{margin:8px 0 0;font-size:12px;text-align:center}
+.crm-calendar-controls{display:flex;align-items:center;gap:6px;width:100%;margin:0;white-space:nowrap;box-sizing:border-box;overflow-x:auto}
+.crm-calendar-selectors{display:flex;align-items:center;gap:6px;flex:0 0 auto;min-width:0;margin:0}
+.crm-calendar-controls .btn{height:32px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #dce1e5;border-radius:4px;padding:0 9px;flex:0 0 auto}
+.crm-calendar-arrow{width:34px!important;padding:0!important}
+.crm-calendar-clear{min-width:75px;justify-content:center;font-size:12px;font-weight:600}
+.crm-calendar-selectors select{height:32px;width:auto;max-width:none;padding:4px 8px;font-size:12px;font-weight:600;border:1px solid #dce1e5;border-radius:4px;color:#1e293b;background:#fff;cursor:pointer}
+.crm-calendar-selectors select:first-of-type{width:130px;flex:0 0 130px}
+.crm-calendar-selectors select:last-of-type{width:84px;flex:0 0 84px}
+.crm-cal-links{margin:6px 0 0;font-size:12px;text-align:center}
+body.crm-tareas-page .page-title.crm-compact-heading{margin-bottom:4px}
+body.crm-tareas-page .page-title.crm-compact-heading + p{margin:0 0 12px;line-height:1.45}
+body.crm-tareas-page .spacing-bottom{margin-bottom:12px}
+body.crm-tareas-page .grid{margin-bottom:14px}
+body.crm-tareas-page .crm-tareas-filter-panel .grid-body{padding:14px 16px}
+body.crm-tareas-page .crm-tareas-filter-panel{margin-bottom:14px}
+@media(max-width:767px){body.crm-tareas-page .spacing-bottom{margin-bottom:10px}body.crm-tareas-page .grid{margin-bottom:12px}body.crm-tareas-page .crm-tareas-filter-panel .grid-body{padding:12px}}
 .crm-task-status{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
 .crm-task-status .label{display:inline-block;line-height:1.3}
 .crm-tarea-fechas{display:flex;flex-wrap:wrap;gap:6px 18px;margin:8px 0}

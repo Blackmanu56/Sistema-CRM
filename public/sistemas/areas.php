@@ -1,9 +1,20 @@
 <?php
 require_once __DIR__.'/../_init.php';
 require_once BASE_PATH.'/includes/areas_gestion.php';
+require_once BASE_PATH.'/includes/informes-area-config.php';
 crm_proteger_staff('sistemas');
 acceso_exigir_gestion('sistemas');
 $menu_activo='areas';
+$csrf_modulo_token=function_exists('crm_tarea_extra_csrf_token') ? crm_tarea_extra_csrf_token() : '';
+if($_SERVER['REQUEST_METHOD']==='POST')
+{
+	$csrf_post=isset($_POST['csrf_tarea_extra']) && is_string($_POST['csrf_tarea_extra']) ? $_POST['csrf_tarea_extra'] : '';
+	if(!function_exists('crm_tarea_extra_csrf_valido') || !crm_tarea_extra_csrf_valido($csrf_post))
+	{
+		http_response_code(403);
+		exit('La sesión expiró o el formulario no es válido. Actualizá la página e intentá nuevamente.');
+	}
+}
 
 $confirmacion_pendiente = null;
 
@@ -19,6 +30,7 @@ if(isset($_POST['alta_area']))
 	$cap_clientes = isset($_POST['puede_clientes']) ? (intval($_POST['puede_clientes']) ? 1 : 0) : 0;
 	$cap_deriv = isset($_POST['recibe_derivaciones']) ? (intval($_POST['recibe_derivaciones']) ? 1 : 0) : 0;
 	$cap_turnos = isset($_POST['recibe_turnos']) ? (intval($_POST['recibe_turnos']) ? 1 : 0) : 0;
+	$informes_seleccionados = crm_informes_seleccionados_validar(isset($_POST['informes_disponibles']) ? $_POST['informes_disponibles'] : array());
 	$asignable = isset($_POST['asignable_empleado']) ? (intval($_POST['asignable_empleado']) ? 1 : 0) : 1;
 	// Legacy: solo como resumen para llamadas viejas que no mandan las capacidades.
 	$atiende = ($cap_clientes || $cap_deriv || $cap_turnos) ? 1 : 0;
@@ -27,10 +39,18 @@ if(isset($_POST['alta_area']))
 	if(!$res['ok'] && isset($res['requiere_confirmacion']) && $res['requiere_confirmacion'])
 	{
 		$confirmacion_pendiente = $res['datos_confirmacion'];
+		$confirmacion_pendiente['informes_disponibles'] = $informes_seleccionados;
 	}
 	else
 	{
-		$_SESSION['msgsis'] = $res['ok'] ? $res['msg'] : $res['error'];
+		if($res['ok'] && !crm_informes_area_guardar(intval($res['id_area']), $informes_seleccionados))
+		{
+			$_SESSION['msgsis'] = 'Área creada, pero no se pudo guardar la configuración de informes. Revisá que la migración esté aplicada.';
+		}
+		else
+		{
+			$_SESSION['msgsis'] = $res['ok'] ? $res['msg'] : $res['error'];
+		}
 		echo "<script>window.location.href='areas.php'</script>";
 		exit();
 	}
@@ -81,16 +101,61 @@ if(isset($_POST['quitar_coordinador']))
 }
 
 // -------------------------------------------------------------
-// EDITAR NOMBRE Y CLAVE DE ÁREA
+// GUARDAR CONFIGURACIÓN DEL ÁREA (la clave y el estado interno no son editables aquí)
 // -------------------------------------------------------------
-if(isset($_POST['editar_area']))
+if(isset($_POST['guardar_configuracion_area']) || isset($_POST['editar_area']))
 {
 	$id_area = isset($_POST['id_area']) ? intval($_POST['id_area']) : 0;
-	$nombre = isset($_POST['nombre']) ? trim($_POST['nombre']) : '';
-	$clave = isset($_POST['clave']) ? trim($_POST['clave']) : '';
-
-	$res = crm_area_editar($id_area, $nombre, $clave);
-	$_SESSION['msgsis'] = $res['ok'] ? $res['msg'] : $res['error'];
+	$modo_configuracion = isset($_POST['modo_configuracion']) && is_string($_POST['modo_configuracion']) ? $_POST['modo_configuracion'] : 'completo';
+	$area_actual = $id_area > 0 ? acceso_consulta_una("SELECT id_area, clave FROM area WHERE id_area=? LIMIT 1", 'i', array($id_area)) : null;
+	$mensaje = '';
+	if(!$area_actual)
+	{
+		$mensaje='El área seleccionada no existe.';
+	}
+	elseif(!in_array($modo_configuracion, array('capacidades','informes','completo'), true))
+	{
+		$mensaje='La configuración solicitada no es válida.';
+	}
+	else
+	{
+		$capacidades = ($modo_configuracion==='informes') ? null : crm_area_capacidades_validar($_POST);
+		$informes = ($modo_configuracion==='capacidades') ? null : crm_informes_seleccionados_validar_estricto(isset($_POST['informes_disponibles']) ? $_POST['informes_disponibles'] : array());
+		if($capacidades===false)
+		{
+			$mensaje='Las capacidades recibidas no son válidas.';
+		}
+		elseif($informes===false)
+		{
+			$mensaje='Los informes recibidos no son válidos.';
+		}
+		else
+		{
+			$ok=true;
+			if($modo_configuracion==='completo')
+			{
+				$nombre=isset($_POST['nombre']) ? trim($_POST['nombre']) : '';
+				$res=crm_area_editar($id_area,$nombre,(string)$area_actual['clave']);
+				$ok=!empty($res['ok']);
+				if(!$ok) { $mensaje=isset($res['error']) ? $res['error'] : 'No se pudo actualizar el área.'; }
+			}
+			if($ok && ($modo_configuracion==='capacidades' || $modo_configuracion==='completo'))
+			{
+				$ok=crm_area_capacidades_guardar($id_area,$capacidades);
+				if(!$ok) { $mensaje='No se pudieron guardar las capacidades del área.'; }
+			}
+			if($ok && ($modo_configuracion==='informes' || $modo_configuracion==='completo'))
+			{
+				$ok=crm_informes_area_guardar($id_area,$informes);
+				if(!$ok) { $mensaje='No se pudieron guardar los informes. Verificá que la migración de configuración esté aplicada.'; }
+			}
+			if($ok)
+			{
+				$mensaje=$modo_configuracion==='capacidades' ? 'Capacidades actualizadas.' : ($modo_configuracion==='informes' ? 'Informes disponibles actualizados.' : 'Área actualizada correctamente.');
+			}
+		}
+	}
+	$_SESSION['msgsis']=$mensaje;
 	echo "<script>window.location.href='areas.php'</script>";
 	exit();
 }
@@ -101,11 +166,16 @@ if(isset($_POST['editar_area']))
 if(isset($_POST['toggle_area']))
 {
 	$id = isset($_POST['id_area']) ? intval($_POST['id_area']) : 0;
-	$act = isset($_POST['activo']) ? intval($_POST['activo']) : 0;
 	if($id > 0)
 	{
-		acceso_ejecutar("UPDATE area SET activo=? WHERE id_area=?", 'ii', array($act ? 0 : 1, $id));
-		$_SESSION['msgsis'] = 'Estado del área actualizado.';
+		$area_actual = acceso_consulta_una("SELECT activo FROM area WHERE id_area=? LIMIT 1", 'i', array($id));
+		if($area_actual)
+		{
+			$nuevo_estado = intval($area_actual['activo']) ? 0 : 1;
+			$actualizado = acceso_ejecutar("UPDATE area SET activo=? WHERE id_area=?", 'ii', array($nuevo_estado, $id));
+			$_SESSION['msgsis'] = $actualizado ? ($nuevo_estado ? 'Área activada.' : 'Área desactivada. Se conservaron sus registros y configuración.') : 'No se pudo actualizar el estado del área.';
+		}
+		else { $_SESSION['msgsis'] = 'El área seleccionada ya no existe.'; }
 	}
 	echo "<script>window.location.href='areas.php'</script>";
 	exit();
@@ -140,6 +210,7 @@ if(isset($_POST['toggle_flag_area']))
 
 if(function_exists('crm_asegurar_area_flags')) { crm_asegurar_area_flags(); }
 $areas = acceso_consulta("SELECT id_area, clave, nombre, activo, atiende_clientes, puede_clientes, recibe_derivaciones, recibe_turnos, asignable_empleado, creado_en FROM area ORDER BY nombre");
+$configuracion_informes_areas = crm_informes_area_configuraciones_todas();
 ?>
 <!DOCTYPE html>
 <html>
@@ -185,6 +256,69 @@ $areas = acceso_consulta("SELECT id_area, clave, nombre, activo, atiende_cliente
   background: #eef0f3;
   color: #333;
 }
+.crm-areas-page > .breadcrumb {
+  margin-bottom: 10px;
+}
+.crm-areas-page > .page-title.crm-compact-heading {
+  margin-top: 8px;
+  margin-bottom: 12px;
+}
+.crm-areas-page > .alert {
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+.crm-areas-page > .grid.simple {
+  margin-bottom: 16px;
+}
+.crm-areas-page .crm-areas-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.crm-areas-page .crm-areas-table {
+  width: 100%;
+  min-width: 1050px;
+  margin-bottom: 0;
+}
+.crm-areas-page .crm-areas-table th:nth-child(n+4),
+.crm-areas-page .crm-areas-table td:nth-child(n+4) {
+  text-align: center;
+  vertical-align: middle;
+}
+.crm-informes-area-options { padding:12px; border:1px solid #dce3eb; border-radius:5px; background:#f8fafc; }
+.crm-informes-area-options-grid { display:flex; flex-wrap:wrap; gap:6px 18px; }
+.crm-informes-area-options-grid .checkbox { margin:0; white-space:nowrap; }
+.crm-informes-area-summary .label { display:inline-block; margin:2px; font-weight:500; }
+.crm-area-config-summary { display:inline-block; margin:0 0 0 9px; color:#667085; font-size:12px; }
+.crm-area-actions { min-width:90px; }
+.crm-area-actions .dropdown-menu { min-width:190px; }
+.crm-area-actions .dropdown-menu form { margin:0; }
+.crm-area-actions .dropdown-menu button { display:block; width:100%; padding:6px 14px; border:0; background:transparent; text-align:left; color:#333; }
+.crm-area-actions .dropdown-menu button:hover, .crm-area-actions .dropdown-menu button:focus { background:#f5f7fa; }
+.crm-area-config-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px 16px; }
+.crm-area-config-grid .checkbox,
+.crm-informes-area-options-grid .checkbox { display:flex; align-items:center; gap:8px; margin:0; padding:7px 9px; border:1px solid #e3e8ef; border-radius:4px; background:#fff; cursor:pointer; }
+.crm-area-config-grid .checkbox input[type="checkbox"],
+.crm-informes-area-options-grid .checkbox input[type="checkbox"] { display:inline-block !important; position:static !important; width:16px; height:16px; flex:0 0 16px; margin:0 !important; opacity:1 !important; }
+.crm-area-config-grid .checkbox.is-checked { border-color:#8db9e8; background:#f1f7fd; }
+.crm-area-action-edit { width:100%; padding:6px 14px; border:0; background:transparent; text-align:left; color:#333; }
+.crm-area-action-edit:hover, .crm-area-action-edit:focus { background:#f5f7fa; }
+.crm-area-summary-button { padding:0; border:0; background:none; text-decoration:underline; text-decoration-style:dotted; }
+.crm-area-summary-button:focus { outline:2px solid #5b9bd5; outline-offset:2px; }
+@media (max-width: 767px) {
+  .crm-area-config-summary { display:block; margin:5px 0 10px; }
+  .crm-area-config-grid { grid-template-columns:1fr; }
+  .crm-areas-page > .breadcrumb {
+    margin-bottom: 8px;
+  }
+  .crm-areas-page > .page-title.crm-compact-heading {
+    margin-top: 6px;
+    margin-bottom: 10px;
+  }
+  .crm-areas-page > .grid.simple {
+    margin-bottom: 12px;
+  }
+}
 </style>
 </head>
 <body class="">
@@ -196,7 +330,7 @@ $areas = acceso_consulta("SELECT id_area, clave, nombre, activo, atiende_cliente
   </div>
   <div class="page-content">
     <div class="clearfix"></div>
-    <div class="content">
+    <div class="content crm-areas-page">
       <ul class="breadcrumb"><li><p>ESTÁS AQUÍ</p></li><li><a href="#" class="active">Sistemas / Áreas</a></li></ul>
       <?php include('menu-seccion.php'); ?>
       <div class="page-title crm-compact-heading"><h3>Áreas</h3></div>
@@ -229,6 +363,7 @@ $areas = acceso_consulta("SELECT id_area, clave, nombre, activo, atiende_cliente
             <?php } ?>
           </div>
           <form method="post">
+            <input type="hidden" name="csrf_tarea_extra" value="<?php echo htmlspecialchars($csrf_modulo_token, ENT_QUOTES, 'UTF-8'); ?>">
             <input type="hidden" name="nombre" value="<?php echo htmlspecialchars($confirmacion_pendiente['nombre']); ?>">
             <input type="hidden" name="clave" value="<?php echo htmlspecialchars($confirmacion_pendiente['clave']); ?>">
             <input type="hidden" name="id_coordinador" value="<?php echo intval($confirmacion_pendiente['id_coordinador']); ?>">
@@ -236,6 +371,9 @@ $areas = acceso_consulta("SELECT id_area, clave, nombre, activo, atiende_cliente
             <input type="hidden" name="recibe_derivaciones" value="<?php echo intval(isset($confirmacion_pendiente['recibe_derivaciones']) ? $confirmacion_pendiente['recibe_derivaciones'] : 0); ?>">
             <input type="hidden" name="recibe_turnos" value="<?php echo intval(isset($confirmacion_pendiente['recibe_turnos']) ? $confirmacion_pendiente['recibe_turnos'] : 0); ?>">
             <input type="hidden" name="asignable_empleado" value="<?php echo intval(isset($confirmacion_pendiente['asignable_empleado']) ? $confirmacion_pendiente['asignable_empleado'] : 1); ?>">
+            <?php foreach(crm_informes_seleccionados_validar(isset($confirmacion_pendiente['informes_disponibles']) ? $confirmacion_pendiente['informes_disponibles'] : array()) as $codigo_informe_confirmar) { ?>
+            <input type="hidden" name="informes_disponibles[]" value="<?php echo htmlspecialchars($codigo_informe_confirmar, ENT_QUOTES, 'UTF-8'); ?>">
+            <?php } ?>
             <input type="hidden" name="confirmar_movimiento" value="1">
             <button type="submit" name="alta_area" value="1" class="btn btn-primary"><i class="fa fa-check"></i> Confirmar y crear área</button>
             <a href="areas.php" class="btn btn-white">Cancelar</a>
@@ -279,6 +417,7 @@ $areas = acceso_consulta("SELECT id_area, clave, nombre, activo, atiende_cliente
           <?php } ?>
 
           <form method="post">
+            <input type="hidden" name="csrf_tarea_extra" value="<?php echo htmlspecialchars($csrf_modulo_token, ENT_QUOTES, 'UTF-8'); ?>">
             <input type="hidden" name="id_area" value="<?php echo intval($confirmacion_pendiente['id_area']); ?>">
             <input type="hidden" name="id_coordinador" value="<?php echo intval($confirmacion_pendiente['id_coordinador']); ?>">
             <input type="hidden" name="confirmar_movimiento" value="1">
@@ -300,6 +439,7 @@ $areas = acceso_consulta("SELECT id_area, clave, nombre, activo, atiende_cliente
             <p><strong><i class="fa fa-info-circle"></i> Resultado:</strong> El área quedará sin coordinador asignado. <strong><?php echo htmlspecialchars($confirmacion_pendiente['coord_nombre']); ?></strong> quedará como colaborador común en <strong><?php echo htmlspecialchars($confirmacion_pendiente['area_nombre']); ?></strong>, sin borrarse del sistema.</p>
           </div>
           <form method="post">
+            <input type="hidden" name="csrf_tarea_extra" value="<?php echo htmlspecialchars($csrf_modulo_token, ENT_QUOTES, 'UTF-8'); ?>">
             <input type="hidden" name="id_area" value="<?php echo intval($confirmacion_pendiente['id_area']); ?>">
             <input type="hidden" name="confirmar_quitar" value="1">
             <button type="submit" name="quitar_coordinador" value="1" class="btn btn-danger"><i class="fa fa-trash"></i> Confirmar y quitar coordinador</button>
@@ -313,24 +453,26 @@ $areas = acceso_consulta("SELECT id_area, clave, nombre, activo, atiende_cliente
         <div class="grid-title no-border"><h4>Nueva área</h4></div>
         <div class="grid-body no-border">
           <form method="post" id="form_alta_area">
-            <div class="form-group">
-              <label>Nombre</label>
-              <input type="text" name="nombre" class="form-control" required placeholder="Ej. Coordinación de turismo">
+            <input type="hidden" name="csrf_tarea_extra" value="<?php echo htmlspecialchars($csrf_modulo_token, ENT_QUOTES, 'UTF-8'); ?>">
+            <div class="row">
+              <div class="col-sm-6 form-group">
+                <label>Nombre</label>
+                <input type="text" name="nombre" class="form-control" required placeholder="Ej. Coordinación de turismo">
+              </div>
+              <div class="col-sm-6 form-group">
+                <label>Clave (carpeta / código corto)</label>
+                <input type="text" name="clave" class="form-control" placeholder="Ej. turismo (opcional, se genera sola)">
+                <p class="muted">Solo minúsculas, números y guión bajo.</p>
+              </div>
             </div>
-            <div class="form-group">
-              <label>Clave (carpeta / código corto)</label>
-              <input type="text" name="clave" class="form-control" placeholder="Ej. turismo (opcional, se genera sola)">
-              <p class="muted">Solo minúsculas, números y guión bajo. Debe coincidir con la carpeta pública si la van a usar.</p>
+            <div class="form-group crm-area-config-actions">
+              <label><strong>Configuración</strong></label><br>
+              <button type="button" class="btn btn-white btn-sm" data-toggle="modal" data-target="#modalCapacidadesAlta"><i class="fa fa-sliders"></i> Configurar capacidades</button>
+              <span id="resumen_capacidades_alta" class="crm-area-config-summary">4 capacidades seleccionadas</span>
+              <button type="button" class="btn btn-white btn-sm" data-toggle="modal" data-target="#modalInformesAlta"><i class="fa fa-bar-chart-o"></i> Configurar informes</button>
+              <span id="resumen_informes_alta" class="crm-area-config-summary">Ninguno seleccionado</span>
+              <p class="muted" style="margin:6px 0 0;">Habilitar una capacidad o informe no modifica los permisos de consulta de los usuarios.</p>
             </div>
-            <div class="form-group">
-              <label><strong>Capacidades del área</strong></label>
-              <label class="checkbox"><input type="checkbox" name="puede_clientes" value="1" checked> Habilitar gestión de clientes</label>
-              <label class="checkbox"><input type="checkbox" name="recibe_derivaciones" value="1" checked> Permitir recibir derivaciones</label>
-              <label class="checkbox"><input type="checkbox" name="recibe_turnos" value="1" checked> Permitir recibir turnos</label>
-              <label class="checkbox"><input type="checkbox" name="asignable_empleado" value="1" checked> Se puede asignar a colaboradores en el alta</label>
-              <p class="muted">Son independientes: habilitar clientes NO activa por sí solo las derivaciones ni los turnos.</p>
-            </div>
-            
             <div class="form-group" style="margin-top:15px;">
               <label><strong>Coordinador de área (opcional)</strong></label>
               <p class="muted">Buscá un colaborador como se buscan los clientes. Dejá vacío para asignar después.</p>
@@ -347,22 +489,56 @@ $areas = acceso_consulta("SELECT id_area, clave, nombre, activo, atiende_cliente
 
             <button type="submit" name="alta_area" id="btn_alta_area" value="1" class="btn btn-primary" style="margin-top:10px;">Crear área</button>
           </form>
+          <div class="modal fade" id="modalCapacidadesAlta" tabindex="-1" role="dialog" aria-hidden="true">
+            <div class="modal-dialog"><div class="modal-content">
+              <div class="modal-header"><button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button><h4 class="modal-title">Capacidades del área</h4></div>
+              <div class="modal-body">
+                <p class="muted">Elegí qué operaciones estarán disponibles para esta área.</p>
+                <div class="crm-area-config-grid">
+                  <label class="checkbox"><input form="form_alta_area" type="checkbox" name="puede_clientes" value="1" checked> Gestión de clientes</label>
+                  <label class="checkbox"><input form="form_alta_area" type="checkbox" name="recibe_derivaciones" value="1" checked> Recibir derivaciones</label>
+                  <label class="checkbox"><input form="form_alta_area" type="checkbox" name="recibe_turnos" value="1" checked> Recibir turnos</label>
+                  <label class="checkbox"><input form="form_alta_area" type="checkbox" name="asignable_empleado" value="1" checked> Asignar colaboradores</label>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-default crm-area-config-cancel">Cancelar</button>
+                <button type="button" class="btn btn-primary crm-area-config-accept">Aceptar</button>
+              </div>
+            </div></div>
+          </div>
+          <div class="modal fade" id="modalInformesAlta" tabindex="-1" role="dialog" aria-hidden="true">
+            <div class="modal-dialog"><div class="modal-content">
+              <div class="modal-header"><button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button><h4 class="modal-title">Informes disponibles</h4></div>
+              <div class="modal-body">
+                <p class="muted">Habilitar informes no concede permisos de consulta.</p>
+                <div class="crm-area-config-grid">
+                  <?php foreach(crm_informes_codigos_configurables() as $codigo_informe=>$nombre_informe) { ?>
+                  <label class="checkbox"><input form="form_alta_area" type="checkbox" name="informes_disponibles[]" value="<?php echo htmlspecialchars($codigo_informe, ENT_QUOTES, 'UTF-8'); ?>"> <?php echo htmlspecialchars($nombre_informe, ENT_QUOTES, 'UTF-8'); ?></label>
+                  <?php } ?>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-default crm-area-config-cancel">Cancelar</button>
+                <button type="button" class="btn btn-primary crm-area-config-accept">Aceptar</button>
+              </div>
+            </div></div>
+          </div>
         </div>
       </div>
 
       <div class="grid simple">
         <div class="grid-title no-border"><h4>Áreas existentes</h4></div>
         <div class="grid-body no-border">
-          <table class="table table-hover">
+          <div class="crm-areas-table-wrap">
+          <table class="table table-hover crm-areas-table">
             <thead>
               <tr>
-                <th>Clave</th>
                 <th>Nombre</th>
+                <th>Clave</th>
                 <th>Coordinador actual</th>
-                <th>Clientes</th>
-                <th>Derivaciones</th>
-                <th>Turnos</th>
-                <th>Asignable</th>
+                <th>Capacidades</th>
+                <th>Informes</th>
                 <th>Estado</th>
                 <th>Acciones</th>
               </tr>
@@ -374,15 +550,23 @@ $areas = acceso_consulta("SELECT id_area, clave, nombre, activo, atiende_cliente
               $der_a = isset($a['recibe_derivaciones']) ? intval($a['recibe_derivaciones']) : 0;
               $tur_a = isset($a['recibe_turnos']) ? intval($a['recibe_turnos']) : 0;
               $asig_a = isset($a['asignable_empleado']) ? intval($a['asignable_empleado']) : 1;
-              $caps_a = array(
-                array('puede_clientes', $cli_a, 'Habilitar gestión de clientes'),
-                array('recibe_derivaciones', $der_a, 'Permitir recibir derivaciones'),
-                array('recibe_turnos', $tur_a, 'Permitir recibir turnos')
-              );
+              $informes_a = isset($configuracion_informes_areas[intval($a['id_area'])]) ? $configuracion_informes_areas[intval($a['id_area'])] : array_fill_keys(array_keys(crm_informes_codigos_configurables()), false);
+              $informes_activos_a = array();
+              foreach(crm_informes_codigos_configurables() as $codigo_informe=>$nombre_informe) { if(!empty($informes_a[$codigo_informe])) { $informes_activos_a[]=$nombre_informe; } }
+              $capacidades_activas_a = array();
+              if($cli_a) { $capacidades_activas_a[]='Clientes'; }
+              if($der_a) { $capacidades_activas_a[]='Derivaciones'; }
+              if($tur_a) { $capacidades_activas_a[]='Turnos'; }
+              if($asig_a) { $capacidades_activas_a[]='Asignar colaboradores'; }
+              $capacidades_a_json = array();
+              if($cli_a) { $capacidades_a_json[]='puede_clientes'; }
+              if($der_a) { $capacidades_a_json[]='recibe_derivaciones'; }
+              if($tur_a) { $capacidades_a_json[]='recibe_turnos'; }
+              if($asig_a) { $capacidades_a_json[]='asignable_empleado'; }
             ?>
               <tr>
-                <td><code><?php echo htmlspecialchars($a['clave']); ?></code></td>
                 <td><strong><?php echo htmlspecialchars($a['nombre']); ?></strong></td>
+                <td><code><?php echo htmlspecialchars($a['clave']); ?></code></td>
                 <td>
                   <?php if($coord) { ?>
                     <i class="fa fa-user" style="color:#0aa699; margin-right:4px;"></i>
@@ -395,26 +579,20 @@ $areas = acceso_consulta("SELECT id_area, clave, nombre, activo, atiende_cliente
                   <?php } ?>
                 </td>
                 <td>
-                  <?php foreach($caps_a as $capc) { ?>
-                  <form method="post" style="display:inline; margin-right:4px;">
-                    <input type="hidden" name="id_area" value="<?php echo intval($a['id_area']); ?>">
-                    <input type="hidden" name="flag" value="<?php echo $capc[0]; ?>">
-                    <input type="hidden" name="valor" value="<?php echo intval($capc[1]); ?>">
-                    <button type="submit" name="toggle_flag_area" value="1" class="btn btn-xs <?php echo $capc[1] ? 'btn-success' : 'btn-white'; ?>" title="<?php echo htmlspecialchars($capc[2]); ?>">
-                      <?php echo $capc[1] ? 'Sí' : 'No'; ?>
-                    </button>
-                  </form>
-                  <?php } ?>
+                  <button type="button" class="label label-default crm-area-summary-button js-area-config"
+                          data-config-type="capacidades"
+                          data-area-id="<?php echo intval($a['id_area']); ?>"
+                          data-area-name="<?php echo htmlspecialchars($a['nombre'], ENT_QUOTES, 'UTF-8'); ?>"
+                          data-area-reports="<?php echo htmlspecialchars(json_encode(array_keys(array_filter($informes_a))), ENT_QUOTES, 'UTF-8'); ?>"
+                          data-area-capabilities="<?php echo htmlspecialchars(json_encode($capacidades_a_json), ENT_QUOTES, 'UTF-8'); ?>"><?php echo count($capacidades_activas_a); ?> capacidades</button>
                 </td>
-                <td>
-                  <form method="post" style="display:inline;">
-                    <input type="hidden" name="id_area" value="<?php echo intval($a['id_area']); ?>">
-                    <input type="hidden" name="flag" value="asignable_empleado">
-                    <input type="hidden" name="valor" value="<?php echo $asig_a; ?>">
-                    <button type="submit" name="toggle_flag_area" value="1" class="btn btn-xs <?php echo $asig_a ? 'btn-success' : 'btn-white'; ?>" title="Visible al dar de alta colaboradores">
-                      <?php echo $asig_a ? 'Sí' : 'No'; ?>
-                    </button>
-                  </form>
+                <td class="crm-informes-area-summary">
+                    <button type="button" class="label label-info crm-area-summary-button js-area-config"
+                            data-config-type="informes"
+                            data-area-id="<?php echo intval($a['id_area']); ?>"
+                            data-area-name="<?php echo htmlspecialchars($a['nombre'], ENT_QUOTES, 'UTF-8'); ?>"
+                            data-area-reports="<?php echo htmlspecialchars(json_encode(array_keys(array_filter($informes_a))), ENT_QUOTES, 'UTF-8'); ?>"
+                            data-area-capabilities="<?php echo htmlspecialchars(json_encode($capacidades_a_json), ENT_QUOTES, 'UTF-8'); ?>"><?php echo count($informes_activos_a); ?> informes</button>
                 </td>
                 <td>
                   <?php if(intval($a['activo'])) { ?>
@@ -423,34 +601,43 @@ $areas = acceso_consulta("SELECT id_area, clave, nombre, activo, atiende_cliente
                     <span class="label label-important">Inactiva</span>
                   <?php } ?>
                 </td>
-                <td>
-                  <button type="button" class="btn btn-white btn-xs btn-mini" style="margin-right:4px;" 
-                          onclick="abrirModalEditar(<?php echo intval($a['id_area']); ?>, '<?php echo addslashes($a['nombre']); ?>', '<?php echo addslashes($a['clave']); ?>')">
+                <td class="crm-area-actions">
+                  <div class="dropdown">
+                  <button type="button" class="btn btn-white btn-xs dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    Acciones <span class="caret"></span>
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-right">
+                  <li><button type="button" class="crm-area-action-edit"
+                          data-area-id="<?php echo intval($a['id_area']); ?>"
+                          data-area-name="<?php echo htmlspecialchars($a['nombre'], ENT_QUOTES, 'UTF-8'); ?>"
+                          data-area-reports="<?php echo htmlspecialchars(json_encode(array_keys(array_filter($informes_a))), ENT_QUOTES, 'UTF-8'); ?>"
+                          data-area-capabilities="<?php echo htmlspecialchars(json_encode($capacidades_a_json), ENT_QUOTES, 'UTF-8'); ?>">
                     <i class="fa fa-pencil"></i> Editar
-                  </button>
-
-                  <button type="button" class="btn btn-info btn-xs btn-mini" 
-                          onclick="abrirModalAsignar(<?php echo intval($a['id_area']); ?>, '<?php echo addslashes($a['nombre']); ?>', <?php echo $coord ? intval($coord['id_empleado']) : 0; ?>)">
-                    <i class="fa fa-user"></i> <?php echo $coord ? 'Cambiar' : 'Asignar'; ?>
-                  </button>
-
+                  </button></li>
+                  <li><button type="button"
+                          onclick="abrirModalAsignar(<?php echo intval($a['id_area']); ?>, <?php echo htmlspecialchars(json_encode($a['nombre']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo $coord ? intval($coord['id_empleado']) : 0; ?>)">
+                    <i class="fa fa-user"></i> <?php echo $coord ? 'Cambiar coordinador' : 'Asignar coordinador'; ?>
+                  </button></li>
                   <?php if($coord) { ?>
-                  <form method="post" style="display:inline; margin-left:4px;">
+                  <li><form method="post" onsubmit="return confirm('¿Quitar el coordinador actual de esta área?');">
+                    <input type="hidden" name="csrf_tarea_extra" value="<?php echo htmlspecialchars($csrf_modulo_token, ENT_QUOTES, 'UTF-8'); ?>">
                     <input type="hidden" name="id_area" value="<?php echo intval($a['id_area']); ?>">
-                    <button type="submit" name="quitar_coordinador" value="1" class="btn btn-danger btn-xs btn-mini" title="Quitar coordinador"><i class="fa fa-times"></i> Quitar</button>
-                  </form>
+                    <button type="submit" name="quitar_coordinador" value="1"><i class="fa fa-times"></i> Quitar coordinador</button>
+                  </form></li>
                   <?php } ?>
-
-                  <form method="post" style="display:inline; margin-left:4px;">
+                  <li><form method="post" onsubmit="return confirm('¿<?php echo intval($a['activo']) ? 'Desactivar' : 'Activar'; ?> esta área?');">
+                    <input type="hidden" name="csrf_tarea_extra" value="<?php echo htmlspecialchars($csrf_modulo_token, ENT_QUOTES, 'UTF-8'); ?>">
                     <input type="hidden" name="id_area" value="<?php echo intval($a['id_area']); ?>">
-                    <input type="hidden" name="activo" value="<?php echo intval($a['activo']); ?>">
-                    <button type="submit" name="toggle_area" value="1" class="btn btn-white btn-xs btn-mini"><?php echo intval($a['activo']) ? 'Desactivar' : 'Activar'; ?></button>
-                  </form>
+                    <button type="submit" name="toggle_area" value="1"><i class="fa fa-power-off"></i> <?php echo intval($a['activo']) ? 'Desactivar área' : 'Activar área'; ?></button>
+                  </form></li>
+                  </ul>
+                  </div>
                 </td>
               </tr>
             <?php } ?>
             </tbody>
           </table>
+          </div>
         </div>
       </div>
     </div>
@@ -463,31 +650,52 @@ $areas = acceso_consulta("SELECT id_area, clave, nombre, activo, atiende_cliente
     <div class="modal-content">
       <div class="modal-header">
         <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
-        <h4 class="modal-title">Editar área: <span id="modal_edit_area_titulo" style="font-weight:bold;"></span></h4>
+        <h4 class="modal-title"><span id="modal_edit_action_title">Editar área:</span> <span id="modal_edit_area_titulo" style="font-weight:bold;"></span></h4>
       </div>
       <form method="post" id="form_modal_editar_area">
+        <input type="hidden" name="csrf_tarea_extra" value="<?php echo htmlspecialchars($csrf_modulo_token, ENT_QUOTES, 'UTF-8'); ?>">
+        <input type="hidden" name="modo_configuracion" id="modal_edit_modo_configuracion" value="completo">
         <div class="modal-body">
           <input type="hidden" name="id_area" id="modal_edit_id_area" value="0">
-          
-          <div class="form-group">
+          <div class="form-group" id="modal_edit_nombre_grupo">
             <label>Nombre del área</label>
             <input type="text" name="nombre" id="modal_edit_nombre" class="form-control" required placeholder="Ej. Comercio Exterior">
           </div>
 
-          <div class="form-group">
-            <label>Clave del área (código corto / carpeta)</label>
-            <input type="text" name="clave" id="modal_edit_clave" class="form-control" required placeholder="Ej. comercio">
-            <p class="muted" style="margin-top:5px; font-size:12px;">Solo letras minúsculas, números y guión bajo. Si cambiás la clave, se actualiza automáticamente la carpeta del módulo.</p>
+          <p class="text-muted" id="modal_edit_clave_nota">La clave interna se mantiene protegida para conservar las rutas y relaciones del área.</p>
+
+          <div class="form-group crm-informes-area-options" id="modal_edit_capacidades_grupo">
+            <label><strong>Capacidades</strong></label>
+            <p class="muted">Estas opciones habilitan funcionalidades del área, sin cambiar los roles de sus empleados.</p>
+            <div class="crm-area-config-grid">
+              <label class="checkbox"><input type="checkbox" name="puede_clientes" id="edit_puede_clientes" value="1"> Gestión de clientes</label>
+              <label class="checkbox"><input type="checkbox" name="recibe_derivaciones" id="edit_recibe_derivaciones" value="1"> Recibir derivaciones</label>
+              <label class="checkbox"><input type="checkbox" name="recibe_turnos" id="edit_recibe_turnos" value="1"> Recibir turnos</label>
+              <label class="checkbox"><input type="checkbox" name="asignable_empleado" id="edit_asignable_empleado" value="1"> Asignar colaboradores</label>
+            </div>
+          </div>
+
+          <div class="form-group crm-informes-area-options" id="modal_edit_informes_grupo">
+            <label><strong>Informes disponibles</strong></label>
+            <p class="muted">Habilitar un informe no concede permisos de consulta ni cambia el alcance de sus datos.</p>
+            <div class="crm-informes-area-options-grid">
+              <?php foreach(crm_informes_codigos_configurables() as $codigo_informe=>$nombre_informe) { ?>
+              <label class="checkbox"><input type="checkbox" name="informes_disponibles[]" value="<?php echo htmlspecialchars($codigo_informe, ENT_QUOTES, 'UTF-8'); ?>"> <?php echo htmlspecialchars($nombre_informe, ENT_QUOTES, 'UTF-8'); ?></label>
+              <?php } ?>
+            </div>
           </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-default" data-dismiss="modal">Cancelar</button>
-          <button type="submit" name="editar_area" value="1" class="btn btn-primary">Guardar cambios</button>
+          <button type="submit" name="guardar_configuracion_area" value="1" class="btn btn-primary">Guardar cambios</button>
         </div>
       </form>
     </div>
   </div>
 </div>
+
+<!-- MODALES DE CONFIGURACIÓN PARA EL ALTA -->
+<!-- (Los controles usan el atributo form para enviar sus valores con el formulario de alta.) -->
 
 <!-- MODAL ASIGNAR / CAMBIAR COORDINADOR -->
 <div class="modal fade" id="modalAsignarCoord" tabindex="-1" role="dialog" aria-hidden="true">
@@ -498,6 +706,7 @@ $areas = acceso_consulta("SELECT id_area, clave, nombre, activo, atiende_cliente
         <h4 class="modal-title">Asignar coordinador a <span id="modal_area_nombre" style="font-weight:bold;"></span></h4>
       </div>
       <form method="post" id="form_modal_asignar">
+        <input type="hidden" name="csrf_tarea_extra" value="<?php echo htmlspecialchars($csrf_modulo_token, ENT_QUOTES, 'UTF-8'); ?>">
         <div class="modal-body">
           <input type="hidden" name="id_area" id="modal_id_area" value="0">
           
@@ -592,13 +801,136 @@ $areas = acceso_consulta("SELECT id_area, clave, nombre, activo, atiende_cliente
     $('#modalAsignarCoord').modal('show');
   };
 
-  window.abrirModalEditar = function(idArea, nombreArea, claveArea) {
+  window.abrirModalEditar = function(idArea, nombreArea, informesSeleccionados, capacidadesSeleccionadas, modo) {
     document.getElementById('modal_edit_id_area').value = idArea;
     document.getElementById('modal_edit_area_titulo').textContent = nombreArea;
     document.getElementById('modal_edit_nombre').value = nombreArea;
-    document.getElementById('modal_edit_clave').value = claveArea;
-    $('#modalEditarArea').modal('show');
+    modo = modo || 'completo';
+    document.getElementById('modal_edit_modo_configuracion').value = modo;
+    document.getElementById('modal_edit_action_title').textContent = modo === 'capacidades' ? 'Capacidades de' : (modo === 'informes' ? 'Informes de' : 'Editar área:');
+    document.getElementById('modal_edit_nombre_grupo').style.display = modo === 'completo' ? '' : 'none';
+    document.getElementById('modal_edit_clave_nota').style.display = modo === 'completo' ? '' : 'none';
+    document.getElementById('modal_edit_capacidades_grupo').style.display = modo === 'informes' ? 'none' : '';
+    document.getElementById('modal_edit_informes_grupo').style.display = modo === 'capacidades' ? 'none' : '';
+    informesSeleccionados = informesSeleccionados || [];
+    capacidadesSeleccionadas = capacidadesSeleccionadas || [];
+    var checks = document.querySelectorAll('#form_modal_editar_area input[name="informes_disponibles[]"]');
+    Array.prototype.forEach.call(checks, function(check) {
+      check.checked = informesSeleccionados.indexOf(check.value) !== -1;
+    });
+    var checksCapacidades = document.querySelectorAll('#form_modal_editar_area input[name="puede_clientes"], #form_modal_editar_area input[name="recibe_derivaciones"], #form_modal_editar_area input[name="recibe_turnos"], #form_modal_editar_area input[name="asignable_empleado"]');
+    Array.prototype.forEach.call(checksCapacidades, function(check) {
+      check.checked = capacidadesSeleccionadas.indexOf(check.name) !== -1;
+    });
+    var modal = document.getElementById('modalEditarArea');
+    if(window.jQuery && window.jQuery.fn && typeof window.jQuery.fn.modal === 'function') {
+      window.jQuery(modal).modal('show');
+    } else if(modal) {
+      if(!modal.getAttribute('data-fallback-close-bound')) {
+        Array.prototype.forEach.call(modal.querySelectorAll('[data-dismiss="modal"]'), function(closeButton) {
+          closeButton.addEventListener('click', function(){
+            modal.style.display = 'none';
+            modal.classList.remove('in');
+            modal.setAttribute('aria-hidden', 'true');
+            document.body.classList.remove('modal-open');
+          });
+        });
+        modal.addEventListener('click', function(event){
+          if(event.target === modal) {
+            modal.style.display = 'none';
+            modal.classList.remove('in');
+            modal.setAttribute('aria-hidden', 'true');
+            document.body.classList.remove('modal-open');
+          }
+        });
+        modal.setAttribute('data-fallback-close-bound', '1');
+      }
+      modal.style.display = 'block';
+      modal.classList.add('in');
+      modal.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('modal-open');
+    }
   };
+
+  function abrirConfiguracionDesdeBoton(button, modo) {
+    var informes = [];
+    var capacidades = [];
+    try { informes = JSON.parse(button.getAttribute('data-area-reports') || '[]'); } catch(e) { informes = []; }
+    try { capacidades = JSON.parse(button.getAttribute('data-area-capabilities') || '[]'); } catch(e) { capacidades = []; }
+    window.abrirModalEditar(
+      button.getAttribute('data-area-id'),
+      button.getAttribute('data-area-name'),
+      informes,
+      capacidades,
+      modo || button.getAttribute('data-config-type') || 'completo'
+    );
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('.crm-area-action-edit'), function(button) {
+    button.addEventListener('click', function(){ abrirConfiguracionDesdeBoton(button, 'completo'); });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('.js-area-config'), function(button) {
+    button.addEventListener('click', function(){ abrirConfiguracionDesdeBoton(button, button.getAttribute('data-config-type')); });
+  });
+
+  function actualizarResumen(containerId, selector, emptyText, singularText, pluralText) {
+    var target = document.getElementById(containerId);
+    var selectedInputs = Array.prototype.filter.call(document.querySelectorAll(selector), function(input){ return input.checked; });
+    var selected = selectedInputs.length;
+    var names = selectedInputs.map(function(input){ return input.parentNode.textContent.replace(/^\s+|\s+$/g, ''); });
+    if(target) target.textContent = selected ? selected + ' ' + (selected === 1 ? singularText : pluralText) + ': ' + names.join(', ') : emptyText;
+  }
+  function bindResumen(selector, containerId, emptyText, singularText, pluralText) {
+    actualizarResumen(containerId, selector, emptyText, singularText, pluralText);
+  }
+  bindResumen('#modalCapacidadesAlta input', 'resumen_capacidades_alta', 'Ninguna seleccionada', 'capacidad seleccionada', 'capacidades seleccionadas');
+  bindResumen('#modalInformesAlta input', 'resumen_informes_alta', 'Ninguno seleccionado', 'informe seleccionado', 'informes seleccionados');
+
+  function actualizarEstadoCheckboxes(scope) {
+    var labels = scope.querySelectorAll('.crm-area-config-grid .checkbox');
+    Array.prototype.forEach.call(labels, function(label){
+      var input = label.querySelector('input[type="checkbox"]');
+      if(input) label.classList.toggle('is-checked', input.checked);
+    });
+  }
+  function configurarModalSeleccion(idModal, selector, containerId, emptyText, singularText, pluralText) {
+    var modal = document.getElementById(idModal);
+    if(!modal) return;
+    var original = [];
+    var aceptado = false;
+    var checks = function(){ return Array.prototype.slice.call(modal.querySelectorAll(selector)); };
+    modal.addEventListener('change', function(event){
+      if(event.target && event.target.type === 'checkbox') actualizarEstadoCheckboxes(modal);
+    });
+    if(window.jQuery) {
+      $(modal).on('show.bs.modal', function(){
+        original = checks().map(function(input){ return input.checked; });
+        aceptado = false;
+        actualizarEstadoCheckboxes(modal);
+      });
+      $(modal).on('hide.bs.modal', function(){
+        if(!aceptado) {
+          checks().forEach(function(input, index){ input.checked = !!original[index]; });
+          actualizarResumen(containerId, selector, emptyText, singularText, pluralText);
+          actualizarEstadoCheckboxes(modal);
+        }
+        aceptado = false;
+      });
+    }
+    var accept = modal.querySelector('.crm-area-config-accept');
+    var cancel = modal.querySelector('.crm-area-config-cancel');
+    if(accept) accept.addEventListener('click', function(){
+      aceptado = true;
+      actualizarResumen(containerId, selector, emptyText, singularText, pluralText);
+      $('#'+idModal).modal('hide');
+    });
+    if(cancel) cancel.addEventListener('click', function(){
+      aceptado = false;
+      $('#'+idModal).modal('hide');
+    });
+    actualizarEstadoCheckboxes(modal);
+  }
+  configurarModalSeleccion('modalCapacidadesAlta', 'input[type="checkbox"]', 'resumen_capacidades_alta', 'Ninguna seleccionada', 'capacidad seleccionada', 'capacidades seleccionadas');
+  configurarModalSeleccion('modalInformesAlta', 'input[type="checkbox"]', 'resumen_informes_alta', 'Ninguno seleccionado', 'informe seleccionado', 'informes seleccionados');
 })();
 </script>
 </body>

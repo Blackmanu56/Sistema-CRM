@@ -2,6 +2,21 @@
 require_once __DIR__.'/_init.php';
 require_once BASE_PATH.'/includes/salas_reuniones.php';
 crm_proteger_staff();
+if(!acceso_puede_salas_reuniones())
+{
+	http_response_code(403);
+	exit('No tenés autorización para acceder a esta sección.');
+}
+$csrf_modulo_token=function_exists('crm_tarea_extra_csrf_token') ? crm_tarea_extra_csrf_token() : '';
+if($_SERVER['REQUEST_METHOD']==='POST')
+{
+	$csrf_post=isset($_POST['csrf_tarea_extra']) && is_string($_POST['csrf_tarea_extra']) ? $_POST['csrf_tarea_extra'] : '';
+	if(!function_exists('crm_tarea_extra_csrf_valido') || !crm_tarea_extra_csrf_valido($csrf_post))
+	{
+		http_response_code(403);
+		exit('La sesión expiró o el formulario no es válido. Actualizá la página e intentá nuevamente.');
+	}
+}
 salas_reuniones_asegurar();
 
 function salas_reuniones_h($valor)
@@ -241,7 +256,7 @@ $mes_actual=date('Y-m');
             <div class="sala-reserva-motivo"><?php echo nl2br(salas_reuniones_h($r['motivo'])); ?></div>
             <div style="margin-top:10px;"><button type="button" class="btn btn-white btn-xs btn-ver-reserva" data-reserva="<?php echo $payload; ?>"><i class="fa fa-eye"></i> Ver</button>
             <?php if($puede && !$paso && in_array($r['estado'],array('activa','confirmada'),true)) { ?><button type="button" class="btn btn-white btn-xs btn-editar-reserva" data-reserva="<?php echo $payload; ?>"><i class="fa fa-pencil"></i> Editar</button><?php } ?>
-            <?php if($puede && !$paso && in_array($r['estado'],array('activa','confirmada'),true)) { ?><form method="post" style="display:inline;" onsubmit="return confirm('¿Cancelar esta reserva? Se conservará en el historial.');"><input type="hidden" name="id_reserva" value="<?php echo intval($r['id_reserva']); ?>"><input type="hidden" name="fecha" value="<?php echo salas_reuniones_h($fecha); ?>"><input type="hidden" name="cal" value="<?php echo salas_reuniones_h($cal); ?>"><input type="hidden" name="orden" value="<?php echo salas_reuniones_h($orden); ?>"><button class="btn btn-danger btn-xs" type="submit" name="cancelar_reserva" value="1"><i class="fa fa-times"></i> Cancelar</button></form><?php } ?>
+            <?php if($puede && !$paso && in_array($r['estado'],array('activa','confirmada'),true)) { ?><form method="post" style="display:inline;" onsubmit="return confirm('¿Cancelar esta reserva? Se conservará en el historial.');"><input type="hidden" name="csrf_tarea_extra" value="<?php echo salas_reuniones_h($csrf_modulo_token); ?>"><input type="hidden" name="id_reserva" value="<?php echo intval($r['id_reserva']); ?>"><input type="hidden" name="fecha" value="<?php echo salas_reuniones_h($fecha); ?>"><input type="hidden" name="cal" value="<?php echo salas_reuniones_h($cal); ?>"><input type="hidden" name="orden" value="<?php echo salas_reuniones_h($orden); ?>"><button class="btn btn-danger btn-xs" type="submit" name="cancelar_reserva" value="1"><i class="fa fa-times"></i> Cancelar</button></form><?php } ?>
             </div>
           </article>
           <?php } } ?>
@@ -286,6 +301,7 @@ $mes_actual=date('Y-m');
 <div class="modal fade" id="modalReserva" tabindex="-1" role="dialog" aria-hidden="true">
  <div class="modal-dialog"><div class="modal-content">
   <form method="post" id="formReserva">
+   <input type="hidden" name="csrf_tarea_extra" value="<?php echo salas_reuniones_h($csrf_modulo_token); ?>">
    <div class="modal-header"><button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button><h4 class="modal-title" id="modalReservaTitulo">Nuevo turno</h4></div>
    <div class="modal-body">
     <?php if($modal_abierto && $mensaje!=='') { ?><div class="alert alert-danger"><?php echo salas_reuniones_h($mensaje); ?></div><?php } ?>
@@ -311,7 +327,7 @@ $mes_actual=date('Y-m');
  <div class="modal-dialog sala-detail-modal"><div class="modal-content">
   <div class="modal-header"><h4 class="modal-title" id="tituloDetalleReserva"><i class="fa fa-calendar-check-o text-info"></i> Detalle de la reunión</h4><span id="detalleReservaEstado" class="sala-estado"></span><button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">&times;</button></div>
   <div class="modal-body" id="detalleReservaBody"></div>
-  <div class="modal-footer"><button type="button" class="btn btn-white" id="btnDetalleEditar" style="display:none;"><i class="fa fa-pencil"></i> Editar</button><button type="button" class="btn btn-danger" id="btnDetalleCancelar" style="display:none;"><i class="fa fa-times"></i> Cancelar reserva</button><form method="post" id="formCancelarDesdeDetalle" style="display:none;"><input type="hidden" name="cancelar_reserva" value="1"><input type="hidden" name="id_reserva" id="idReservaCancelarDetalle"><input type="hidden" name="fecha" id="fechaCancelarDetalle"><input type="hidden" name="cal" id="calCancelarDetalle"><input type="hidden" name="orden" value="<?php echo salas_reuniones_h($orden); ?>"></form><button type="button" class="btn btn-white" data-dismiss="modal">Cerrar</button></div>
+  <div class="modal-footer"><button type="button" class="btn btn-white" id="btnDetalleEditar" style="display:none;"><i class="fa fa-pencil"></i> Editar</button><button type="button" class="btn btn-danger" id="btnDetalleCancelar" style="display:none;"><i class="fa fa-times"></i> Cancelar reserva</button><form method="post" id="formCancelarDesdeDetalle" style="display:none;"><input type="hidden" name="csrf_tarea_extra" value="<?php echo salas_reuniones_h($csrf_modulo_token); ?>"><input type="hidden" name="cancelar_reserva" value="1"><input type="hidden" name="id_reserva" id="idReservaCancelarDetalle"><input type="hidden" name="fecha" id="fechaCancelarDetalle"><input type="hidden" name="cal" id="calCancelarDetalle"><input type="hidden" name="orden" value="<?php echo salas_reuniones_h($orden); ?>"></form><button type="button" class="btn btn-white" data-dismiss="modal">Cerrar</button></div>
  </div></div>
 </div>
 

@@ -54,12 +54,15 @@ function crm_es_staff()
 	return isset($_SESSION['alogin']) && strlen($_SESSION['alogin'])>0;
 }
 
-function crm_proteger_staff($area=null)
+function crm_proteger_staff($area=null,$preservar_area_activa=null)
 {
 	require_once BASE_PATH.'/includes/staff/checklogin.php';
 	$pag=basename(isset($_SERVER['SCRIPT_NAME']) ? $_SERVER['SCRIPT_NAME'] : '');
-	$preservar_area=($pag==='actividades.php' || $pag==='nueva-actividad.php');
-	check_login($area,$preservar_area);
+	if($preservar_area_activa===null)
+	{
+		$preservar_area_activa=($pag==='actividades.php' || $pag==='nueva-actividad.php');
+	}
+	check_login($area,(bool)$preservar_area_activa);
 	if($pag=='change-password.php' || $pag=='logout.php')
 	{
 		return;
@@ -121,6 +124,10 @@ function crm_menu_staff()
 
 function crm_menu_seccion_sala_reuniones()
 {
+	if(!function_exists('acceso_puede_salas_reuniones') || !acceso_puede_salas_reuniones())
+	{
+		return;
+	}
 	$ruta=isset($_SERVER['SCRIPT_NAME']) ? str_replace('\\', '/', $_SERVER['SCRIPT_NAME']) : '';
 	$activo=basename($ruta)==='salas-reuniones.php';
 	$clase=$activo ? 'btn-primary' : 'btn-white';

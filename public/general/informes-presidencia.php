@@ -73,6 +73,7 @@ $localidades=acceso_consulta("SELECT nombre FROM localidad ORDER BY nombre LIMIT
     <div class="clearfix"></div>
     <div class="content">
       <ul class="breadcrumb"><li><p>ESTÁS AQUÍ</p></li><li><a href="#" class="active">Informes para Presidencia</a></li></ul>
+      <?php if(acceso_puede('general') && (acceso_es_super() || acceso_es_coord_general())) { include __DIR__.'/menu-seccion.php'; } ?>
       <div class="page-title"><h3>Informes para Presidencia</h3></div>
       <?php if(isset($_SESSION['msginforme']) && $_SESSION['msginforme']!='') { ?>
       <div class="alert alert-info"><?php echo htmlspecialchars($_SESSION['msginforme']); $_SESSION['msginforme']=''; ?></div>

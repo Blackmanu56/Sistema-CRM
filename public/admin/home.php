@@ -27,13 +27,14 @@ $clientes=informes_clientes_resumen();
 $acts=informes_actividades_por_area();
 $ver_todas=($filtro=='todas' || $filtro=='');
 $titulo_filtro=$ver_todas ? 'Todas las áreas' : $areas_ok[$filtro];
+$menu_activo='panel_operativo';
 ?>
 <!DOCTYPE html>
 <html>
 <head>
 <meta http-equiv="content-type" content="text/html;charset=UTF-8" />
 <meta charset="utf-8" />
-<title>CRM | Informes</title>
+<title>CRM | Panel Operativo</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <meta content="" name="description" />
 <meta content="" name="author" />
@@ -46,6 +47,42 @@ $titulo_filtro=$ver_todas ? 'Todas las áreas' : $areas_ok[$filtro];
 <link href="../assets/css/style.css" rel="stylesheet" type="text/css"/>
 <link href="../assets/css/responsive.css" rel="stylesheet" type="text/css"/>
 <link href="../assets/css/custom-icon-set.css" rel="stylesheet" type="text/css"/>
+<style>
+.crm-operativo-page { padding-bottom: 24px; }
+.crm-operativo-page .page-title { margin: 8px 0 16px; }
+.crm-operativo-page .page-title h3 { color: #1e293b; font-size: 25px; font-weight: 700; letter-spacing: -.3px; }
+.crm-ops-filter { margin: 0 0 18px; padding: 16px 18px; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; box-shadow: 0 3px 12px rgba(15,23,42,.04); }
+.crm-ops-filter .crm-ops-filter-title { margin: 0 0 10px; color: #475569; font-size: 13px; font-weight: 700; }
+.crm-ops-filter .form-inline { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; margin: 0; }
+.crm-ops-filter label { margin: 0; color: #334155; font-weight: 600; }
+.crm-ops-filter select { min-width: 240px; }
+.crm-ops-filter-summary { margin: 10px 0 0; color: #64748b; font-size: 12px; }
+.crm-ops-filter-summary strong { color: #334155; }
+.crm-ops-kpi .tiles { min-height: 112px; margin-bottom: 14px; overflow: hidden; border-radius: 10px; box-shadow: 0 4px 12px rgba(15,23,42,.10); }
+.crm-ops-kpi .tiles-body { position: relative; padding: 16px 18px; }
+.crm-ops-kpi .tiles-title { padding-right: 34px; font-size: 12px; font-weight: 600; letter-spacing: .2px; opacity: .95; }
+.crm-ops-kpi .heading { margin-top: 7px; font-size: 28px; font-weight: 700; line-height: 1.1; }
+.crm-ops-kpi-icon { position: absolute; top: 17px; right: 18px; font-size: 18px; opacity: .72; }
+.crm-ops-section { margin: 0 0 16px; }
+.crm-ops-panel { overflow: hidden; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; box-shadow: 0 3px 12px rgba(15,23,42,.05); }
+.crm-ops-panel .grid-title { min-height: 52px; padding: 14px 18px; border-bottom: 1px solid #edf1f5; background: #f8fafc; }
+.crm-ops-panel .grid-title h4 { margin: 0; color: #334155; font-size: 15px; font-weight: 700; }
+.crm-ops-panel .grid-title h4 i { margin-right: 8px; color: #2563eb; }
+.crm-ops-panel .grid-body { padding: 14px 18px; }
+.crm-ops-panel .table { margin: 0; }
+.crm-ops-panel .table thead th { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; color: #64748b; font-size: 11px; font-weight: 700; letter-spacing: .35px; text-transform: uppercase; white-space: nowrap; }
+.crm-ops-panel .table tbody td { padding: 10px 12px; border-top-color: #edf1f5; color: #334155; vertical-align: middle; }
+.crm-ops-panel .table tbody tr:hover { background: #f8fbff; }
+.crm-ops-area-total { color: #1d4ed8 !important; font-weight: 700; }
+.crm-ops-empty { margin: 0; padding: 18px; border: 1px dashed #d7e0ea; border-radius: 8px; background: #f8fafc; color: #64748b; text-align: center; }
+@media (max-width: 767px) {
+	.crm-operativo-page .page-title h3 { font-size: 22px; }
+	.crm-ops-filter { padding: 14px; }
+	.crm-ops-filter .form-inline { align-items: stretch; flex-direction: column; }
+	.crm-ops-filter select { width: 100%; min-width: 0; }
+	.crm-ops-panel .grid-body { padding: 12px; }
+}
+</style>
 </head>
 <body class="">
 <?php crm_header_staff();?>
@@ -56,17 +93,19 @@ $titulo_filtro=$ver_todas ? 'Todas las áreas' : $areas_ok[$filtro];
   </div>
   <div class="page-content">
             <div class="clearfix"></div>
-            <div class="content">
-                <ul class="breadcrumb"><li><p>ESTÁS AQUÍ</p></li><li><a href="#" class="active">Informes</a></li></ul>
+            <div class="content crm-operativo-page">
+                <ul class="breadcrumb"><li><p>ESTÁS AQUÍ</p></li><li><a href="#" class="active">Panel Operativo</a></li></ul>
+                <?php if(acceso_es_super() || acceso_es_coord_general()) { include BASE_PATH.'/public/general/menu-seccion.php'; } ?>
                 <div class="page-title">
-                    <h3>Informes</h3>
+                    <h3>Panel Operativo</h3>
                 </div>
 
-                <div class="grid simple">
+                <div class="grid simple crm-ops-filter">
                     <div class="grid-body">
+                        <p class="crm-ops-filter-title"><i class="fa fa-filter" aria-hidden="true"></i> Filtrar indicadores</p>
                         <form method="get" action="" class="form-inline">
-                            <label>Ver tareas por área</label>
-                            <select name="area" class="form-control" style="min-width:240px; display:inline-block;">
+                            <label for="panel-area-filter">Área</label>
+                            <select id="panel-area-filter" name="area" class="form-control">
                                 <option value="todas">Todas las áreas</option>
                                 <?php foreach($areas_ok as $clave=>$titulo) { ?>
                                 <option value="<?php echo informes_html($clave); ?>" <?php if($filtro==$clave) echo 'selected'; ?>><?php echo informes_html($titulo); ?></option>
@@ -74,15 +113,15 @@ $titulo_filtro=$ver_todas ? 'Todas las áreas' : $areas_ok[$filtro];
                             </select>
                             <button type="submit" class="btn btn-primary">Ver</button>
                         </form>
-                        <p style="margin-top:10px;"><strong>Mostrando:</strong> <?php echo informes_html($titulo_filtro); ?></p>
+                        <p class="crm-ops-filter-summary"><strong>Mostrando:</strong> <?php echo informes_html($titulo_filtro); ?></p>
                     </div>
                 </div>
 
-                <div class="row">
+                <div class="row crm-ops-kpi">
                     <div class="col-md-3 col-sm-6 spacing-bottom">
                         <div class="tiles green added-margin">
                             <div class="tiles-body">
-                                <div class="tiles-title">Tareas realizadas</div>
+                                <i class="fa fa-check-circle crm-ops-kpi-icon" aria-hidden="true"></i><div class="tiles-title">Tareas realizadas</div>
                                 <div class="heading"><?php echo intval($tot['Terminada']); ?></div>
                             </div>
                         </div>
@@ -90,7 +129,7 @@ $titulo_filtro=$ver_todas ? 'Todas las áreas' : $areas_ok[$filtro];
                     <div class="col-md-3 col-sm-6 spacing-bottom">
                         <div class="tiles purple added-margin">
                             <div class="tiles-body">
-                                <div class="tiles-title">En curso</div>
+                                <i class="fa fa-refresh crm-ops-kpi-icon" aria-hidden="true"></i><div class="tiles-title">En curso</div>
                                 <div class="heading"><?php echo intval($tot['En proceso']); ?></div>
                             </div>
                         </div>
@@ -98,7 +137,7 @@ $titulo_filtro=$ver_todas ? 'Todas las áreas' : $areas_ok[$filtro];
                     <div class="col-md-3 col-sm-6 spacing-bottom">
                         <div class="tiles red added-margin">
                             <div class="tiles-body">
-                                <div class="tiles-title">No iniciadas</div>
+                                <i class="fa fa-hourglass-start crm-ops-kpi-icon" aria-hidden="true"></i><div class="tiles-title">No iniciadas</div>
                                 <div class="heading"><?php echo intval($tot['No iniciada']); ?></div>
                             </div>
                         </div>
@@ -106,18 +145,18 @@ $titulo_filtro=$ver_todas ? 'Todas las áreas' : $areas_ok[$filtro];
                     <div class="col-md-3 col-sm-6 spacing-bottom">
                         <div class="tiles black added-margin">
                             <div class="tiles-body">
-                                <div class="tiles-title">Pausadas</div>
+                                <i class="fa fa-pause-circle crm-ops-kpi-icon" aria-hidden="true"></i><div class="tiles-title">Pausadas</div>
                                 <div class="heading"><?php echo intval($tot['Pausada']); ?></div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="row">
+                <div class="row crm-ops-kpi">
                     <div class="col-md-3 col-sm-6 spacing-bottom">
                         <div class="tiles blue added-margin">
                             <div class="tiles-body">
-                                <div class="tiles-title">Vencidas</div>
+                                <i class="fa fa-exclamation-triangle crm-ops-kpi-icon" aria-hidden="true"></i><div class="tiles-title">Vencidas</div>
                                 <div class="heading"><?php echo intval($tot['Vencida']); ?></div>
                             </div>
                         </div>
@@ -125,7 +164,7 @@ $titulo_filtro=$ver_todas ? 'Todas las áreas' : $areas_ok[$filtro];
                     <div class="col-md-3 col-sm-6 spacing-bottom">
                         <div class="tiles added-margin" style="background:#1f7a8c;">
                             <div class="tiles-body">
-                                <div class="tiles-title">Total de tareas</div>
+                                <i class="fa fa-tasks crm-ops-kpi-icon" aria-hidden="true"></i><div class="tiles-title">Total de tareas</div>
                                 <div class="heading"><?php echo intval($tot['total']); ?></div>
                             </div>
                         </div>
@@ -133,7 +172,7 @@ $titulo_filtro=$ver_todas ? 'Todas las áreas' : $areas_ok[$filtro];
                     <div class="col-md-3 col-sm-6 spacing-bottom">
                         <div class="tiles added-margin" style="background:#c47c16;">
                             <div class="tiles-body">
-                                <div class="tiles-title">Clientes</div>
+                                <i class="fa fa-users crm-ops-kpi-icon" aria-hidden="true"></i><div class="tiles-title">Clientes</div>
                                 <div class="heading"><?php echo intval($clientes['total']); ?></div>
                             </div>
                         </div>
@@ -141,19 +180,19 @@ $titulo_filtro=$ver_todas ? 'Todas las áreas' : $areas_ok[$filtro];
                     <div class="col-md-3 col-sm-6 spacing-bottom">
                         <div class="tiles added-margin" style="background:#5b8c1a;">
                             <div class="tiles-body">
-                                <div class="tiles-title">Clientes nuevos del mes</div>
+                                <i class="fa fa-user-plus crm-ops-kpi-icon" aria-hidden="true"></i><div class="tiles-title">Clientes nuevos del mes</div>
                                 <div class="heading"><?php echo intval($clientes['mes']); ?></div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="grid simple">
+                <div class="grid simple crm-ops-panel crm-ops-section">
                     <div class="grid-title no-border">
-                        <h4>Tareas por área</h4>
+                        <h4><i class="fa fa-sitemap" aria-hidden="true"></i>Tareas por área</h4>
                     </div>
                     <div class="grid-body no-border">
-                        <table class="table table-hover no-more-tables">
+                        <div class="table-responsive"><table class="table table-hover no-more-tables">
                             <thead>
                                 <tr>
                                     <th>Área</th>
@@ -174,25 +213,26 @@ $titulo_filtro=$ver_todas ? 'Todas las áreas' : $areas_ok[$filtro];
                                     <td><?php echo intval($fila['No iniciada']); ?></td>
                                     <td><?php echo intval($fila['Pausada']); ?></td>
                                     <td><?php echo intval($fila['Vencida']); ?></td>
-                                    <td><?php echo intval($fila['total']); ?></td>
+                                    <td class="crm-ops-area-total"><?php echo intval($fila['total']); ?></td>
                                 </tr>
                             <?php } ?>
+                            <?php if(count($tareas['areas'])==0) { ?><tr><td colspan="7"><p class="crm-ops-empty">No hay tareas para mostrar en esta selección.</p></td></tr><?php } ?>
                             </tbody>
-                        </table>
+                        </table></div>
                     </div>
                 </div>
 
                 <div class="row">
                     <div class="col-md-6">
-                        <div class="grid simple">
+                        <div class="grid simple crm-ops-panel crm-ops-section">
                             <div class="grid-title no-border">
-                                <h4>Clientes por tipo</h4>
+                                <h4><i class="fa fa-tags" aria-hidden="true"></i>Clientes por tipo</h4>
                             </div>
                             <div class="grid-body no-border">
                                 <?php if($clientes['total']==0) { ?>
-                                <p>Todavía no hay clientes cargados.</p>
+                                <p class="crm-ops-empty">Todavía no hay clientes cargados.</p>
                                 <?php } else { ?>
-                                <table class="table table-hover no-more-tables">
+                                <div class="table-responsive"><table class="table table-hover no-more-tables">
                                     <thead>
                                         <tr>
                                             <th>Tipo</th>
@@ -207,21 +247,21 @@ $titulo_filtro=$ver_todas ? 'Todas las áreas' : $areas_ok[$filtro];
                                         </tr>
                                     <?php } ?>
                                     </tbody>
-                                </table>
+                                </table></div>
                                 <?php } ?>
                             </div>
                         </div>
                     </div>
                     <div class="col-md-6">
-                        <div class="grid simple">
+                        <div class="grid simple crm-ops-panel crm-ops-section">
                             <div class="grid-title no-border">
-                                <h4>Clientes por área</h4>
+                                <h4><i class="fa fa-building-o" aria-hidden="true"></i>Clientes por área</h4>
                             </div>
                             <div class="grid-body no-border">
                                 <?php if($clientes['total']==0) { ?>
-                                <p>Todavía no hay clientes cargados.</p>
+                                <p class="crm-ops-empty">Todavía no hay clientes cargados.</p>
                                 <?php } else { ?>
-                                <table class="table table-hover no-more-tables">
+                                <div class="table-responsive"><table class="table table-hover no-more-tables">
                                     <thead>
                                         <tr>
                                             <th>Área</th>
@@ -236,22 +276,23 @@ $titulo_filtro=$ver_todas ? 'Todas las áreas' : $areas_ok[$filtro];
                                         </tr>
                                     <?php } ?>
                                     </tbody>
-                                </table>
+                                </table></div>
                                 <?php } ?>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="row">
+                <div class="row crm-ops-section">
                     <div class="col-md-12">
-                        <div class="grid simple">
+                        <div class="grid simple crm-ops-panel">
                             <div class="grid-title no-border">
-                                <h4>Actividades cargadas</h4>
+                                <h4><i class="fa fa-calendar" aria-hidden="true"></i>Actividades cargadas</h4>
                             </div>
                             <div class="grid-body no-border">
-                                <p>Total: <strong><?php echo intval($acts['total']); ?></strong></p>
-                                <table class="table table-hover no-more-tables">
+                                <p class="crm-ops-filter-summary">Total de actividades: <strong><?php echo intval($acts['total']); ?></strong></p>
+                                <?php if(intval($acts['total'])===0) { ?><p class="crm-ops-empty">Todavía no hay actividades cargadas.</p><?php } else { ?>
+                                <div class="table-responsive"><table class="table table-hover no-more-tables">
                                     <thead>
                                         <tr>
                                             <th>Área</th>
@@ -266,21 +307,22 @@ $titulo_filtro=$ver_todas ? 'Todas las áreas' : $areas_ok[$filtro];
                                         </tr>
                                     <?php } ?>
                                     </tbody>
-                                </table>
+                                </table></div>
+                                <?php } ?>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="grid simple">
+                <div class="grid simple crm-ops-panel crm-ops-section">
                     <div class="grid-title no-border">
-                        <h4>Clientes nuevos (últimas altas)</h4>
+                        <h4><i class="fa fa-user-plus" aria-hidden="true"></i>Clientes nuevos (últimas altas)</h4>
                     </div>
                     <div class="grid-body no-border">
                         <?php if(count($clientes['recientes'])==0) { ?>
-                        <p>Todavía no hay altas para mostrar.</p>
+                        <p class="crm-ops-empty">Todavía no hay altas para mostrar.</p>
                         <?php } else { ?>
-                        <table class="table table-hover no-more-tables">
+                        <div class="table-responsive"><table class="table table-hover no-more-tables">
                             <thead>
                                 <tr>
                                     <th>Nombre</th>
@@ -299,7 +341,7 @@ $titulo_filtro=$ver_todas ? 'Todas las áreas' : $areas_ok[$filtro];
                                 </tr>
                             <?php } ?>
                             </tbody>
-                        </table>
+                        </table></div>
                         <?php } ?>
                     </div>
                 </div>

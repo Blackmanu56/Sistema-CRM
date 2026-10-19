@@ -5,12 +5,35 @@ $menu_activo='Actividades';
 $area_act=acceso_area_pantalla();
 $etq=acceso_etiquetas_area();
 $nombre_area=isset($etq[$area_act]) ? $etq[$area_act] : $area_act;
+$crm_contexto_mapa_path=BASE_PATH.'/public/general/mapa-interactivo/contexto.php';
+if(is_file($crm_contexto_mapa_path)) { require_once $crm_contexto_mapa_path; }
+$crm_actividad_contexto_general = isset($_GET['contexto']) && $_GET['contexto'] === 'general'
+	&& isset($_GET['origen_general'])
+	&& function_exists('mapa_interactivo_contexto_general_valido')
+	&& mapa_interactivo_contexto_general_valido($_GET['origen_general']);
+$crm_mapa_retorno_url = '';
+if(isset($_GET['mapa_retorno']) && function_exists('mapa_interactivo_url_retorno'))
+{
+	$crm_mapa_retorno_url=mapa_interactivo_url_retorno(
+		$_GET['mapa_retorno'],
+		$crm_actividad_contexto_general ? $_GET['origen_general'] : ''
+	);
+}
+$crm_actividad_url_lista = function($extra=array()) use ($crm_actividad_contexto_general) {
+	if($crm_actividad_contexto_general)
+	{
+		$extra['contexto']='general';
+		$extra['origen_general']=$_GET['origen_general'];
+		return url_crm('general/actividades.php?'.http_build_query($extra));
+	}
+	return tareas_link('actividades.php', $extra);
+};
 
 $ver_id=isset($_GET['id']) ? intval($_GET['id']) : 0;
 if($_SERVER['REQUEST_METHOD']==='POST')
 {
 	$msg=null;
-	$ir=tareas_link('actividades.php', $ver_id>0 ? array('id'=>$ver_id) : array());
+	$ir=$crm_actividad_url_lista($ver_id>0 ? array('id'=>$ver_id) : array());
 	if(isset($_POST['marcar_asistencia']) && isset($_POST['id_inscripcion']))
 	{
 		$msg=actividades_marcar_asistencia(intval($_POST['id_inscripcion']), $_POST['marcar_asistencia']);
@@ -24,7 +47,7 @@ if($_SERVER['REQUEST_METHOD']==='POST')
 	else if(isset($_POST['eliminar_actividad']))
 	{
 		$msg=actividades_eliminar($ver_id);
-		if($msg==='') { $msg='Actividad eliminada.'; $ir=tareas_link('actividades.php'); }
+		if($msg==='') { $msg='Actividad eliminada.'; $ir=$crm_actividad_url_lista(); }
 	}
 	if($msg!==null)
 	{
@@ -147,7 +170,7 @@ $hoy=date('Y-m-d');
 <link href="../assets/css/responsive.css" rel="stylesheet" type="text/css"/>
 <link href="../assets/css/custom-icon-set.css" rel="stylesheet" type="text/css"/>
 </head>
-<body class="">
+<body class="crm-actividades-page">
 <?php crm_header_staff();?>
 <div class="page-container row">
       <?php crm_menu_staff();?>
@@ -162,12 +185,12 @@ $hoy=date('Y-m-d');
                         <p>ESTÁS AQUÍ</p>
                     </li>
                     <li><a href="<?php echo tareas_link('tareas.php'); ?>"><?php echo texto_mostrar($nombre_area); ?></a></li>
-                    <li><a href="<?php echo tareas_link('actividades.php'); ?>" class="<?php echo $detalle ? '' : 'active'; ?>">Actividades</a></li>
+                    <li><a href="<?php echo htmlspecialchars($crm_actividad_url_lista(), ENT_QUOTES, 'UTF-8'); ?>" class="<?php echo $detalle ? '' : 'active'; ?>">Actividades</a></li>
                     <?php if($detalle) { ?>
                     <li><a href="#" class="active"><?php echo texto_mostrar($detalle['titulo']); ?></a></li>
                     <?php } ?>
                 </ul>
-                <?php include("menu-seccion.php"); ?>
+                <?php if($crm_actividad_contexto_general) { include BASE_PATH.'/public/general/menu-seccion.php'; } else { include("menu-seccion.php"); } ?>
                 <?php if(isset($_SESSION['msgactividad']) && $_SESSION['msgactividad']!='') { ?>
                 <div class="alert alert-info"><?php echo texto_mostrar($_SESSION['msgactividad']); $_SESSION['msgactividad']=''; ?></div>
                 <?php } ?>
@@ -179,7 +202,10 @@ $hoy=date('Y-m-d');
                         <?php if($puede_gestionar) { ?>
                         <a href="<?php echo tareas_link('nueva-actividad.php', array('id'=>intval($detalle['id_evento']))); ?>" class="btn btn-primary btn-small">Editar</a>
                         <?php } ?>
-                        <a href="<?php echo tareas_link('actividades.php'); ?>" class="btn btn-white btn-small">Volver</a>
+                        <?php if($crm_mapa_retorno_url!=='') { ?>
+                        <a href="<?php echo htmlspecialchars($crm_mapa_retorno_url, ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-white btn-small">Volver al Mapa de eventos</a>
+                        <?php } ?>
+                        <a href="<?php echo htmlspecialchars($crm_actividad_url_lista(), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-white btn-small">Volver</a>
                     </div>
                     <div class="clearfix"></div>
                 </div>
@@ -449,7 +475,7 @@ $hoy=date('Y-m-d');
                     <div class="col-md-8">
                         <?php if(count($lista)==0) { ?><div class="grid simple"><div class="grid-body"><p><?php echo $hay_filtro ? 'No hay actividades con esos filtros.' : 'Todavía no hay actividades cargadas.'; ?></p></div></div><?php } ?>
                         <?php foreach($lista as $item) { $puede_item=actividad_puede_gestionar($item); $estado_item=actividad_estado_lista($item,$hoy); $etiquetas=array('proxima'=>'Próxima','realizada'=>'Realizada','pasada'=>'Pasada · sin registro de realización','cancelada'=>'Cancelada'); $clases_estado=array('proxima'=>'label-info','realizada'=>'label-success','pasada'=>'label-default','cancelada'=>'label-important'); ?>
-                        <div class="grid simple"><div class="grid-title"><h4><a href="<?php echo tareas_link('actividades.php',array('id'=>intval($item['id']))); ?>"><?php echo texto_mostrar($item['titulo']); ?></a></h4><div class="tools"><span class="label <?php echo $clases_estado[$estado_item]; ?>"><?php echo texto_mostrar($etiquetas[$estado_item]); ?></span></div></div>
+                        <div class="grid simple"><div class="grid-title"><h4><a href="<?php echo htmlspecialchars($crm_actividad_url_lista(array('id'=>intval($item['id']))), ENT_QUOTES, 'UTF-8'); ?>"><?php echo texto_mostrar($item['titulo']); ?></a></h4><div class="tools"><span class="label <?php echo $clases_estado[$estado_item]; ?>"><?php echo texto_mostrar($etiquetas[$estado_item]); ?></span></div></div>
                             <div class="grid-body"><p><?php echo texto_mostrar(isset($item['descripcion'])?$item['descripcion']:''); ?></p>
                                 <div class="crm-actividad-card-meta">
                                     <div class="crm-actividad-card-persona">
@@ -464,13 +490,20 @@ $hoy=date('Y-m-d');
                                         <span class="crm-actividad-card-dato"><?php echo intval($item['n_inscriptos']); ?> participante(s)</span>
                                     </div>
                                 </div>
-                                <div class="text-right"><a href="<?php echo tareas_link('actividades.php',array('id'=>intval($item['id']))); ?>" class="btn btn-white btn-small">Ver</a><?php if($puede_item) { ?> <a href="<?php echo tareas_link('nueva-actividad.php',array('id'=>intval($item['id']))); ?>" class="btn btn-white btn-small"><i class="fa fa-pencil"></i> Editar</a><?php } ?></div>
+                                <div class="text-right"><a href="<?php echo htmlspecialchars($crm_actividad_url_lista(array('id'=>intval($item['id']))), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-white btn-small">Ver</a><?php if($puede_item) { ?> <a href="<?php echo tareas_link('nueva-actividad.php',array('id'=>intval($item['id']))); ?>" class="btn btn-white btn-small"><i class="fa fa-pencil"></i> Editar</a><?php } ?></div>
                             </div>
                         </div><?php } ?>
                     </div>
                     <div class="col-md-4"><div class="grid simple"><div class="grid-title crm-act-cal-title"><h4><i class="fa fa-calendar text-info"></i>Calendario de actividades</h4><?php echo actividades_calendario_controles($cal_anio,$cal_mes); ?></div>
                         <div class="grid-body">
                             <style>
+                            body.crm-actividades-page .crm-actividades-page-title{margin-bottom:6px}
+                            body.crm-actividades-page .crm-actividades-filter-card{margin-bottom:14px}
+                            body.crm-actividades-page .crm-actividades-filter-card .grid-body{padding:10px 14px!important}
+                            body.crm-actividades-page .crm-actividades-filter-card .grid-body>p.muted{margin:8px 0 0!important}
+                            body.crm-actividades-page .crm-actividades-layout>.col-md-8>.grid.simple,
+                            body.crm-actividades-page .crm-actividades-layout>.col-md-4>.grid.simple{margin-bottom:14px}
+                            @media(max-width:767px){body.crm-actividades-page .crm-actividades-filter-card{margin-bottom:12px}body.crm-actividades-page .crm-actividades-filter-card .grid-body{padding:10px 12px!important}body.crm-actividades-page .crm-actividades-layout>.col-md-8>.grid.simple,body.crm-actividades-page .crm-actividades-layout>.col-md-4>.grid.simple{margin-bottom:12px}}
                             .crm-actividades-page-title{display:flex;align-items:center;justify-content:space-between;gap:12px}.crm-actividades-page-title h3{margin:0}
                             .crm-actividad-card-meta{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:7px 0 10px;padding:10px 12px;border:1px solid #e9edf2;border-radius:6px;background:#f8fafc}.crm-actividad-card-persona{display:flex;flex-direction:column;gap:4px;min-width:0}.crm-actividad-card-responsable,.crm-actividad-card-area,.crm-actividad-card-organismo{display:inline-flex;align-items:center;gap:6px;min-width:0}.crm-actividad-card-responsable{font-weight:600;color:#334155}.crm-actividad-card-area{font-size:12px;color:#64748b}.crm-actividad-card-organismo{margin-left:8px}.crm-actividad-card-datos{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:6px;min-width:0}.crm-actividad-card-dato{display:inline-flex;align-items:center;gap:4px;padding:5px 8px;border:1px solid #e2e8f0;border-radius:14px;background:#fff;color:#475569;font-size:11px;line-height:1.2;white-space:nowrap}.crm-actividad-card-dato strong{color:#334155}.crm-actividad-card-dato--auto{border-color:#bbf7d0;background:#f0fdf4;color:#15803d}
                             .crm-filtros-act{display:grid;gap:10px;width:100%;min-width:0;margin:0}.crm-filtros-act-row{display:grid;align-items:end;gap:10px;min-width:0}.crm-filtros-act-principal{grid-template-columns:minmax(200px,2.2fr) minmax(88px,.9fr) minmax(100px,1fr) minmax(125px,1.25fr) minmax(135px,1.35fr) auto}.crm-filtros-act-principal.crm-filtros-act-con-area{grid-template-columns:minmax(185px,2fr) minmax(82px,.85fr) minmax(95px,1fr) minmax(112px,1.2fr) minmax(95px,1fr) minmax(125px,1.3fr) auto}.crm-filtros-act .form-group{margin:0;min-width:0}.crm-filtros-act label{display:block;white-space:nowrap;margin:0 0 4px;font-size:11px;line-height:1.2;color:#64748b}.crm-filtros-act .form-control{height:32px;width:100%;max-width:none;min-width:0;padding:5px 7px;font-size:12px;box-sizing:border-box}.crm-act-limpiar{display:inline-flex;align-self:end;align-items:center;justify-content:center;box-sizing:border-box;height:36px;line-height:20px;padding:5px 9px;margin:0!important;white-space:nowrap}
@@ -487,6 +520,7 @@ $hoy=date('Y-m-d');
                             .crm-actividad-card-fecha>span>span{font-size:13px;font-weight:600;color:#1e293b}
                             .crm-actividad-card-dato{border-radius:5px;padding:5px 8px}
                             @media(max-width:767px){.crm-actividad-card-datos{width:100%;box-sizing:border-box;flex-wrap:wrap}.crm-actividad-card-fecha{flex:1 1 100%;border-right:0;border-bottom:1px solid #d9e3f1;padding:1px 0 7px}}
+                            .crm-calendar-controls{display:flex;align-items:center;gap:6px;width:100%;margin:0;white-space:nowrap;box-sizing:border-box;overflow-x:auto}.crm-calendar-selectors{display:flex;align-items:center;gap:6px;flex:0 0 auto;min-width:0;margin:0}.crm-calendar-controls .btn{height:32px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #dce1e5;border-radius:4px;padding:0 9px;flex:0 0 auto}.crm-calendar-arrow{width:34px!important;padding:0!important}.crm-calendar-clear{min-width:75px;justify-content:center;font-size:12px;font-weight:600}.crm-calendar-selectors select{height:32px;width:auto;max-width:none;padding:4px 8px;font-size:12px;font-weight:600;border:1px solid #dce1e5;border-radius:4px;color:#1e293b;background:#fff;cursor:pointer}.crm-calendar-selectors select:first-of-type{width:130px;flex:0 0 130px}.crm-calendar-selectors select:last-of-type{width:84px;flex:0 0 84px}
                             </style>
                             <table class="cal-compact-grid-mini"><thead><tr><th>Lu</th><th>Ma</th><th>Mi</th><th>Ju</th><th>Vi</th><th>Sá</th><th>Do</th></tr></thead><tbody>
                             <?php $celda=1; $dia=1; echo '<tr>'; while($celda<$cal_primer_dia) { echo '<td class="cal-mini-empty"></td>'; $celda++; } while($dia<=$cal_dias_mes) { if($celda===1) echo '<tr>'; $fecha_celda=sprintf('%04d-%02d-%02d',$cal_anio,$cal_mes,$dia); $estados=isset($eventos_calendario[$dia])?$eventos_calendario[$dia]:array(); $clases=array('cal-mini-day'); if(count($estados)) $clases[]='cal-mini-has-events'; if($fecha_celda===$dia_cal) $clases[]='cal-mini-sel'; if($fecha_celda===$hoy) $clases[]='cal-mini-hoy'; $href=actividades_link_filtro(array('dia'=>$fecha_celda,'cal'=>sprintf('%04d-%02d',$cal_anio,$cal_mes))); $title=count($estados)?implode(', ',array_keys($estados)):'Sin actividades'; $dots=''; $mapa_dots=array('proxima'=>'blue','realizada'=>'green','pasada'=>'gray','cancelada'=>'red'); foreach($mapa_dots as $estado=>$color) { if(isset($estados[$estado])) $dots.='<span class="dot dot-'.$color.'"></span>'; } echo '<td class="'.implode(' ',$clases).'"><a href="'.htmlspecialchars($href,ENT_QUOTES,'UTF-8').'" title="'.htmlspecialchars($title,ENT_QUOTES,'UTF-8').'"><span class="cal-mini-num">'.$dia.'</span><div class="cal-mini-dots">'.$dots.'</div></a></td>'; if($celda===7) { echo '</tr>'; $celda=0; } $dia++; $celda++; } if($celda>1) { while($celda<=7) { echo '<td class="cal-mini-empty"></td>'; $celda++; } echo '</tr>'; } ?>

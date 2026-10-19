@@ -1,6 +1,8 @@
 <?php
 // GeoJSON de eventos de Misiones agrupados por localidad.
 require_once __DIR__.'/../../_init.php';
+require_once BASE_PATH.'/includes/actividades.php';
+require_once __DIR__.'/contexto.php';
 header('Content-Type: application/geo+json; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 
@@ -16,6 +18,8 @@ if(!acceso_puede_ver_mapa_eventos())
 	echo json_encode(array('ok'=>false, 'error'=>'No tenés permiso para consultar el mapa.'));
 	exit();
 }
+$token_origen_general=isset($_GET['origen_general']) && is_string($_GET['origen_general']) ? $_GET['origen_general'] : '';
+$mapa_contexto_general_valido=mapa_interactivo_contexto_general_valido($token_origen_general);
 
 function mapa_interactivo_error($mensaje, $detalle='')
 {
@@ -35,6 +39,12 @@ function mapa_interactivo_parametro_id($nombre, $etiqueta)
 		exit();
 	}
 	return intval($_GET[$nombre]);
+}
+
+function mapa_interactivo_coordenadas_validas($latitud, $longitud)
+{
+	return is_numeric($latitud) && (float)$latitud>=-90 && (float)$latitud<=90
+		&& is_numeric($longitud) && (float)$longitud>=-180 && (float)$longitud<=180;
 }
 
 $id_area=mapa_interactivo_parametro_id('id_area', 'área');
@@ -58,20 +68,35 @@ if(!is_string($activo) || !in_array($activo, array('0', '1', 'todos'), true))
 	exit();
 }
 
-$areas=acceso_consulta("SELECT id_area AS id, nombre FROM area ORDER BY nombre");
-if(!empty($GLOBALS['acceso_ultimo_error'])) { mapa_interactivo_error('No se pudieron cargar las áreas del mapa.', $GLOBALS['acceso_ultimo_error']); }
-$localidades_opciones=acceso_consulta("SELECT l.id_localidad AS id, l.nombre
-	FROM localidad l INNER JOIN provincia p ON p.id_provincia=l.id_provincia
-	WHERE p.nombre='Misiones' ORDER BY l.nombre");
-if(!empty($GLOBALS['acceso_ultimo_error'])) { mapa_interactivo_error('No se pudieron cargar las localidades del mapa.', $GLOBALS['acceso_ultimo_error']); }
-$tipos=acceso_consulta("SELECT DISTINCT ev.tipo
-	FROM evento ev INNER JOIN localidad l ON l.id_localidad=ev.id_localidad
+$opciones_filas=acceso_consulta("SELECT l.id_localidad AS id_localidad, l.nombre AS localidad, l.latitud, l.longitud,
+		ev.tipo, a.id_area AS id_area, a.nombre AS area
+	FROM evento ev
+	INNER JOIN localidad l ON l.id_localidad=ev.id_localidad
 	INNER JOIN provincia p ON p.id_provincia=l.id_provincia
+	LEFT JOIN area a ON a.id_area=ev.id_area
 	WHERE p.nombre='Misiones'
-	ORDER BY ev.tipo");
-if(!empty($GLOBALS['acceso_ultimo_error'])) { mapa_interactivo_error('No se pudieron cargar los tipos de evento.', $GLOBALS['acceso_ultimo_error']); }
+	ORDER BY a.nombre, l.nombre, ev.tipo");
+if(!empty($GLOBALS['acceso_ultimo_error'])) { mapa_interactivo_error('No se pudieron cargar los filtros del mapa.', $GLOBALS['acceso_ultimo_error']); }
+$areas_por_id=array();
+$localidades_por_id=array();
 $tipos_opciones=array();
-foreach($tipos as $fila_tipo) { $tipos_opciones[]=$fila_tipo['tipo']; }
+foreach($opciones_filas as $fila_opcion)
+{
+	if(!mapa_interactivo_coordenadas_validas($fila_opcion['latitud'], $fila_opcion['longitud'])) { continue; }
+	if(isset($fila_opcion['id_area']) && intval($fila_opcion['id_area'])>0)
+	{
+		$areas_por_id[intval($fila_opcion['id_area'])]=array('id'=>intval($fila_opcion['id_area']), 'nombre'=>$fila_opcion['area']);
+	}
+	$localidades_por_id[intval($fila_opcion['id_localidad'])]=array('id'=>intval($fila_opcion['id_localidad']), 'nombre'=>$fila_opcion['localidad']);
+	$tipo_opcion=isset($fila_opcion['tipo']) ? trim($fila_opcion['tipo']) : '';
+	if($tipo_opcion!=='') { $tipos_opciones[$tipo_opcion]=$tipo_opcion; }
+}
+$areas=array_values($areas_por_id);
+$localidades_opciones=array_values($localidades_por_id);
+$tipos_opciones=array_values($tipos_opciones);
+usort($areas, function($a, $b){ return strcasecmp($a['nombre'], $b['nombre']); });
+usort($localidades_opciones, function($a, $b){ return strcasecmp($a['nombre'], $b['nombre']); });
+sort($tipos_opciones, SORT_NATURAL | SORT_FLAG_CASE);
 
 if($id_area>0)
 {
@@ -110,7 +135,7 @@ if($id_localidad>0) { $condiciones[]='ev.id_localidad=?'; $parametros[]=$id_loca
 $where=implode(' AND ', $condiciones);
 
 $filas=acceso_consulta("SELECT l.id_localidad, l.nombre AS localidad, l.latitud, l.longitud,
-		ev.id_evento, ev.titulo, ev.fecha, ev.activo,
+		ev.id_evento, ev.id_empleado, ev.titulo, ev.fecha, ev.activo,
 		a.nombre AS area, a.clave AS area_clave
 	FROM evento ev
 	INNER JOIN localidad l ON l.id_localidad=ev.id_localidad
@@ -130,9 +155,23 @@ foreach($filas as $fila)
 		$localidades[$id]=array('id'=>$id, 'nombre'=>$fila['localidad'], 'latitud'=>$fila['latitud'], 'longitud'=>$fila['longitud'], 'eventos'=>array());
 	}
 	$url='';
-	if(!empty($fila['area_clave']) && preg_match('/^[a-z0-9_-]+$/i', $fila['area_clave']))
+	$area_clave=isset($fila['area_clave']) ? $fila['area_clave'] : '';
+	$evento_autorizacion=array(
+		'id_evento'=>intval($fila['id_evento']),
+		'id_empleado'=>intval(isset($fila['id_empleado']) ? $fila['id_empleado'] : 0),
+		'area_clave'=>$area_clave
+	);
+	if($area_clave!=='' && preg_match('/^[a-z0-9_-]+$/i', $area_clave)
+		&& function_exists('acceso_puede') && acceso_puede($area_clave)
+		&& function_exists('actividad_puede_ver') && actividad_puede_ver($evento_autorizacion))
 	{
-		$url=url_crm($fila['area_clave'].'/actividades.php?id='.intval($fila['id_evento']));
+		$parametros_url=array('id'=>intval($fila['id_evento']));
+		if($mapa_contexto_general_valido)
+		{
+			$parametros_url['contexto']='general';
+			$parametros_url['origen_general']=$token_origen_general;
+		}
+		$url=url_crm($area_clave.'/actividades.php?'.http_build_query($parametros_url));
 	}
 	$localidades[$id]['eventos'][]=array(
 		'id'=>intval($fila['id_evento']), 'titulo'=>$fila['titulo'], 'fecha'=>$fila['fecha'],
@@ -157,9 +196,7 @@ if($id_localidad===0)
 $features=array();
 foreach($localidades as $localidad)
 {
-	$latitud_valida=is_numeric($localidad['latitud']) && (float)$localidad['latitud']>=-90 && (float)$localidad['latitud']<=90;
-	$longitud_valida=is_numeric($localidad['longitud']) && (float)$localidad['longitud']>=-180 && (float)$localidad['longitud']<=180;
-	if(!$latitud_valida || !$longitud_valida)
+	if(!mapa_interactivo_coordenadas_validas($localidad['latitud'], $localidad['longitud']))
 	{
 		$eventos_sin_coordenadas+=count($localidad['eventos']);
 		continue;

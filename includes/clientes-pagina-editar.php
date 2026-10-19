@@ -53,6 +53,21 @@ if($id<=0)
 	exit();
 }
 
+// Autorizar el registro antes de procesar cualquier operación POST.
+$rw=cliente_traer($id);
+if(!$rw || !crm_cliente_puede_ver($id, $area_cli))
+{
+	header("Location: clientes.php");
+	exit();
+}
+$clientes_solo_lectura=crm_cliente_area_solo_lectura($area_cli);
+if($clientes_solo_lectura && isset($_SERVER['REQUEST_METHOD']) && strtoupper($_SERVER['REQUEST_METHOD'])==='POST')
+{
+	http_response_code(403);
+	header('Content-Type: text/plain; charset=UTF-8');
+	exit('Acceso denegado.');
+}
+
 function cliente_area_dato($fila, $clave)
 {
 	return (isset($fila[$clave]) && $fila[$clave]!==null) ? $fila[$clave] : '';
@@ -157,20 +172,25 @@ if(isset($_POST['update']))
 	$_SESSION['msgcliente']=$err;
 }
 
-$rw=cliente_traer($id);
-if(!$rw)
-{
-	header("Location: clientes.php");
-	exit();
-}
-if(!crm_cliente_puede_ver($id, $area_cli))
-{
-	header("Location: clientes.php");
-	exit();
-}
-
 $genero=cliente_area_dato($rw, 'gender');
 $area_sel=cliente_area_dato($rw, 'area_afectada');
+$id_provincia_cliente=intval(cliente_area_dato($rw, 'id_provincia'));
+if($id_provincia_cliente<=0 && intval(cliente_area_dato($rw, 'id_localidad'))>0)
+{
+	$provincia_cliente=acceso_consulta_una("SELECT id_provincia FROM localidad WHERE id_localidad=? LIMIT 1", 'i', array(intval(cliente_area_dato($rw, 'id_localidad'))));
+	$id_provincia_cliente=$provincia_cliente ? intval($provincia_cliente['id_provincia']) : 0;
+}
+$nombre_provincia_cliente='No registrada';
+foreach($provincias as $provincia_item)
+{
+	if(intval($provincia_item['id_provincia'])===$id_provincia_cliente)
+	{
+		$nombre_provincia_cliente=$provincia_item['nombre'];
+		break;
+	}
+}
+$etiquetas_area_cliente=acceso_etiquetas_area();
+$area_cliente_texto=isset($etiquetas_area_cliente[$area_sel]) ? $etiquetas_area_cliente[$area_sel] : $area_sel;
 ?>
 <!DOCTYPE html>
 <html>
@@ -236,11 +256,11 @@ function valid()
                         <p>ESTÁS AQUÍ</p>
                     </li>
                     <li><a href="clientes.php"><?php echo texto_mostrar($nombre_area); ?> / Clientes</a></li>
-                    <li><a href="#" class="active">Editar</a></li>
+                    <li><a href="#" class="active"><?php echo $clientes_solo_lectura ? 'Ficha' : 'Editar'; ?></a></li>
                 </ul>
                 <?php include("menu-seccion.php"); ?>
                 <div class="page-title">
-                    <h3>Editar cliente</h3>
+                    <h3><?php echo $clientes_solo_lectura ? 'Ficha del cliente' : 'Editar cliente'; ?></h3>
                 </div>
 
                 <div class="row">
@@ -250,6 +270,19 @@ function valid()
                             <h4>Datos del cliente</h4>
                         </div>
                         <div class="grid-body no-border">
+                        <?php if($clientes_solo_lectura) { ?>
+                        <dl class="dl-horizontal">
+                            <dt>Tipo</dt><dd><?php echo texto_mostrar(cliente_tipo_etiqueta(cliente_area_dato($rw, 'tipo_cliente'))); ?></dd>
+                            <dt>Nombre completo</dt><dd><?php echo texto_mostrar(cliente_area_dato($rw, 'name')); ?></dd>
+                            <dt>Correo electrónico</dt><dd><?php echo texto_mostrar(cliente_area_dato($rw, 'email')); ?></dd>
+                            <dt>CUIL / CUIT</dt><dd><?php echo texto_mostrar(cliente_area_dato($rw, 'cuil_cuit')); ?></dd>
+                            <dt>Teléfono</dt><dd><?php echo texto_mostrar(cliente_area_dato($rw, 'mobile')); ?></dd>
+                            <dt>Provincia</dt><dd><?php echo texto_mostrar($nombre_provincia_cliente); ?></dd>
+                            <dt>Localidad</dt><dd><?php echo texto_mostrar(cliente_area_dato($rw, 'localidad')); ?></dd>
+                            <dt>Área afectada</dt><dd><?php echo texto_mostrar($area_cliente_texto); ?></dd>
+                            <dt>Dirección</dt><dd><?php echo nl2br(texto_mostrar(cliente_area_dato($rw, 'address'))); ?></dd>
+                        </dl>
+                        <?php } else { ?>
                         <form name="form1" method="post" action="editar-cliente.php?id=<?php echo intval($id); ?>" onSubmit="return valid();">
                         <input type="hidden" name="id_cliente" value="<?php echo intval($id); ?>">
                                 <?php if(isset($_SESSION['msg_cliente_exito']) && $_SESSION['msg_cliente_exito']!='') { ?>
@@ -339,14 +372,18 @@ function valid()
                                     <input type="submit" value="Guardar cambios" name="update" class="btn btn-primary">
                                 </div>
                         </form>
+                        <?php } ?>
                         </div>
                         </div>
 
                         <?php
                         $mostrar_nuevo_turno=false;
+						if(!$clientes_solo_lectura) {
                         include BASE_PATH.'/includes/cliente-seguimiento.php';
+                        }
                         ?>
 
+                        <?php if(!$clientes_solo_lectura) { ?>
                         <div class="grid simple">
                         <div class="grid-title no-border">
                             <h4>Abrir turno en esta área</h4>
@@ -431,6 +468,7 @@ function valid()
                             </form>
                         </div>
                         </div>
+                        <?php } ?>
                         <?php } ?>
                     </div>
                 </div>

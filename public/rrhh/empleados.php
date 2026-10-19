@@ -19,6 +19,10 @@ $bus=crm_empleados_buscar();
 <link href="../assets/css/style.css" rel="stylesheet" type="text/css"/>
 <link href="../assets/css/responsive.css" rel="stylesheet" type="text/css"/>
 <link href="../assets/css/custom-icon-set.css" rel="stylesheet" type="text/css"/>
+<style>
+.rrhh-employees-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+@media(max-width:767px){.rrhh-employees-actions{margin-top:8px}}
+</style>
 </head>
 <body class="">
 <?php crm_header_staff();?>
@@ -37,7 +41,9 @@ $bus=crm_empleados_buscar();
                 <?php include("menu-seccion.php"); ?>
                 <div class="page-title">
                     	<h3>Colaboradores</h3>
-                    	<a href="alta-usuario.php" class="btn btn-primary">Nuevo colaborador</a>
+                        <div class="rrhh-employees-actions">
+                            <a href="alta-usuario.php" class="btn btn-primary">Nuevo colaborador</a>
+                        </div>
                 </div>
                 <p>Buscá por nombre, apellido, DNI, usuario o correo. Filtrá por área y rol.</p>
                 <?php if(isset($_SESSION['msgrrhh']) && $_SESSION['msgrrhh']!='') { ?>
@@ -59,7 +65,7 @@ $bus=crm_empleados_buscar();
                                             <th>DNI</th>
                                             <th>Área</th>
                                             <th>Rol</th>
-                                            <th></th>
+                                            <th>Acciones</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -74,6 +80,7 @@ $bus=crm_empleados_buscar();
                                             <td><?php echo isset($etiquetas[$persona['area']]) ? htmlspecialchars($etiquetas[$persona['area']]) : htmlspecialchars($persona['area']); ?></td>
                                             <td><?php echo htmlspecialchars(acceso_mostrar_rol($persona['rol'])); ?></td>
                                             <td>
+                                                <a href="ficha-empleado.php?id=<?php echo intval($persona['id']); ?>&amp;q=<?php echo rawurlencode($bus['q']); ?>&amp;area=<?php echo rawurlencode($bus['area']); ?>&amp;rol=<?php echo rawurlencode($bus['rol']); ?>&amp;pagina=<?php echo intval($bus['pagina']); ?>" class="btn btn-white btn-xs">Ver ficha</a>
                                                 <a href="editar-empleado.php?usuario=<?php echo urlencode($persona['usuario']); ?>" class="btn btn-primary btn-xs">Modificar</a>
                                             </td>
                                         </tr>

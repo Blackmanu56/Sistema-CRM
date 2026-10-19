@@ -1141,10 +1141,7 @@ function tareas_datos_actualizar($id)
 	{
 		return false;
 	}
-	tareas_bd_ejecutar("UPDATE tarea SET titulo=?, descripcion=?, id_tipo=?, prioridad=?, fecha_inicio=?, fecha_cierre=? WHERE id_tarea=?",
-		'ssisssi', array($titulo, $descripcion, $id_tipo, $prioridad, $fecha_inicio, $fecha_cierre, $id));
-	// Responsables: se reemplazan y se quitan las marcas de inicio de
-	// quienes ya no estan en la lista.
+	// Resolver y validar todos los responsables antes de iniciar la transacción.
 	$ids_nuevos=array();
 	foreach($responsables as $nom)
 	{
@@ -1155,24 +1152,131 @@ function tareas_datos_actualizar($id)
 			{
 				continue;
 			}
-			$ids_nuevos[]=$rid;
+			if(!in_array($rid, $ids_nuevos, true))
+			{
+				$ids_nuevos[]=$rid;
+			}
 		}
 	}
-	tareas_bd_ejecutar("DELETE FROM tarea_responsable WHERE id_tarea=?", 'i', array($id));
-	$primero=true;
-	foreach($ids_nuevos as $rid)
+	if(count($ids_nuevos)==0)
 	{
-		tareas_bd_ejecutar("INSERT INTO tarea_responsable (id_tarea, id_empleado, es_principal) VALUES (?, ?, ?)", 'iii', array($id, $rid, $primero?1:0));
-		$primero=false;
+		return false;
 	}
-	if(count($ids_nuevos)>0)
+	$estado_transaccion=@mysqli_query($con, "SELECT @@in_transaction");
+	if(!$estado_transaccion)
 	{
+		return false;
+	}
+	$fila_transaccion=mysqli_fetch_row($estado_transaccion);
+	@mysqli_free_result($estado_transaccion);
+	if(!$fila_transaccion || intval($fila_transaccion[0])!==0 || !@mysqli_begin_transaction($con))
+	{
+		return false;
+	}
+
+	// Bloquear y revalidar el estado actual para no editar una tarea que haya
+	// terminado o desaparecido desde la validación inicial.
+	$stmt=@mysqli_prepare($con, "SELECT estado FROM tarea WHERE id_tarea=? LIMIT 1 FOR UPDATE");
+	if(!$stmt || !@mysqli_stmt_bind_param($stmt, 'i', $id) || !@mysqli_stmt_execute($stmt))
+	{
+		if($stmt) { @mysqli_stmt_close($stmt); }
+		@mysqli_rollback($con);
+		return false;
+	}
+	$resultado=@mysqli_stmt_get_result($stmt);
+	$fila_tarea=$resultado ? @mysqli_fetch_assoc($resultado) : null;
+	if($resultado) { @mysqli_free_result($resultado); }
+	@mysqli_stmt_close($stmt);
+	if(!$fila_tarea || !isset($fila_tarea['estado']))
+	{
+		@mysqli_rollback($con);
+		return false;
+	}
+	$tarea['estado']=$fila_tarea['estado'];
+	if(!tarea_puede_editar($tarea))
+	{
+		@mysqli_rollback($con);
+		return false;
+	}
+
+	// Leer los responsables actuales dentro de la transacción para conservarlos
+	// sin escrituras innecesarias cuando el formulario no los modificó.
+	$stmt=@mysqli_prepare($con, "SELECT id_empleado, es_principal FROM tarea_responsable WHERE id_tarea=? ORDER BY es_principal DESC, id_empleado ASC FOR UPDATE");
+	if(!$stmt || !@mysqli_stmt_bind_param($stmt, 'i', $id) || !@mysqli_stmt_execute($stmt))
+	{
+		if($stmt) { @mysqli_stmt_close($stmt); }
+		@mysqli_rollback($con);
+		return false;
+	}
+	$resultado=@mysqli_stmt_get_result($stmt);
+	if(!$resultado)
+	{
+		@mysqli_stmt_close($stmt);
+		@mysqli_rollback($con);
+		return false;
+	}
+	$ids_actuales=array();
+	$id_principal_actual=0;
+	while($fila=mysqli_fetch_assoc($resultado))
+	{
+		$id_actual=intval($fila['id_empleado']);
+		$ids_actuales[]=$id_actual;
+		if(intval($fila['es_principal'])===1 && $id_principal_actual===0)
+		{
+			$id_principal_actual=$id_actual;
+		}
+	}
+	@mysqli_free_result($resultado);
+	@mysqli_stmt_close($stmt);
+	if($id_principal_actual===0 && count($ids_actuales)>0)
+	{
+		$id_principal_actual=$ids_actuales[0];
+	}
+
+	// Actualizar la tarea primero; cualquier error posterior revierte también esto.
+	if(!tareas_bd_ejecutar("UPDATE tarea SET titulo=?, descripcion=?, id_tipo=?, prioridad=?, fecha_inicio=?, fecha_cierre=? WHERE id_tarea=?",
+		'ssisssi', array($titulo, $descripcion, $id_tipo, $prioridad, $fecha_inicio, $fecha_cierre, $id)))
+	{
+		@mysqli_rollback($con);
+		return false;
+	}
+
+	$ids_actuales_ordenados=$ids_actuales;
+	$ids_nuevos_ordenados=$ids_nuevos;
+	sort($ids_actuales_ordenados, SORT_NUMERIC);
+	sort($ids_nuevos_ordenados, SORT_NUMERIC);
+	$responsables_sin_cambios=($ids_actuales_ordenados===$ids_nuevos_ordenados && $id_principal_actual===intval($ids_nuevos[0]));
+	if(!$responsables_sin_cambios)
+	{
+		if(!tareas_bd_ejecutar("DELETE FROM tarea_responsable WHERE id_tarea=?", 'i', array($id)))
+		{
+			@mysqli_rollback($con);
+			return false;
+		}
+		$primero=true;
+		foreach($ids_nuevos as $rid)
+		{
+			if(!tareas_bd_ejecutar("INSERT INTO tarea_responsable (id_tarea, id_empleado, es_principal) VALUES (?, ?, ?)", 'iii', array($id, $rid, $primero?1:0)))
+			{
+				@mysqli_rollback($con);
+				return false;
+			}
+			$primero=false;
+		}
+
+		// Quitar inicios solo de quienes dejaron de ser responsables.
 		$in='('.implode(',', array_map('intval', $ids_nuevos)).')';
-		tareas_bd_ejecutar("DELETE FROM tarea_inicio WHERE id_tarea=? AND id_empleado NOT IN ".$in, 'i', array($id));
+		if(!tareas_bd_ejecutar("DELETE FROM tarea_inicio WHERE id_tarea=? AND id_empleado NOT IN ".$in, 'i', array($id)))
+		{
+			@mysqli_rollback($con);
+			return false;
+		}
 	}
-	else
+
+	if(!@mysqli_commit($con))
 	{
-		tareas_bd_ejecutar("DELETE FROM tarea_inicio WHERE id_tarea=?", 'i', array($id));
+		@mysqli_rollback($con);
+		return false;
 	}
 	return true;
 }
@@ -1187,6 +1291,11 @@ function tareas_datos_procesar_accion()
 	}
 	if(isset($_POST['agregar_comentario']) || isset($_POST['agregar_enlace']))
 	{
+		if(!function_exists('crm_tarea_extra_csrf_valido') || !crm_tarea_extra_csrf_valido(isset($_POST['csrf_tarea_extra']) ? $_POST['csrf_tarea_extra'] : ''))
+		{
+			$_SESSION['msgtarea']='La sesión expiró o el formulario no es válido. Actualizá la página e intentá nuevamente.';
+			return false;
+		}
 		return tareas_datos_guardar_extras($id);
 	}
 	if(!isset($_POST['accion_tarea']))

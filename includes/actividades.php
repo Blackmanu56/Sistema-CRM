@@ -739,16 +739,16 @@ function actividades_calendario_controles($anio,$mes)
 	$limpiar=actividades_link_filtro(array('cal'=>date('Y-m'),'dia'=>''));
 	ob_start();
 	?>
-	<div class="crm-act-cal-controles">
-		<a class="btn btn-white btn-xs" href="<?php echo htmlspecialchars(actividades_link_filtro(array('cal'=>$prev,'dia'=>'')),ENT_QUOTES,'UTF-8'); ?>" aria-label="Mes anterior"><i class="fa fa-chevron-left"></i></a>
-		<form method="get" action="<?php echo htmlspecialchars(tareas_link('actividades.php'),ENT_QUOTES,'UTF-8'); ?>" class="crm-act-cal-selectores">
+	<div class="crm-calendar-controls crm-act-cal-controles">
+		<a class="btn btn-white btn-xs crm-calendar-arrow" href="<?php echo htmlspecialchars(actividades_link_filtro(array('cal'=>$prev,'dia'=>'')),ENT_QUOTES,'UTF-8'); ?>" aria-label="Mes anterior"><i class="fa fa-chevron-left"></i></a>
+		<form method="get" action="<?php echo htmlspecialchars(tareas_link('actividades.php'),ENT_QUOTES,'UTF-8'); ?>" class="crm-calendar-selectors crm-act-cal-selectores">
 			<input type="hidden" name="cal" value="<?php echo htmlspecialchars($cal,ENT_QUOTES,'UTF-8'); ?>">
 			<?php foreach(array('q','tipo','estado','area','responsable','desde','hasta','orden') as $clave) { if(isset($_GET[$clave]) && $_GET[$clave]!=='') { ?><input type="hidden" name="<?php echo htmlspecialchars($clave,ENT_QUOTES,'UTF-8'); ?>" value="<?php echo htmlspecialchars($_GET[$clave],ENT_QUOTES,'UTF-8'); ?>"><?php } } ?>
 			<select name="cal_mes" aria-label="Mes del calendario" onchange="var f=this.form;f.elements['cal'].value=f.elements['cal_anio'].value+'-'+('0'+f.elements['cal_mes'].value).slice(-2);f.submit()"><?php foreach($meses as $n=>$nombre) { ?><option value="<?php echo $n; ?>" <?php if($n===$mes) echo 'selected'; ?>><?php echo $nombre; ?></option><?php } ?></select>
 			<select name="cal_anio" aria-label="Año del calendario" onchange="var f=this.form;f.elements['cal'].value=f.elements['cal_anio'].value+'-'+('0'+f.elements['cal_mes'].value).slice(-2);f.submit()"><?php foreach($anios as $y) { ?><option value="<?php echo $y; ?>" <?php if($y===$anio) echo 'selected'; ?>><?php echo $y; ?></option><?php } ?></select>
 		</form>
-		<a class="btn btn-white btn-xs" href="<?php echo htmlspecialchars($limpiar,ENT_QUOTES,'UTF-8'); ?>"><i class="fa fa-refresh"></i> Limpiar</a>
-		<a class="btn btn-white btn-xs" href="<?php echo htmlspecialchars(actividades_link_filtro(array('cal'=>$next,'dia'=>'')),ENT_QUOTES,'UTF-8'); ?>" aria-label="Mes siguiente"><i class="fa fa-chevron-right"></i></a>
+		<a class="btn btn-white btn-xs crm-calendar-clear" href="<?php echo htmlspecialchars($limpiar,ENT_QUOTES,'UTF-8'); ?>"><i class="fa fa-refresh"></i> Limpiar</a>
+		<a class="btn btn-white btn-xs crm-calendar-arrow" href="<?php echo htmlspecialchars(actividades_link_filtro(array('cal'=>$next,'dia'=>'')),ENT_QUOTES,'UTF-8'); ?>" aria-label="Mes siguiente"><i class="fa fa-chevron-right"></i></a>
 	</div>
 	<?php
 	return ob_get_clean();

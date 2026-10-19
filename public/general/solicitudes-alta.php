@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__.'/../_init.php';
 error_reporting(0);
-crm_proteger_staff('general');
+crm_proteger_staff('general', true);
 if(!acceso_es_coord_general() && !acceso_es_super())
 {
 	header('Location: '.acceso_destino_login());

@@ -3,12 +3,11 @@
 if(!isset($menu_activo)) { $menu_activo='tareas'; }
 ?>
  <div class="crm-menu-seccion">
-	<a href="<?php echo tareas_link('tareas.php'); ?>" class="btn <?php echo ($menu_activo=='tareas' ? 'btn-primary' : 'btn-white'); ?>">Tareas</a>
-	<a href="<?php echo tareas_link('actividades.php'); ?>" class="btn <?php echo ($menu_activo=='Actividades' ? 'btn-primary' : 'btn-white'); ?>">Actividades</a>
+	<a href="<?php echo htmlspecialchars(url_crm('vinculaciones/tareas.php'), ENT_QUOTES, 'UTF-8'); ?>" class="btn <?php echo ($menu_activo=='tareas' ? 'btn-primary' : 'btn-white'); ?>">Tareas</a>
+	<a href="<?php echo htmlspecialchars(url_crm('vinculaciones/actividades.php'), ENT_QUOTES, 'UTF-8'); ?>" class="btn <?php echo ($menu_activo=='Actividades' ? 'btn-primary' : 'btn-white'); ?>">Actividades</a>
 	<?php if(acceso_puede_clientes_de_area()) { ?>
-	<a href="<?php echo tareas_link('clientes.php'); ?>" class="btn <?php echo ($menu_activo=='clientes' ? 'btn-primary' : 'btn-white'); ?>">Clientes</a>
-	<a href="<?php echo tareas_link('atenciones.php'); ?>" class="btn <?php echo ($menu_activo=='atenciones' ? 'btn-primary' : 'btn-white'); ?>">Atenciones</a>
+	<a href="<?php echo htmlspecialchars(url_crm('vinculaciones/clientes.php'), ENT_QUOTES, 'UTF-8'); ?>" class="btn <?php echo ($menu_activo=='clientes' ? 'btn-primary' : 'btn-white'); ?>">Clientes</a>
 	<?php } ?>
-	<a href="<?php echo tareas_link('capacitaciones.php'); ?>" class="btn <?php echo ($menu_activo=='Capacitaciones' ? 'btn-primary' : 'btn-white'); ?>">Capacitaciones</a>
-<?php crm_menu_seccion_sala_reuniones(); ?>
+	<a href="<?php echo htmlspecialchars(url_crm('vinculaciones/atenciones.php'), ENT_QUOTES, 'UTF-8'); ?>" class="btn <?php echo ($menu_activo=='atenciones' ? 'btn-primary' : 'btn-white'); ?>">Atenciones</a>
+	<?php crm_menu_seccion_sala_reuniones(); ?>
 </div>

@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__.'/../_init.php';
 error_reporting(0);
-crm_proteger_staff('general');
+crm_proteger_staff('general', true);
 if(!crm_puede_gestionar_programas())
 {
 	header('Location: '.acceso_destino_login());

@@ -7,6 +7,7 @@ if(!acceso_puede_clientes_de_area($area_cli))
 	header('Location: '.acceso_destino_login());
 	exit();
 }
+$clientes_solo_lectura=crm_cliente_area_solo_lectura($area_cli);
 clientes_asegurar_columnas();
 $menu_activo='clientes';
 $etq=acceso_etiquetas_area();
@@ -32,8 +33,48 @@ $txt_ayuda=$es_padron_tipo
 <link href="../assets/css/style.css" rel="stylesheet" type="text/css"/>
 <link href="../assets/css/responsive.css" rel="stylesheet" type="text/css"/>
 <link href="../assets/css/custom-icon-set.css" rel="stylesheet" type="text/css"/>
+<style>
+body.crm-clientes-page .page-title.crm-compact-heading {
+	margin-bottom: 6px !important;
+}
+body.crm-clientes-page .crm-clientes-subtitle {
+	margin: 0 0 9px;
+}
+body.crm-clientes-page form.crm-busqueda {
+	margin-bottom: 10px !important;
+}
+body.crm-clientes-page .crm-clientes-list-row {
+	margin-top: 0;
+}
+body.crm-clientes-page .crm-clientes-list-grid {
+	margin-bottom: 0;
+}
+body.crm-clientes-page .crm-clientes-list-grid > .grid-title {
+	padding-top: 8px;
+	padding-bottom: 8px;
+}
+body.crm-clientes-page .crm-clientes-list-grid > .grid-body > p.muted {
+	margin-top: 0;
+	margin-bottom: 6px;
+}
+body.crm-clientes-page .crm-clientes-list-grid > .grid-body > p:not(.muted) {
+	margin-top: 4px;
+	margin-bottom: 0;
+}
+@media (max-width: 767px) {
+	body.crm-clientes-page .crm-clientes-subtitle {
+		margin-bottom: 8px;
+	}
+	body.crm-clientes-page form.crm-busqueda .form-group {
+		margin-bottom: 7px;
+	}
+	body.crm-clientes-page .crm-clientes-list-grid > .grid-body > p:not(.muted) {
+		margin-bottom: 5px;
+	}
+}
+</style>
 </head>
-<body class="">
+<body class="crm-clientes-page">
 <?php crm_header_staff();?>
 <div class="page-container row">
       <?php crm_menu_staff();?>
@@ -57,15 +98,15 @@ $txt_ayuda=$es_padron_tipo
                 <?php } ?>
                 <div class="page-title crm-compact-heading" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
                     <h3 style="margin:0;">Clientes</h3>
-                    <?php if(function_exists('acceso_puede_alta_cliente') && acceso_puede_alta_cliente($area_cli)) { ?>
+                    <?php if(!$clientes_solo_lectura && function_exists('acceso_puede_alta_cliente') && acceso_puede_alta_cliente($area_cli)) { ?>
                     <a href="<?php echo url_crm($area_cli.'/alta-cliente.php'); ?>" class="btn btn-primary btn-cons" style="margin-bottom:0;"><i class="fa fa-plus"></i> Nuevo cliente</a>
                     <?php } ?>
                 </div>
-                <p><?php echo texto_mostrar($txt_ayuda); ?> Buscá por nombre, DNI, CUIL/CUIT o localidad.</p>
+                <p class="crm-clientes-subtitle"><?php echo texto_mostrar($txt_ayuda); ?> Buscá por nombre, DNI, CUIL/CUIT o localidad.</p>
                 <?php echo crm_html_busqueda_clientes(); ?>
-                <div class="row">
+                <div class="row crm-clientes-list-row">
                     <div class="col-md-12">
-                        <div class="grid simple">
+                        <div class="grid simple crm-clientes-list-grid">
                             <div class="grid-title no-border"><h4>Listado</h4></div>
                             <div class="grid-body no-border">
                                 <?php echo crm_html_paginacion($bus); ?>
@@ -104,7 +145,7 @@ $txt_ayuda=$es_padron_tipo
                                             <td><?php echo texto_mostrar($row['mobile']);?></td>
                                             <td><?php echo texto_mostrar($row['localidad']);?></td>
                                             <td>
-                                                <a href="editar-cliente.php?id=<?php echo intval($row['id']);?>" class="btn btn-primary btn-xs btn-mini">Ver y editar</a>
+                                                <a href="editar-cliente.php?id=<?php echo intval($row['id']);?>" class="btn btn-primary btn-xs btn-mini"><?php echo $clientes_solo_lectura ? 'Ver ficha' : 'Ver y editar'; ?></a>
                                             </td>
                                         </tr>
                                     <?php $cnt++; } ?>

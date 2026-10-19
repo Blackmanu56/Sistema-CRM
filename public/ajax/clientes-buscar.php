@@ -23,6 +23,16 @@ if(!$todas)
 		$area=acceso_area();
 	}
 }
+// La búsqueda global de Sistemas debe respetar la capacidad configurada del área,
+// incluso si se solicita el modo de búsqueda transversal del endpoint.
+$area_usuario=acceso_area();
+if(($area==='sistemas' || ($todas && $area_usuario==='sistemas'))
+	&& (!function_exists('acceso_puede_clientes_de_area') || !acceso_puede_clientes_de_area('sistemas')))
+{
+	http_response_code(403);
+	echo json_encode(array('ok'=>false, 'lista'=>array()));
+	exit();
+}
 // Recepción / general / sistemas / coord: todos los clientes
 if($todas || $area==='recepcion' || $area==='general' || $area==='sistemas' || (function_exists('crm_area_ve_todo') && crm_area_ve_todo($area)))
 {

@@ -1,3 +1,10 @@
+<?php
+require_once BASE_PATH.'/includes/rrhh/fotos.php';
+$left_profile_id=function_exists('crm_id_empleado_sesion') ? crm_id_empleado_sesion() : 0;
+$left_profile_photo_key=$left_profile_id>0 ? crm_rrhh_foto_key_por_empleado($left_profile_id) : '';
+$left_profile_photo_url=($left_profile_photo_key!=='' && crm_rrhh_foto_ruta_por_key($left_profile_photo_key)!=='') ? url_crm('foto-empleado.php?id='.$left_profile_id.'&v='.rawurlencode($left_profile_photo_key)) : asset('img/admin.png');
+$left_profile_url=url_crm('perfil-empleado.php');
+?>
  <!-- BEGIN SIDEBAR -->
  <style>
  .page-sidebar,
@@ -141,11 +148,41 @@
 	border-left-color: transparent !important;
   }
   .fa-user-plus:before { content: "\f007"; }
+ #main-menu .crm-sidebar-map-divider {
+	display: block !important;
+	height: 1px !important;
+	margin: 8px 14px 10px !important;
+	padding: 0 !important;
+	border: 0 !important;
+	list-style: none;
+ }
+ #main-menu .crm-sidebar-map-divider > span {
+	display: block;
+	width: 100%;
+	height: 1px;
+	background: rgba(255, 255, 255, 0.08);
+ }
+ #main-menu .crm-sidebar-group-title {
+	display: block !important;
+	margin: 12px 14px 6px !important;
+	padding: 0 !important;
+	color: #64748b !important;
+	font-size: 10px !important;
+	font-weight: 600 !important;
+	letter-spacing: .7px !important;
+	line-height: 1.4 !important;
+	text-transform: uppercase !important;
+	list-style: none !important;
+ }
  </style>
   <div class="page-sidebar" id="main-menu">
     <div class="page-sidebar-wrapper scrollbar-dynamic" id="main-menu-wrapper">
       <div class="user-info-wrapper">
-        <div class="profile-wrapper" style="border:solid #fff 1px;"> <img src="<?php echo asset('img/admin.png'); ?>"  alt="" data-src="<?php echo asset('img/admin.png'); ?>" data-src-retina="<?php echo asset('img/admin.png'); ?>" width="69" height="69"  /> </div>
+        <div class="profile-wrapper" style="border:solid #fff 1px; border-radius:50%; overflow:hidden;">
+          <a href="<?php echo htmlspecialchars($left_profile_url, ENT_QUOTES, 'UTF-8'); ?>" aria-label="Abrir mi perfil">
+            <img src="<?php echo htmlspecialchars($left_profile_photo_url, ENT_QUOTES, 'UTF-8'); ?>" alt="Fotografía de perfil" data-src="<?php echo htmlspecialchars($left_profile_photo_url, ENT_QUOTES, 'UTF-8'); ?>" data-src-retina="<?php echo htmlspecialchars($left_profile_photo_url, ENT_QUOTES, 'UTF-8'); ?>" width="69" height="69" style="object-fit:cover; border-radius:50%;" />
+          </a>
+        </div>
         <div class="user-info">
           <div class="greeting">Bienvenido</div>
           <div class="username"><?php echo htmlspecialchars(acceso_nombre()); ?></div>
@@ -221,11 +258,67 @@
       <?php
       $crm_cur_script = basename(isset($_SERVER['SCRIPT_NAME']) ? $_SERVER['SCRIPT_NAME'] : '');
       $crm_cur_uri = isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '';
-      $crm_panel_op_activo = ($crm_cur_script === 'home.php')
+      $crm_cur_script_path = str_replace('\\', '/', isset($_SERVER['SCRIPT_NAME']) ? $_SERVER['SCRIPT_NAME'] : '');
+      $crm_route_area = '';
+      if(function_exists('acceso_etiquetas_area')) {
+        foreach(array_keys(acceso_etiquetas_area()) as $crm_area_key) {
+          if(strpos($crm_cur_script_path, '/'.$crm_area_key.'/') !== false) {
+            $crm_route_area = $crm_area_key;
+            break;
+          }
+        }
+      }
+      $crm_mapa_context = (strpos($crm_cur_uri, 'mapa-interactivo') !== false);
+      $crm_operational_route = ($crm_route_area !== '' && !in_array($crm_route_area, array('general', 'admin'), true));
+      $crm_general_route = ($crm_route_area === 'general' && !$crm_mapa_context);
+      $crm_panel_operativo_route = ($crm_cur_script === 'home.php')
         && (strpos($crm_cur_uri, '/admin/home.php') !== false)
-        && function_exists('acceso_es_super') && acceso_es_super()
-        && function_exists('acceso_puede_armar_informes') && acceso_puede_armar_informes();
-      $crm_es_inicio = in_array($crm_cur_script, array('dashboard.php', 'home.php', 'inicio.php'), true) && (strpos($crm_cur_uri, '/general/dashboard.php') === false) && !$crm_panel_op_activo;
+        && (acceso_es_super() || acceso_es_coord_general());
+      require_once BASE_PATH.'/public/general/mapa-interactivo/contexto.php';
+      $crm_contexto_general_actividad = ($crm_cur_script === 'actividades.php'
+        && isset($_GET['contexto']) && $_GET['contexto'] === 'general'
+        && isset($_GET['origen_general'])
+        && mapa_interactivo_contexto_general_valido($_GET['origen_general']));
+      $crm_vista_general_menu = $crm_contexto_general_actividad || $crm_general_route || $crm_panel_operativo_route || ($left_area_act === 'general' && !$crm_operational_route);
+      $crm_sidebar_muestra_mapa = function_exists('acceso_puede_ver_mapa_eventos') && acceso_puede_ver_mapa_eventos();
+      $crm_mapa_href=url_crm('general/mapa-interactivo/index.php');
+      $crm_mapa_token_general=$crm_vista_general_menu ? mapa_interactivo_contexto_general_token() : '';
+      if($crm_mapa_token_general!=='') { $crm_mapa_href.='?origen_general='.urlencode($crm_mapa_token_general); }
+      $crm_panel_op_activo = $crm_panel_operativo_route;
+      require_once BASE_PATH.'/includes/informes-dominios-scope.php';
+      $crm_puede_ver_informe_dominios = crm_informes_dominios_puede_consultar(
+        $left_area_act,
+        acceso_es_super() || acceso_es_coord_general(),
+        function_exists('acceso_puede') && acceso_puede('sistemas')
+      );
+      $crm_puede_ver_informe_comercio = $left_area_act === 'comercio'
+        && (acceso_es_super() || acceso_es_coord_general() || (function_exists('acceso_puede') && acceso_puede('comercio')));
+      $crm_puede_ver_informe_emprendedores = $left_area_act === 'emprendedores'
+        && function_exists('acceso_puede') && acceso_puede('emprendedores');
+      $crm_puede_ver_informe_empresas = $left_area_act === 'empresas'
+        && function_exists('acceso_puede') && acceso_puede('empresas');
+      $crm_puede_ver_informe_marketing = $left_area_act === 'marketing'
+        && function_exists('acceso_puede') && acceso_puede('marketing');
+      $crm_puede_ver_informe_vinculaciones = $left_area_act === 'vinculaciones'
+        && function_exists('acceso_puede') && acceso_puede('vinculaciones');
+      $crm_puede_ver_informe_administracion = $left_area_act === 'administracion'
+        && function_exists('acceso_puede') && acceso_puede('administracion');
+      $crm_puede_ver_informe_general_area = $left_area_act === 'general'
+        && function_exists('acceso_puede') && acceso_puede('general');
+      $crm_puede_ver_informe_recepcion = $left_area_act === 'recepcion'
+        && function_exists('acceso_puede') && acceso_puede('recepcion');
+      $crm_puede_ver_informes = (function_exists('acceso_puede_ver_informe_colaboradores') && acceso_puede_ver_informe_colaboradores())
+        || (function_exists('acceso_puede_ver_informes') && acceso_puede_ver_informes())
+        || $crm_puede_ver_informe_dominios
+        || $crm_puede_ver_informe_comercio
+        || $crm_puede_ver_informe_emprendedores
+        || $crm_puede_ver_informe_empresas
+        || $crm_puede_ver_informe_marketing
+        || $crm_puede_ver_informe_vinculaciones
+        || $crm_puede_ver_informe_administracion
+        || $crm_puede_ver_informe_general_area
+        || $crm_puede_ver_informe_recepcion;
+      $crm_es_inicio = in_array($crm_cur_script, array('dashboard.php', 'home.php', 'inicio.php'), true) && !$crm_panel_op_activo;
       $dash_href=function_exists('crm_dashboard_destino') ? crm_dashboard_destino() : url_crm('admin/home.php');
       // ¿El bloque de área de abajo imprime su propio "Clientes"? Si lo imprime (y el archivo existe),
       // no repetir el "Clientes" global del super (manage-users.php).
@@ -250,77 +343,89 @@
       ?>
       <li class="start <?php echo $crm_es_inicio ? 'active' : ''; ?>"> <a href="<?php echo $dash_href; ?>"> <i class="icon-custom-home"></i> <span class="title">Inicio</span>  </a>
 		    </li>
-      <?php if(acceso_es_presidencia()) { ?>
-      <li class="<?php echo ($crm_cur_script === 'informes-presidencia.php') ? 'active' : ''; ?>"> <a href="<?php echo url_crm('admin/informes-presidencia.php'); ?>"> <i class="fa fa-file-text-o"></i> <span class="title">Informes</span>  </a>
-		    </li>
-      <?php } elseif(function_exists('acceso_puede_armar_informes') && acceso_puede_armar_informes()) { ?>
-      <li class="<?php echo ($crm_cur_script === 'informes-presidencia.php') ? 'active' : ''; ?>"> <a href="<?php echo url_crm('admin/informes-presidencia.php'); ?>"> <i class="fa fa-file-text-o"></i> <span class="title">Informes Presidencia</span>  </a>
-		    </li>
-      <?php if(acceso_es_super()) { ?>
-      <li class="<?php echo $crm_panel_op_activo ? 'active' : ''; ?>"> <a href="<?php echo url_crm('admin/home.php'); ?>"> <i class="fa fa-bar-chart-o"></i> <span class="title">Panel operativo</span>  </a>
-		    </li>
+      <?php if($crm_sidebar_muestra_mapa) { ?>
+      <li class="<?php echo (strpos($crm_cur_uri, 'mapa-interactivo') !== false) ? 'active' : ''; ?>"><a href="<?php echo htmlspecialchars($crm_mapa_href, ENT_QUOTES, 'UTF-8'); ?>"><span class="fa fa-map-marker"></span>&nbsp;&nbsp;Mapa de eventos</a></li>
       <?php } ?>
+      <?php if(function_exists('crm_es_staff') && crm_es_staff()) { ?>
+      <li class="<?php echo ($crm_cur_script === 'calendario-institucional.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('calendario-institucional.php'); ?>"><span class="fa fa-calendar"></span>&nbsp;&nbsp;Calendario Institucional</a></li>
       <?php } ?>
-      <?php if(acceso_es_super() && !$crm_area_muestra_clientes) { ?>
-      <li class="<?php echo ($crm_cur_script === 'manage-users.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('admin/manage-users.php'); ?>"><span class="fa fa-users"></span> Clientes</a></li>
-      <?php } ?>
-      <?php if(acceso_puede('general') && (acceso_es_coord_general() || acceso_es_super())) { ?>
-      <li class="<?php echo ($crm_cur_script === 'dashboard.php' && strpos($crm_cur_uri, '/general/dashboard.php') !== false) ? 'active' : ''; ?>"><a href="<?php echo url_crm('general/dashboard.php'); ?>"><span class="fa fa-sitemap"></span>&nbsp;&nbsp;Coordinación general</a></li>
-      <?php } ?>
-      <?php if(function_exists('acceso_puede_ver_mapa_eventos') && acceso_puede_ver_mapa_eventos()) { ?>
-      <li class="<?php echo (strpos($crm_cur_uri, 'mapa-interactivo') !== false) ? 'active' : ''; ?>"><a href="<?php echo url_crm('general/mapa-interactivo/index.php'); ?>"><span class="fa fa-map-marker"></span>&nbsp;&nbsp;Mapa de eventos</a></li>
-      <?php } ?>
-       <li class="<?php echo ($crm_cur_script === 'salas-reuniones.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('salas-reuniones.php'); ?>"><span class="fa fa-calendar"></span>&nbsp;&nbsp;Sala de reuniones</a></li>
-
+      <li class="crm-sidebar-map-divider" aria-hidden="true"><span></span></li>
+      <li class="crm-sidebar-group-title" aria-hidden="true">GESTIÓN</li>
       <?php
-      if($left_area_act !== '' && $left_area_act !== 'general' && $left_area_act !== 'admin') {
+      if(!$crm_vista_general_menu && $left_area_act !== '' && $left_area_act !== 'general' && $left_area_act !== 'admin') {
       ?>
-      <li class="crm-sidebar-separator" style="margin: 8px 14px 10px 14px; border-top: 1px solid rgba(255, 255, 255, 0.08); list-style: none;"></li>
       <?php if(is_file(BASE_PATH.'/public/'.$left_area_act.'/tareas.php')) { ?>
       <li class="<?php echo in_array($crm_cur_script, array('tareas.php','nueva-tarea.php','ver-tarea.php','editar-tarea.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm($left_area_act.'/tareas.php'); ?>"><span class="fa fa-check-square-o"></span>&nbsp;&nbsp;Tareas</a></li>
       <?php } ?>
       <?php if(is_file(BASE_PATH.'/public/'.$left_area_act.'/actividades.php')) { ?>
       <li class="<?php echo in_array($crm_cur_script, array('actividades.php','nueva-actividad.php','editar-actividad.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm($left_area_act.'/actividades.php'); ?>"><span class="fa fa-calendar"></span>&nbsp;&nbsp;Actividades</a></li>
       <?php } ?>
-      <?php if($left_area_act === 'recepcion') { ?>
-      <li class="<?php echo in_array($crm_cur_script, array('atenciones.php','nueva-atencion.php','atencion.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm('recepcion/atenciones.php'); ?>"><span class="fa fa-clock-o"></span>&nbsp;&nbsp;Atenciones</a></li>
-      <li class="<?php echo in_array($crm_cur_script, array('clientes.php','alta-cliente.php','editar-cliente.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm('recepcion/clientes.php'); ?>"><span class="fa fa-users"></span>&nbsp;&nbsp;Clientes</a></li>
-      <?php } elseif($left_area_act === 'rrhh') { ?>
-      <?php if(acceso_puede_gestionar('rrhh')) { ?>
-      <li class="<?php echo in_array($crm_cur_script, array('empleados.php','editar-empleado.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm('rrhh/empleados.php'); ?>"><span class="fa fa-users"></span>&nbsp;&nbsp;Colaboradores</a></li>
+      <?php if($left_area_act === 'rrhh' && acceso_puede_gestionar('rrhh')) { ?>
       <li class="<?php echo ($crm_cur_script === 'alta-usuario.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('rrhh/alta-usuario.php'); ?>"><span class="fa fa-user"></span>&nbsp;&nbsp;Alta de colaborador</a></li>
+      <li class="<?php echo in_array($crm_cur_script, array('empleados.php','editar-empleado.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm('rrhh/empleados.php'); ?>"><span class="fa fa-users"></span>&nbsp;&nbsp;Colaboradores</a></li>
       <?php } ?>
-      <?php if(acceso_puede_clientes_de_area('rrhh')) { ?>
-      <li class="<?php echo in_array($crm_cur_script, array('clientes.php','alta-cliente.php','editar-cliente.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm('rrhh/clientes.php'); ?>"><span class="fa fa-users"></span>&nbsp;&nbsp;Clientes</a></li>
-      <?php } ?>
-      <?php if(area_capacidad('rrhh', 'recibe_turnos')) { ?>
-      <li class="<?php echo in_array($crm_cur_script, array('atenciones.php','nueva-atencion.php','atencion.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm('rrhh/atenciones.php'); ?>"><span class="fa fa-clock-o"></span>&nbsp;&nbsp;Atenciones</a></li>
-      <?php } ?>
-      <?php } elseif($left_area_act === 'sistemas') { ?>
-      <li class="<?php echo ($crm_cur_script === 'dominios.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('sistemas/dominios.php'); ?>"><span class="fa fa-globe"></span>&nbsp;&nbsp;Dominios</a></li>
-      <?php if(acceso_puede_gestionar('sistemas')) { ?>
+      <?php if($left_area_act === 'sistemas' && crm_puede_gestionar_programas()) { ?>
       <li class="<?php echo ($crm_cur_script === 'programas.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('sistemas/programas.php'); ?>"><span class="fa fa-th-large"></span>&nbsp;&nbsp;Programas</a></li>
-      <li class="<?php echo ($crm_cur_script === 'accesos.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('sistemas/accesos.php'); ?>"><span class="fa fa-key"></span>&nbsp;&nbsp;Accesos</a></li>
-      <li class="<?php echo ($crm_cur_script === 'permisos.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('sistemas/permisos.php'); ?>"><span class="fa fa-shield"></span>&nbsp;&nbsp;Permisos</a></li>
-      <li class="<?php echo ($crm_cur_script === 'ajustes.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('sistemas/ajustes.php'); ?>"><span class="fa fa-sliders"></span>&nbsp;&nbsp;Ajustes</a></li>
       <?php } ?>
-      <?php if(acceso_puede_clientes_de_area('sistemas')) { ?>
+      <?php if(acceso_es_super() && !$crm_area_muestra_clientes) { ?>
+      <li class="<?php echo ($crm_cur_script === 'manage-users.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('admin/manage-users.php'); ?>"><span class="fa fa-users"></span>&nbsp;&nbsp;Clientes</a></li>
+      <?php } elseif($left_area_act === 'recepcion' && acceso_puede_clientes_de_area('recepcion')) { ?>
+      <li class="<?php echo in_array($crm_cur_script, array('clientes.php','alta-cliente.php','editar-cliente.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm('recepcion/clientes.php'); ?>"><span class="fa fa-users"></span>&nbsp;&nbsp;Clientes</a></li>
+      <?php } elseif($left_area_act === 'rrhh' && acceso_puede_clientes_de_area('rrhh')) { ?>
+      <li class="<?php echo in_array($crm_cur_script, array('clientes.php','alta-cliente.php','editar-cliente.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm('rrhh/clientes.php'); ?>"><span class="fa fa-users"></span>&nbsp;&nbsp;Clientes</a></li>
+      <?php } elseif($left_area_act === 'sistemas' && acceso_puede_clientes_de_area('sistemas')) { ?>
       <li class="<?php echo in_array($crm_cur_script, array('clientes.php','alta-cliente.php','editar-cliente.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm('sistemas/clientes.php'); ?>"><span class="fa fa-users"></span>&nbsp;&nbsp;Clientes</a></li>
-      <?php } ?>
-      <?php } elseif($left_area_act === 'vinculaciones') { ?>
-      <li class="<?php echo in_array($crm_cur_script, array('clientes.php','alta-cliente.php','editar-cliente.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm('vinculaciones/clientes.php'); ?>"><span class="fa fa-users"></span>&nbsp;&nbsp;Clientes</a></li>
-      <li class="<?php echo in_array($crm_cur_script, array('atenciones.php','nueva-atencion.php','atencion.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm('vinculaciones/atenciones.php'); ?>"><span class="fa fa-clock-o"></span>&nbsp;&nbsp;Atenciones</a></li>
-      <li class="<?php echo in_array($crm_cur_script, array('capacitaciones.php','nueva-capacitacion.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm('vinculaciones/capacitaciones.php'); ?>"><span class="fa fa-graduation-cap"></span>&nbsp;&nbsp;Capacitaciones</a></li>
-      <?php } elseif(in_array($left_area_act, array('comercio','emprendedores','empresas','marketing','analista'), true)) { ?>
+      <?php } elseif(($left_area_act === 'vinculaciones' || in_array($left_area_act, array('comercio','emprendedores','empresas','marketing','analista'), true)) && acceso_puede_clientes_de_area($left_area_act)) { ?>
       <li class="<?php echo in_array($crm_cur_script, array('clientes.php','alta-cliente.php','editar-cliente.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm($left_area_act.'/clientes.php'); ?>"><span class="fa fa-users"></span>&nbsp;&nbsp;Clientes</a></li>
-      <li class="<?php echo in_array($crm_cur_script, array('atenciones.php','nueva-atencion.php','atencion.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm($left_area_act.'/atenciones.php'); ?>"><span class="fa fa-clock-o"></span>&nbsp;&nbsp;Atenciones</a></li>
-      <?php } elseif($left_area_act === 'administracion') { ?>
-      <li class="<?php echo in_array($crm_cur_script, array('atenciones.php','nueva-atencion.php','atencion.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm('administracion/atenciones.php'); ?>"><span class="fa fa-clock-o"></span>&nbsp;&nbsp;Atenciones</a></li>
-      <?php if(acceso_puede_clientes_de_area('administracion')) { ?>
+      <?php } elseif($left_area_act === 'administracion' && acceso_puede_clientes_de_area('administracion')) { ?>
       <li class="<?php echo in_array($crm_cur_script, array('clientes.php','alta-cliente.php','editar-cliente.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm('administracion/clientes.php'); ?>"><span class="fa fa-users"></span>&nbsp;&nbsp;Clientes</a></li>
-      <?php } ?>
       <?php } elseif(acceso_puede_clientes_de_area($left_area_act) && is_file(BASE_PATH.'/public/'.$left_area_act.'/clientes.php')) { ?>
       <li class="<?php echo in_array($crm_cur_script, array('clientes.php','alta-cliente.php','editar-cliente.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm($left_area_act.'/clientes.php'); ?>"><span class="fa fa-users"></span>&nbsp;&nbsp;Clientes</a></li>
       <?php } ?>
+      <?php if(($left_area_act === 'recepcion' || $left_area_act === 'vinculaciones' || in_array($left_area_act, array('comercio','emprendedores','empresas','marketing','analista','administracion'), true) || $left_area_act === 'sistemas') && (acceso_puede_clientes_de_area($left_area_act) || crm_area_ve_todo($left_area_act) || acceso_puede($left_area_act))) { ?>
+      <li class="<?php echo in_array($crm_cur_script, array('atenciones.php','nueva-atencion.php','atencion.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm($left_area_act.'/atenciones.php'); ?>"><span class="fa fa-clock-o"></span>&nbsp;&nbsp;Atenciones</a></li>
+      <?php } elseif($left_area_act === 'rrhh' && area_capacidad('rrhh', 'recibe_turnos')) { ?>
+      <li class="<?php echo in_array($crm_cur_script, array('atenciones.php','nueva-atencion.php','atencion.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm('rrhh/atenciones.php'); ?>"><span class="fa fa-clock-o"></span>&nbsp;&nbsp;Atenciones</a></li>
+      <?php } ?>
+      <?php if($left_area_act === 'sistemas') { ?>
+      <li class="<?php echo ($crm_cur_script === 'dominios.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('sistemas/dominios.php'); ?>"><span class="fa fa-globe"></span>&nbsp;&nbsp;Dominios</a></li>
+      <?php } ?>
+      <?php if(acceso_puede_salas_reuniones()) { ?><li class="<?php echo ($crm_cur_script === 'salas-reuniones.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('salas-reuniones.php'); ?>"><span class="fa fa-calendar"></span>&nbsp;&nbsp;Sala de reuniones</a></li><?php } ?>
+      <?php if($left_area_act === 'sistemas' && acceso_puede_gestionar('sistemas')) { ?>
+      <li class="<?php echo ($crm_cur_script === 'accesos.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('sistemas/accesos.php'); ?>"><span class="fa fa-key"></span>&nbsp;&nbsp;Accesos</a></li>
+      <li class="<?php echo ($crm_cur_script === 'permisos.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('sistemas/permisos.php'); ?>"><span class="fa fa-shield"></span>&nbsp;&nbsp;Permisos</a></li>
+      <li class="<?php echo ($crm_cur_script === 'areas.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('sistemas/areas.php'); ?>"><span class="fa fa-sitemap"></span>&nbsp;&nbsp;Áreas</a></li>
+      <?php } ?>
+      <?php if($left_area_act === 'sistemas' && acceso_puede_gestionar('sistemas')) { ?>
+      <li class="<?php echo ($crm_cur_script === 'ajustes.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('sistemas/ajustes.php'); ?>"><span class="fa fa-sliders"></span>&nbsp;&nbsp;Ajustes</a></li>
+      <?php } ?>
+      <?php } ?>
+      <?php if($crm_vista_general_menu && acceso_puede('general') && (acceso_es_super() || acceso_es_coord_general())) { ?>
+      <li class="<?php echo in_array($crm_cur_script, array('tareas.php','nueva-tarea.php','ver-tarea.php','editar-tarea.php'), true) && strpos($crm_cur_uri, '/general/') !== false ? 'active' : ''; ?>"><a href="<?php echo url_crm('general/tareas.php'); ?>"><span class="fa fa-check-square-o"></span>&nbsp;&nbsp;Tareas</a></li>
+      <li class="<?php echo in_array($crm_cur_script, array('actividades.php','nueva-actividad.php','editar-actividad.php'), true) && (strpos($crm_cur_uri, '/general/') !== false || $crm_contexto_general_actividad) ? 'active' : ''; ?>"><a href="<?php echo url_crm('general/actividades.php'); ?>"><span class="fa fa-calendar"></span>&nbsp;&nbsp;Actividades</a></li>
+      <?php if(acceso_es_coord_general() || acceso_es_super()) { ?>
+      <li class="<?php echo in_array($crm_cur_script, array('provincias.php','localidades.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm('general/provincias.php'); ?>"><span class="fa fa-globe"></span>&nbsp;&nbsp;Provincias y localidades</a></li>
+      <?php } ?>
+      <?php if(crm_puede_gestionar_programas()) { ?>
+      <li class="<?php echo ($crm_cur_script === 'programas.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('general/programas.php'); ?>"><span class="fa fa-th-large"></span>&nbsp;&nbsp;Programas</a></li>
+      <?php } ?>
+      <?php if(acceso_es_coord_general() || acceso_es_super()) { ?>
+      <li class="<?php echo ($crm_cur_script === 'turnos-config.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('general/turnos-config.php'); ?>"><span class="fa fa-clock-o"></span>&nbsp;&nbsp;Agenda de atenciones</a></li>
+      <li class="<?php echo ($crm_cur_script === 'solicitudes-alta.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('general/solicitudes-alta.php'); ?>"><span class="fa fa-user-plus"></span>&nbsp;&nbsp;Solicitudes de alta</a></li>
+      <?php } ?>
+      <?php if(acceso_puede_salas_reuniones()) { ?><li class="<?php echo ($crm_cur_script === 'salas-reuniones.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('salas-reuniones.php'); ?>"><span class="fa fa-calendar"></span>&nbsp;&nbsp;Sala de reuniones</a></li><?php } ?>
+      <?php if(acceso_es_super() || acceso_es_coord_general()) { ?>
+      <li class="<?php echo $crm_panel_op_activo ? 'active' : ''; ?>"><a href="<?php echo url_crm('admin/home.php'); ?>"><span class="fa fa-bar-chart-o"></span>&nbsp;&nbsp;Panel operativo</a></li>
+      <?php } ?>
+      <?php } elseif(!$crm_vista_general_menu && ($left_area_act === '' || $left_area_act === 'admin')) { ?>
+      <?php if(acceso_es_super() && !$crm_area_muestra_clientes) { ?>
+      <li class="<?php echo ($crm_cur_script === 'manage-users.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('admin/manage-users.php'); ?>"><span class="fa fa-users"></span> Clientes</a></li>
+      <?php } ?>
+      <?php if(acceso_puede_salas_reuniones()) { ?><li class="<?php echo ($crm_cur_script === 'salas-reuniones.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('salas-reuniones.php'); ?>"><span class="fa fa-calendar"></span>&nbsp;&nbsp;Sala de reuniones</a></li><?php } ?>
+      <?php } ?>
+      <li class="crm-sidebar-map-divider" aria-hidden="true"><span></span></li>
+      <li class="crm-sidebar-group-title" aria-hidden="true">INFORMES</li>
+      <?php if($crm_puede_ver_informes) { ?>
+      <li class="<?php echo in_array($crm_cur_script, array('informes.php','informes-presidencia.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm('informes.php'); ?>"><i class="fa fa-file-text-o"></i> <span class="title">Informes</span></a></li>
       <?php } ?>
     </ul>

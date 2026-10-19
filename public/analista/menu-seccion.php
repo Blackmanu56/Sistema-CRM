@@ -7,6 +7,8 @@ if(!isset($menu_activo)) { $menu_activo='tareas'; }
 	<a href="<?php echo tareas_link('actividades.php'); ?>" class="btn <?php echo ($menu_activo=='Actividades' ? 'btn-primary' : 'btn-white'); ?>">Actividades</a>
 	<?php if(acceso_puede_clientes_de_area()) { ?>
 	<a href="<?php echo tareas_link('clientes.php'); ?>" class="btn <?php echo ($menu_activo=='clientes' ? 'btn-primary' : 'btn-white'); ?>">Clientes</a>
+	<?php } ?>
+	<?php if(acceso_puede_clientes_de_area('analista') || crm_area_ve_todo('analista') || acceso_puede('analista')) { ?>
 	<a href="<?php echo tareas_link('atenciones.php'); ?>" class="btn <?php echo ($menu_activo=='atenciones' ? 'btn-primary' : 'btn-white'); ?>">Atenciones</a>
 	<?php } ?>
 <?php crm_menu_seccion_sala_reuniones(); ?>

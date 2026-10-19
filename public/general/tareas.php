@@ -1,7 +1,7 @@
 ﻿<?php
 require_once __DIR__.'/../_init.php';
 error_reporting(0);
-crm_proteger_staff('general');
+crm_proteger_staff('general', true);
 
 include("datos-tareas.php");
 tareas_iniciar_contexto();
@@ -50,7 +50,7 @@ $hoy=date('Y-m-d');
 <link href="../assets/css/responsive.css" rel="stylesheet" type="text/css"/>
 <link href="../assets/css/custom-icon-set.css" rel="stylesheet" type="text/css"/>
 </head>
-<body class="">
+<body class="crm-tareas-page">
 <?php crm_header_staff();?>
 <div class="page-container row">
       <?php crm_menu_staff();?>
@@ -122,7 +122,7 @@ $hoy=date('Y-m-d');
                 </div>
 
                 <!-- Filtros de la lista. Al cambiar uno se recarga la pagina. -->
-                <div class="grid simple">
+                <div class="grid simple crm-tareas-filter-panel">
                     <div class="grid-body">
                         <form method="get" action="tareas.php" class="form-inline crm-tareas-filtros"><?php echo crm_tareas_filtros_campos_html($cal,$dia_cal); ?></form>
                     </div>

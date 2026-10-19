@@ -412,6 +412,7 @@ $pide_iniciar_al_avance=(!$eliminada && $yo_ses!='' && tarea_puede_cambiar_estad
                         <form method="post" action="<?php echo texto_mostrar($ver_url); ?>" class="crm-avance-form" style="margin:16px 0 24px;" onSubmit="return tareaAvanceOk();">
                             <input type="hidden" name="id_tarea" value="<?php echo $id_tar; ?>">
                             <input type="hidden" name="agregar_avance" value="1">
+                            <input type="hidden" name="csrf_tarea_extra" value="<?php echo texto_mostrar($csrf_extra_tarea); ?>">
                             <div class="crm-avance-form-row">
                                 <div class="form-group">
                                     <label>Comentario</label>

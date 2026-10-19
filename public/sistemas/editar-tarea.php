@@ -21,7 +21,11 @@ $tarea=tareas_aplicar_carga_tipo($tarea);
 // La edicion la guardan las funciones de acceso.php sobre la tabla tarea.
 if(isset($_POST['guardar']))
 {
-	tareas_actualizar_desde_form($id);
+	$guardado=tareas_actualizar_desde_form($id);
+	if(!$guardado && (!isset($_SESSION['msgtarea']) || trim((string)$_SESSION['msgtarea'])===''))
+	{
+		$_SESSION['msgtarea']='No se pudieron guardar los cambios. No se aplicaron modificaciones. Revisá los datos e intentá nuevamente.';
+	}
 	header("Location: ".tareas_link('ver-tarea.php', array('id'=>$id)));
 	exit();
 }

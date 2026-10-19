@@ -340,6 +340,256 @@ $bajas_pend=function_exists('crm_tarea_bajas_pendientes_mias') ? crm_tarea_bajas
 <link href="../assets/css/style.css" rel="stylesheet" type="text/css"/>
 <link href="../assets/css/responsive.css" rel="stylesheet" type="text/css"/>
 <link href="../assets/css/custom-icon-set.css" rel="stylesheet" type="text/css"/>
+<style>
+.crm-dash-panels {
+	display: flex;
+	flex-wrap: wrap;
+	margin-left: -10px;
+	margin-right: -10px;
+}
+.crm-dash-panels > [class*="col-"] {
+	display: flex;
+	padding-left: 10px;
+	padding-right: 10px;
+}
+.crm-dash-panels .crm-dashboard-panel {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	width: 100%;
+}
+.crm-dash-panels .crm-dashboard-panel .grid-body {
+	flex: 1 1 auto;
+}
+.crm-dashboard-panel {
+	margin-bottom: 18px;
+	border: 1px solid #e2e8f0 !important;
+	border-top: 3px solid var(--crm-panel-accent, #cbd5e1) !important;
+	border-radius: 10px !important;
+	box-shadow: 0 5px 16px rgba(15, 23, 42, .055);
+	overflow: hidden;
+}
+.crm-dashboard-panel .grid-title {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 13px 16px;
+	border-bottom: 1px solid #e8edf2;
+	background: linear-gradient(180deg, #ffffff 0%, #f9fbfd 100%);
+}
+.crm-dashboard-panel .grid-title h4 {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	min-width: 0;
+	margin: 0;
+	color: #334155;
+	font-size: 15px;
+	font-weight: 600;
+	line-height: 1.4;
+}
+.crm-dashboard-panel .crm-dashboard-panel-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 32px;
+	width: 32px;
+	height: 32px;
+	border-radius: 9px;
+	background: var(--crm-panel-tint, #eff6ff);
+	color: var(--crm-panel-accent, #2563eb);
+	font-size: 14px;
+}
+.crm-dashboard-panel--appointments { --crm-panel-accent: #0284c7; --crm-panel-tint: #e0f2fe; }
+.crm-dashboard-panel--today { --crm-panel-accent: #7c3aed; --crm-panel-tint: #f3e8ff; }
+.crm-dashboard-panel--overdue { --crm-panel-accent: #dc2626; --crm-panel-tint: #fee2e2; }
+.crm-dashboard-panel--progress { --crm-panel-accent: #059669; --crm-panel-tint: #d1fae5; }
+.crm-dashboard-panel--notices { --crm-panel-accent: #d97706; --crm-panel-tint: #fef3c7; }
+.crm-dashboard-panel--status { --crm-panel-accent: #475569; --crm-panel-tint: #e2e8f0; }
+.crm-dashboard-panel .grid-title h4 > span:last-child {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.crm-dashboard-panel-count {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 28px;
+	height: 24px;
+	padding: 0 8px;
+	border: 1px solid var(--crm-panel-tint, #e2e8f0);
+	border-radius: 999px;
+	background: var(--crm-panel-tint, #f1f5f9);
+	color: var(--crm-panel-accent, #475569);
+	font-size: 12px;
+	font-weight: 700;
+	line-height: 1;
+}
+.crm-dashboard-panel .grid-body {
+	padding: 14px 16px 15px;
+}
+.crm-dashboard-panel .crm-dashboard-item {
+	margin: 0 0 8px;
+	padding: 10px 12px;
+	border: 1px solid #e8edf3;
+	border-left: 3px solid var(--crm-panel-accent, #cbd5e1);
+	border-radius: 8px;
+	background: #fbfcfe;
+	color: #475569;
+	line-height: 1.4;
+}
+.crm-dashboard-panel .crm-dashboard-item-link {
+	position: relative;
+	display: block;
+	padding-right: 36px;
+	color: inherit;
+	text-decoration: none !important;
+	transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease;
+}
+.crm-dashboard-panel .crm-dashboard-item-link .crm-dashboard-item-title {
+	color: #1e3a5f;
+	font-weight: 600;
+}
+.crm-dashboard-panel .crm-dashboard-item-link:hover {
+	border-color: var(--crm-panel-accent, #94a3b8);
+	background: #fff;
+	box-shadow: 0 2px 7px rgba(15, 23, 42, .08);
+}
+.crm-dashboard-panel .crm-dashboard-item-link:focus-visible {
+	outline: 3px solid rgba(37, 99, 235, .35);
+	outline-offset: 2px;
+}
+.crm-dashboard-panel .crm-dashboard-item-arrow {
+	position: absolute;
+	right: 13px;
+	top: 50%;
+	color: var(--crm-panel-accent, #64748b);
+	transform: translateY(-50%);
+}
+.crm-dashboard-panel .crm-dashboard-list .crm-dashboard-item:last-child {
+	margin-bottom: 0;
+}
+.crm-dashboard-panel .crm-dashboard-item a:not(.btn) {
+	font-weight: 600;
+	color: #1e3a5f;
+}
+.crm-dashboard-panel .crm-dashboard-item-main,
+.crm-dashboard-panel .crm-dashboard-item-meta {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px 12px;
+}
+.crm-dashboard-panel .crm-dashboard-item-main {
+	min-width: 0;
+}
+.crm-dashboard-panel .crm-dashboard-item-title {
+	min-width: 0;
+	overflow-wrap: anywhere;
+	color: #1e3a5f;
+	font-weight: 600;
+}
+.crm-dashboard-panel .crm-dashboard-item-meta {
+	justify-content: flex-start;
+	flex-wrap: wrap;
+	margin-top: 5px;
+	color: #64748b;
+	font-size: 12px;
+}
+.crm-dashboard-panel .crm-dashboard-item-meta i {
+	margin-right: 4px;
+	color: #94a3b8;
+}
+.crm-dashboard-panel .crm-dashboard-item-status {
+	display: inline-flex;
+	align-items: center;
+	flex: 0 0 auto;
+	padding: 3px 8px;
+	border-radius: 999px;
+	background: var(--crm-panel-tint, #f1f5f9);
+	color: var(--crm-panel-accent, #475569);
+	font-size: 11px;
+	font-weight: 600;
+	white-space: nowrap;
+}
+.crm-dashboard-panel .crm-dashboard-empty {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin: 0 0 8px;
+	padding: 12px;
+	border: 1px dashed #dbe3ec;
+	border-radius: 8px;
+	background: #f8fafc;
+	color: #64748b;
+	font-size: 13px;
+}
+.crm-dashboard-panel .crm-dashboard-empty i {
+	color: var(--crm-panel-accent, #94a3b8);
+	font-size: 15px;
+}
+.crm-dashboard-panel .crm-dashboard-actions {
+	margin: 12px 0 0;
+	padding-top: 10px;
+	border-top: 1px solid #eef2f6;
+}
+.crm-dashboard-panel .crm-dashboard-actions .btn,
+.crm-dashboard-panel .crm-dashboard-summary-actions .btn {
+	box-sizing: border-box;
+	min-height: 30px;
+	padding: 6px 11px;
+	font-size: 12px;
+	font-weight: 600;
+	line-height: 1.4;
+	border-radius: 6px;
+}
+.crm-dashboard-panel .crm-dashboard-summary {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 8px;
+	margin: 0;
+}
+.crm-dashboard-panel .crm-dashboard-stat {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	min-width: 0;
+	padding: 10px 11px;
+	border: 1px solid #e8edf2;
+	border-radius: 8px;
+	background: #f8fafc;
+}
+.crm-dashboard-panel .crm-dashboard-stat-label {
+	color: #64748b;
+	font-size: 11px;
+	line-height: 1.3;
+}
+.crm-dashboard-panel .crm-dashboard-stat-value {
+	color: #1e293b;
+	font-size: 18px;
+	font-weight: 700;
+	line-height: 1.1;
+}
+.crm-dashboard-stat--total { border-left: 3px solid #64748b !important; }
+.crm-dashboard-stat--new { border-left: 3px solid #2563eb !important; }
+.crm-dashboard-stat--progress { border-left: 3px solid #059669 !important; }
+.crm-dashboard-stat--paused { border-left: 3px solid #d97706 !important; }
+.crm-dashboard-stat--done { border-left: 3px solid #0d9488 !important; }
+.crm-dashboard-stat--overdue { border-left: 3px solid #dc2626 !important; }
+.crm-dashboard-panel .crm-dashboard-summary-actions {
+	margin: 12px 0 0;
+}
+@media (max-width: 767px) {
+	.crm-dashboard-panel .grid-title { padding: 11px 12px; }
+	.crm-dashboard-panel .grid-body { padding: 12px; }
+	.crm-dashboard-panel .crm-dashboard-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 420px) {
+	.crm-dashboard-panel .crm-dashboard-item-main { align-items: flex-start; flex-direction: column; }
+	.crm-dashboard-panel .crm-dashboard-summary { grid-template-columns: 1fr 1fr; }
+}
+</style>
 </head>
 <body class="">
 <?php crm_header_staff();?>
@@ -446,24 +696,31 @@ $bajas_pend=function_exists('crm_tarea_bajas_pendientes_mias') ? crm_tarea_bajas
                 <div class="row crm-dash-panels">
                     <?php if($area_act!=='sistemas') { ?>
                     <div class="col-md-6">
-                        <div class="grid simple">
-                            <div class="grid-title"><h4>Atenciones de hoy</h4></div>
+                        <div class="grid simple crm-dashboard-panel crm-dashboard-panel--appointments">
+                            <div class="grid-title"><h4><span class="crm-dashboard-panel-icon"><i class="fa fa-clock-o"></i></span><span>Atenciones de hoy</span></h4><span class="crm-dashboard-panel-count"><?php echo count($turnos_hoy); ?></span></div>
                             <div class="grid-body">
-                                <?php if(count($turnos_hoy)==0) { ?><p class="muted">No hay atenciones abiertas para hoy.</p><?php } ?>
+                                <?php if(count($turnos_hoy)==0) { ?><p class="muted crm-dashboard-empty"><i class="fa fa-check-circle-o" aria-hidden="true"></i><span>No hay atenciones abiertas para hoy.</span></p><?php } ?>
+                                <div class="crm-dashboard-list">
                                 <?php foreach($turnos_hoy as $t) {
                                 	$ft=isset($t['fecha_ref']) ? $t['fecha_ref'] : '';
                                 	$area_t=($area_act==='recepcion') ? 'recepcion' : (isset($t['area_clave']) ? $t['area_clave'] : $area_act);
+				$puede_abrir_atencion=function_exists('crm_atencion_puede_ver') && crm_atencion_puede_ver($t);
+				$url_atencion=url_crm($area_t.'/atencion.php?id='.intval($t['id_atencion']));
                                 ?>
-                                <p>
-                                    <a href="<?php echo url_crm($area_t.'/atencion.php?id='.intval($t['id_atencion'])); ?>">
-                                        #<?php echo intval($t['id_atencion']); ?> · <?php echo htmlspecialchars($t['cliente_nombre']); ?>
-                                    </a>
-                                    · <?php echo htmlspecialchars(function_exists('crm_estado_texto') ? crm_estado_texto($t['estado']) : $t['estado']); ?>
-                                    <?php if($alcance==='todo' || $area_act==='recepcion') { ?> · <?php echo htmlspecialchars($t['area_nombre']); ?><?php } ?>
-                                    <?php if($ft!='') { ?> · <?php echo htmlspecialchars(function_exists('crm_turno_fecha_texto') ? crm_turno_fecha_texto($ft) : $ft); ?><?php } ?>
-                                </p>
+                                <?php if($puede_abrir_atencion) { ?><a class="crm-dashboard-item crm-dashboard-item-link" href="<?php echo htmlspecialchars($url_atencion, ENT_QUOTES, 'UTF-8'); ?>"><?php } else { ?><div class="crm-dashboard-item"><?php } ?>
+                                    <div class="crm-dashboard-item-main">
+                                        <strong class="crm-dashboard-item-title">#<?php echo intval($t['id_atencion']); ?> · <?php echo htmlspecialchars($t['cliente_nombre']); ?></strong>
+                                        <span class="crm-dashboard-item-status"><?php echo htmlspecialchars(function_exists('crm_estado_texto') ? crm_estado_texto($t['estado']) : $t['estado']); ?></span>
+                                    </div>
+                                    <div class="crm-dashboard-item-meta">
+                                        <?php if($alcance==='todo' || $area_act==='recepcion') { ?><span><i class="fa fa-folder-o" aria-hidden="true"></i><?php echo htmlspecialchars($t['area_nombre']); ?></span><?php } ?>
+                                        <?php if($ft!='') { ?><span><i class="fa fa-calendar-o" aria-hidden="true"></i><?php echo htmlspecialchars(function_exists('crm_turno_fecha_texto') ? crm_turno_fecha_texto($ft) : $ft); ?></span><?php } ?>
+                                    </div>
+                                    <?php if($puede_abrir_atencion) { ?><i class="fa fa-angle-right crm-dashboard-item-arrow" aria-hidden="true"></i><?php } ?>
+                                <?php if($puede_abrir_atencion) { ?></a><?php } else { ?></div><?php } ?>
                                 <?php } ?>
-                                <p>
+                                </div>
+                                <p class="crm-dashboard-actions">
                                     <a class="btn btn-white btn-xs" href="<?php echo htmlspecialchars($base_aten); ?>">Ver atenciones</a>
                                 </p>
                             </div>
@@ -471,59 +728,78 @@ $bajas_pend=function_exists('crm_tarea_bajas_pendientes_mias') ? crm_tarea_bajas
                     </div>
                     <?php } ?>
                     <div class="<?php echo ($area_act==='sistemas') ? 'col-md-12' : 'col-md-6'; ?>">
-                        <div class="grid simple">
-                            <div class="grid-title"><h4>Tareas que vencen hoy</h4></div>
+                        <div class="grid simple crm-dashboard-panel crm-dashboard-panel--today">
+                            <div class="grid-title"><h4><span class="crm-dashboard-panel-icon"><i class="fa fa-calendar"></i></span><span>Tareas que vencen hoy</span></h4><span class="crm-dashboard-panel-count"><?php echo count($tareas_hoy); ?></span></div>
                             <div class="grid-body">
-                                <?php if(count($tareas_hoy)==0) { ?><p class="muted">Nada vence hoy.</p><?php } ?>
-                                <?php foreach($tareas_hoy as $t) { ?>
-                                <p>
-                                    <a href="<?php echo url_crm($t['area_clave'].'/ver-tarea.php?id='.intval($t['id_tarea'])); ?>"><?php echo htmlspecialchars($t['titulo']); ?></a>
-                                    · <?php echo htmlspecialchars(dash_estado_txt($t['estado'])); ?>
-                                    · <?php echo intval($t['avance']); ?>%
-                                </p>
+                                <?php if(count($tareas_hoy)==0) { ?><p class="muted crm-dashboard-empty"><i class="fa fa-check-circle-o" aria-hidden="true"></i><span>Nada vence hoy.</span></p><?php } ?>
+                                <div class="crm-dashboard-list">
+                                <?php foreach($tareas_hoy as $t) { $puede_abrir_tarea=($alcance==='empleado') || (function_exists('tarea_puede_ver') && tarea_puede_ver($t)); $url_tarea=url_crm($t['area_clave'].'/ver-tarea.php?id='.intval($t['id_tarea'])); ?>
+                                <?php if($puede_abrir_tarea) { ?><a class="crm-dashboard-item crm-dashboard-item-link" href="<?php echo htmlspecialchars($url_tarea, ENT_QUOTES, 'UTF-8'); ?>"><?php } else { ?><div class="crm-dashboard-item"><?php } ?>
+                                    <div class="crm-dashboard-item-main">
+                                        <strong class="crm-dashboard-item-title"><?php echo htmlspecialchars($t['titulo']); ?></strong>
+                                        <span class="crm-dashboard-item-status"><?php echo htmlspecialchars(dash_estado_txt($t['estado'])); ?></span>
+                                    </div>
+                                    <div class="crm-dashboard-item-meta"><span><i class="fa fa-calendar-o" aria-hidden="true"></i> <?php echo htmlspecialchars(date('d/m/Y', strtotime($t['fecha_cierre']))); ?></span><span><i class="fa fa-tasks" aria-hidden="true"></i> Avance <?php echo intval($t['avance']); ?>%</span></div>
+                                    <?php if($puede_abrir_tarea) { ?><i class="fa fa-angle-right crm-dashboard-item-arrow" aria-hidden="true"></i><?php } ?>
+                                <?php if($puede_abrir_tarea) { ?></a><?php } else { ?></div><?php } ?>
                                 <?php } ?>
-                                <p><a class="btn btn-white btn-xs" href="<?php echo htmlspecialchars($link_tareas(array('vence'=>'hoy'))); ?>">Ver las que vencen hoy</a></p>
+                                </div>
+                                <p class="crm-dashboard-actions"><a class="btn btn-white btn-xs" href="<?php echo htmlspecialchars($link_tareas(array('vence'=>'hoy'))); ?>">Ver las que vencen hoy</a></p>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="row">
+                <div class="row crm-dash-panels">
                     <div class="col-md-6">
-                        <div class="grid simple">
-                            <div class="grid-title"><h4>Vencidas (sin cerrar)</h4></div>
+                        <div class="grid simple crm-dashboard-panel crm-dashboard-panel--overdue">
+                            <div class="grid-title"><h4><span class="crm-dashboard-panel-icon"><i class="fa fa-exclamation-triangle"></i></span><span>Vencidas (sin cerrar)</span></h4><span class="crm-dashboard-panel-count"><?php echo count($tareas_vencidas); ?></span></div>
                             <div class="grid-body">
-                                <?php if(count($tareas_vencidas)==0) { ?><p class="muted">No hay tareas vencidas.</p><?php } ?>
-                                <?php foreach($tareas_vencidas as $t) { ?>
-                                <p>
-                                    <a href="<?php echo url_crm($t['area_clave'].'/ver-tarea.php?id='.intval($t['id_tarea'])); ?>"><?php echo htmlspecialchars($t['titulo']); ?></a>
-                                    · cierre <?php echo htmlspecialchars(date('d/m/Y', strtotime($t['fecha_cierre']))); ?>
-                                    · <?php echo htmlspecialchars(dash_estado_txt($t['estado'])); ?>
-                                </p>
+                                <?php if(count($tareas_vencidas)==0) { ?><p class="muted crm-dashboard-empty"><i class="fa fa-check-circle-o" aria-hidden="true"></i><span>No hay tareas vencidas.</span></p><?php } ?>
+                                <div class="crm-dashboard-list">
+                                <?php foreach($tareas_vencidas as $t) { $puede_abrir_tarea=($alcance==='empleado') || (function_exists('tarea_puede_ver') && tarea_puede_ver($t)); $url_tarea=url_crm($t['area_clave'].'/ver-tarea.php?id='.intval($t['id_tarea'])); ?>
+                                <?php if($puede_abrir_tarea) { ?><a class="crm-dashboard-item crm-dashboard-item-link" href="<?php echo htmlspecialchars($url_tarea, ENT_QUOTES, 'UTF-8'); ?>"><?php } else { ?><div class="crm-dashboard-item"><?php } ?>
+                                    <div class="crm-dashboard-item-main">
+                                        <strong class="crm-dashboard-item-title"><?php echo htmlspecialchars($t['titulo']); ?></strong>
+                                        <span class="crm-dashboard-item-status"><?php echo htmlspecialchars(dash_estado_txt($t['estado'])); ?></span>
+                                    </div>
+                                    <div class="crm-dashboard-item-meta"><span><i class="fa fa-calendar-times-o" aria-hidden="true"></i> Cierre <?php echo htmlspecialchars(date('d/m/Y', strtotime($t['fecha_cierre']))); ?></span></div>
+                                    <?php if($puede_abrir_tarea) { ?><i class="fa fa-angle-right crm-dashboard-item-arrow" aria-hidden="true"></i><?php } ?>
+                                <?php if($puede_abrir_tarea) { ?></a><?php } else { ?></div><?php } ?>
                                 <?php } ?>
-                                <p><a class="btn btn-white btn-xs" href="<?php echo htmlspecialchars($link_tareas(array('estado'=>'Vencida'))); ?>">Ver vencidas</a></p>
+                                </div>
+                                <p class="crm-dashboard-actions"><a class="btn btn-white btn-xs" href="<?php echo htmlspecialchars($link_tareas(array('estado'=>'Vencida'))); ?>">Ver vencidas</a></p>
                             </div>
                         </div>
                     </div>
                     <div class="col-md-6">
-                        <div class="grid simple">
-                            <div class="grid-title"><h4><?php echo ($alcance==='empleado') ? 'Mis tareas' : 'En proceso'; ?></h4></div>
+                        <div class="grid simple crm-dashboard-panel crm-dashboard-panel--progress">
+                            <div class="grid-title"><h4><span class="crm-dashboard-panel-icon"><i class="fa fa-tasks"></i></span><span><?php echo ($alcance==='empleado') ? 'Mis tareas' : 'En proceso'; ?></span></h4><span class="crm-dashboard-panel-count"><?php echo count(($alcance==='empleado') ? $mias : $tareas_proceso); ?></span></div>
                             <div class="grid-body">
                                 <?php
                                 $lista_der=($alcance==='empleado') ? $mias : $tareas_proceso;
-                                if(count($lista_der)==0) { ?><p class="muted">Nada en curso.</p><?php }
+                                if(count($lista_der)==0) { ?><p class="muted crm-dashboard-empty"><i class="fa fa-info-circle" aria-hidden="true"></i><span>Nada en curso.</span></p><?php }
                                 $n=0;
+                                ?>
+                                <div class="crm-dashboard-list">
+                                <?php
                                 foreach($lista_der as $t) {
                                 	if($n>=10) break;
                                 	$n++;
+				$puede_abrir_tarea=($alcance==='empleado') || (function_exists('tarea_puede_ver') && tarea_puede_ver($t));
+				$url_tarea=url_crm($t['area_clave'].'/ver-tarea.php?id='.intval($t['id_tarea']));
                                 ?>
-                                <p>
-                                    <a href="<?php echo url_crm($t['area_clave'].'/ver-tarea.php?id='.intval($t['id_tarea'])); ?>"><?php echo htmlspecialchars($t['titulo']); ?></a>
-                                    · <?php echo htmlspecialchars(dash_estado_txt($t['estado'])); ?>
-                                    · <?php echo intval($t['avance']); ?>%
-                                </p>
+                                <?php if($puede_abrir_tarea) { ?><a class="crm-dashboard-item crm-dashboard-item-link" href="<?php echo htmlspecialchars($url_tarea, ENT_QUOTES, 'UTF-8'); ?>"><?php } else { ?><div class="crm-dashboard-item"><?php } ?>
+                                    <div class="crm-dashboard-item-main">
+                                        <strong class="crm-dashboard-item-title"><?php echo htmlspecialchars($t['titulo']); ?></strong>
+                                        <span class="crm-dashboard-item-status"><?php echo htmlspecialchars(dash_estado_txt($t['estado'])); ?></span>
+                                    </div>
+                                    <div class="crm-dashboard-item-meta"><span><i class="fa fa-tasks" aria-hidden="true"></i> Avance <?php echo intval($t['avance']); ?>%</span><?php if(!empty($t['fecha_cierre'])) { ?><span><i class="fa fa-calendar-o" aria-hidden="true"></i> Vence <?php echo htmlspecialchars(date('d/m/Y', strtotime($t['fecha_cierre']))); ?></span><?php } ?></div>
+                                    <?php if($puede_abrir_tarea) { ?><i class="fa fa-angle-right crm-dashboard-item-arrow" aria-hidden="true"></i><?php } ?>
+                                <?php if($puede_abrir_tarea) { ?></a><?php } else { ?></div><?php } ?>
                                 <?php } ?>
-                                <p><a class="btn btn-white btn-xs" href="<?php echo htmlspecialchars($link_tareas($alcance==='empleado' ? array() : array('estado'=>'En proceso'))); ?>"><?php echo ($alcance==='empleado') ? 'Ver mis tareas' : 'Ver en proceso'; ?></a></p>
+                                </div>
+                                <p class="crm-dashboard-actions"><a class="btn btn-white btn-xs" href="<?php echo htmlspecialchars($link_tareas($alcance==='empleado' ? array() : array('estado'=>'En proceso'))); ?>"><?php echo ($alcance==='empleado') ? 'Ver mis tareas' : 'Ver en proceso'; ?></a></p>
                             </div>
                         </div>
                     </div>
@@ -597,46 +873,29 @@ $bajas_pend=function_exists('crm_tarea_bajas_pendientes_mias') ? crm_tarea_bajas
                 </div>
                 <?php } ?>
 
-                <?php if(count($avisos)>0) { ?>
-                <div class="grid simple">
-                    <div class="grid-title"><h4>Avisos</h4></div>
-                    <div class="grid-body">
-                        <?php foreach($avisos as $a) { ?>
-                        <p>
-                            <strong><?php echo htmlspecialchars(isset($a['titulo']) ? $a['titulo'] : ''); ?></strong>
-                            <?php if(!empty($a['detalle'])) { ?> — <?php echo htmlspecialchars($a['detalle']); ?><?php } ?>
-                            <?php if(!empty($a['url'])) { ?> · <a href="<?php echo htmlspecialchars($a['url']); ?>">Abrir</a><?php } ?>
-                        </p>
-                        <?php } ?>
-                    </div>
-                </div>
-                <?php } ?>
-
-                <div class="grid simple">
-                    <div class="grid-title"><h4>Resumen de estados</h4></div>
-                    <div class="grid-body">
-                        <p>
-                            Total de tareas: <strong><?php echo intval(isset($cont['total']) ? $cont['total'] : 0); ?></strong>
-                            · No iniciadas: <?php echo intval(isset($cont['No iniciada']) ? $cont['No iniciada'] : 0); ?>
-                            · En proceso: <?php echo intval(isset($cont['En proceso']) ? $cont['En proceso'] : 0); ?>
-                            · Pausadas: <?php echo intval(isset($cont['Pausada']) ? $cont['Pausada'] : 0); ?>
-                            · Terminadas: <?php echo intval(isset($cont['Terminada']) ? $cont['Terminada'] : 0); ?>
-                            · Vencidas: <?php echo intval(isset($cont['Vencida']) ? $cont['Vencida'] : 0); ?>
-                        </p>
-                        <p>
-                            <a class="btn btn-primary" href="<?php echo htmlspecialchars($base_tareas); ?>">Tareas</a>
-                            <a class="btn btn-white" href="<?php echo url_crm(($area_act!='' ? $area_act : 'general').'/actividades.php'); ?>">Actividades</a>
-                            <?php if($alcance==='todo') { ?>
-                            <a class="btn btn-white" href="<?php echo url_crm('admin/home.php'); ?>">Informes</a>
-                            <?php } ?>
-                        </p>
-                    </div>
-                </div>
             </div>
         </div>
  </div>
 <script src="../assets/plugins/jquery-1.8.3.min.js" type="text/javascript"></script>
 <script src="../assets/plugins/boostrapv3/js/bootstrap.min.js" type="text/javascript"></script>
 <script src="../assets/js/core.js?v=20260926" type="text/javascript"></script>
+<script>
+(function() {
+	function activateDashboardRow(event) {
+		var link=event.target && event.target.closest ? event.target.closest('a.crm-dashboard-item-link') : null;
+		if(!link) { return; }
+		if(event.type==='keydown' && (event.code==='Space' || event.key===' ')) {
+			event.preventDefault();
+			return;
+		}
+		else if(event.type==='keyup' && (event.code==='Space' || event.key===' ')) {
+			event.preventDefault();
+			link.click();
+		}
+	}
+	document.addEventListener('keydown', activateDashboardRow);
+	document.addEventListener('keyup', activateDashboardRow);
+})();
+</script>
 </body>
 </html>

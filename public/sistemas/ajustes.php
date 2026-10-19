@@ -51,8 +51,45 @@ $ajustes=$_SESSION['sis_ajustes'];
 <link href="../assets/css/style.css" rel="stylesheet" type="text/css"/>
 <link href="../assets/css/responsive.css" rel="stylesheet" type="text/css"/>
 <link href="../assets/css/custom-icon-set.css" rel="stylesheet" type="text/css"/>
+<style>
+body.crm-ajustes-page .page-content .content > .breadcrumb {
+    margin-bottom: 6px;
+}
+body.crm-ajustes-page .crm-menu-seccion {
+    margin-bottom: 12px !important;
+    padding-top: 9px;
+    padding-bottom: 9px;
+}
+body.crm-ajustes-page .page-title.crm-compact-heading {
+    margin-top: 0;
+    margin-bottom: 8px !important;
+}
+body.crm-ajustes-page .crm-ajustes-message {
+    margin: 0 0 10px;
+    min-height: 0;
+}
+body.crm-ajustes-page .crm-ajustes-panel-row {
+    margin-bottom: 0;
+}
+body.crm-ajustes-page .crm-ajustes-panel-row .panel {
+    margin-bottom: 12px;
+}
+@media (max-width: 767px) {
+    body.crm-ajustes-page .crm-menu-seccion {
+        margin-bottom: 10px !important;
+        padding-top: 8px;
+        padding-bottom: 8px;
+    }
+    body.crm-ajustes-page .page-title.crm-compact-heading {
+        margin-bottom: 7px !important;
+    }
+    body.crm-ajustes-page .crm-ajustes-message {
+        margin-bottom: 8px;
+    }
+}
+</style>
 </head>
-<body class="">
+<body class="crm-ajustes-page">
 <?php crm_header_staff();?>
 <div class="page-container row">
       <?php crm_menu_staff();?>
@@ -73,9 +110,9 @@ $ajustes=$_SESSION['sis_ajustes'];
                 <div class="page-title crm-compact-heading">
                     <h3>Ajustes del sistema</h3>
                 </div>
-                <p align="center" style="color:#FF0000"><?php echo isset($_SESSION['msgsis']) ? $_SESSION['msgsis'] : '';?><?php $_SESSION['msgsis']="";?></p>
+                <p class="crm-ajustes-message" align="center" style="color:#FF0000"><?php echo isset($_SESSION['msgsis']) ? $_SESSION['msgsis'] : '';?><?php $_SESSION['msgsis']="";?></p>
 
-                <div class="row">
+                <div class="row crm-ajustes-panel-row">
                     <div class="col-md-12">
                         <form class="form-horizontal" method="post" action="">
                         <div class="panel panel-default">

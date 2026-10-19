@@ -2174,6 +2174,15 @@ function crm_area_ve_todo($area_clave='')
 	return acceso_es_super() || acceso_es_coord_general();
 }
 
+function crm_cliente_area_solo_lectura($area_clave='')
+{
+	if($area_clave==='')
+	{
+		$area_clave=acceso_area_pantalla();
+	}
+	return $area_clave==='sistemas' && !acceso_es_super();
+}
+
 function crm_cliente_puede_ver($id_cliente, $area_clave='')
 {
 	$id=intval($id_cliente);
@@ -2189,6 +2198,12 @@ function crm_cliente_puede_ver($id_cliente, $area_clave='')
 	if(crm_area_ve_todo($area_clave) || $area_clave=='recepcion')
 	{
 		return true;
+	}
+	// Sistemas consulta el padrón completo en modo de solo lectura cuando la
+	// capacidad de clientes está habilitada para el área.
+	if($area_clave==='sistemas')
+	{
+		return function_exists('acceso_puede_clientes_de_area') && acceso_puede_clientes_de_area('sistemas');
 	}
 	if($area_clave==='emprendedores' || $area_clave==='empresas')
 	{

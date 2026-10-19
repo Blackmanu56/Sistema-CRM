@@ -664,9 +664,48 @@ $opciones_filtros = crm_dominios_opciones_filtros();
 	padding: 10px 14px;
 	font-size: 12px;
 }
+
+/* Page-level spacing only; keep domain cards and detail/form layouts unchanged. */
+body.crm-dominios-page .page-title.crm-compact-heading {
+	margin-bottom: 6px !important;
+}
+body.crm-dominios-page .page-title.crm-compact-heading + p {
+	margin: 0 0 12px;
+	line-height: 1.45;
+}
+body.crm-dominios-page .dominios-metrics-row > .spacing-bottom {
+	margin-bottom: 12px;
+}
+body.crm-dominios-page .dominios-main-layout .dom-filters-box {
+	padding: 12px;
+	margin-bottom: 12px;
+}
+body.crm-dominios-page .dominios-main-layout .dom-filters-row {
+	gap: 10px;
+	margin-bottom: 8px;
+}
+body.crm-dominios-page .dominios-main-layout .cal-legend {
+	margin-top: 10px;
+	padding-top: 10px;
+}
+body.crm-dominios-page .dominios-main-layout .dom-calendar-panel,
+body.crm-dominios-page .dominios-main-layout .dom-upcoming-panel {
+	margin-bottom: 12px;
+}
+@media (max-width: 767px) {
+	body.crm-dominios-page .dominios-metrics-row > .spacing-bottom {
+		margin-bottom: 10px;
+	}
+	body.crm-dominios-page .dominios-main-layout > [class*="col-"] + [class*="col-"] {
+		margin-top: 8px;
+	}
+	body.crm-dominios-page .dominios-main-layout .dom-filters-box {
+		padding: 10px;
+	}
+}
 </style>
 </head>
-<body class="">
+<body class="crm-dominios-page">
 
 <?php crm_header_staff(); ?>
 
@@ -702,7 +741,7 @@ $opciones_filtros = crm_dominios_opciones_filtros();
 		<p class="muted">Gestión de dominios, proveedores, renovaciones e historial de vencimientos de Sistemas.</p>
 
 		<!-- Metric Tiles Matching ADEMI Tareas Palette -->
-		<div class="row">
+		<div class="row dominios-metrics-row">
 			<div class="col-md-3 col-sm-6 spacing-bottom">
 				<div class="tiles blue added-margin">
 					<div class="tiles-body">
@@ -738,7 +777,7 @@ $opciones_filtros = crm_dominios_opciones_filtros();
 		</div>
 
 		<!-- Main Page Grid Layout: 70% Left, 30% Right -->
-		<div class="row">
+		<div class="row dominios-main-layout">
 			
 			<!-- LEFT COLUMN (~70%): Filters, Day Filter Pill, Cards -->
 			<div class="col-md-8 col-sm-12">
@@ -815,7 +854,7 @@ $opciones_filtros = crm_dominios_opciones_filtros();
 			<div class="col-md-4 col-sm-12">
 				
 				<!-- Compact Calendar Box -->
-				<div class="grid simple">
+				<div class="grid simple dom-calendar-panel">
 					<div class="grid-title" style="padding:14px 16px; border-bottom:1px solid #e5e9ec; background:#fafbfc;">
 						<h4 style="margin:0 0 10px 0; font-size:14px; font-weight:700; color:#1e293b; display:flex; align-items:center; gap:8px;">
 							<i class="fa fa-calendar text-info" style="font-size:15px;"></i> Calendario de vencimientos
@@ -859,7 +898,7 @@ $opciones_filtros = crm_dominios_opciones_filtros();
 				</div>
 
 				<!-- Upcoming Expirations Box -->
-				<div class="grid simple">
+				<div class="grid simple dom-upcoming-panel">
 					<div class="grid-title">
 						<h4><i class="fa fa-clock-o text-warning"></i> Próximos vencimientos</h4>
 					</div>

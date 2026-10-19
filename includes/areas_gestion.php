@@ -50,6 +50,36 @@ function crm_area_empleados_disponibles()
 	return acceso_consulta($sql);
 }
 
+/** Validate the editable capability checkbox payload. Missing checkboxes mean disabled. */
+function crm_area_capacidades_validar($datos)
+{
+	if(!is_array($datos)) { return false; }
+	$claves=array('puede_clientes','recibe_derivaciones','recibe_turnos','asignable_empleado');
+	$validas=array();
+	foreach($claves as $clave)
+	{
+		if(isset($datos[$clave]) && (!is_scalar($datos[$clave]) || !in_array((string)$datos[$clave], array('0','1'), true))) { return false; }
+		$validas[$clave]=(isset($datos[$clave]) && (string)$datos[$clave]==='1') ? 1 : 0;
+	}
+	return $validas;
+}
+
+/** Persist validated capability values and keep the legacy summary flag in sync. */
+function crm_area_capacidades_guardar($id_area, $capacidades)
+{
+	$id_area=intval($id_area);
+	if($id_area<=0 || !is_array($capacidades)) { return false; }
+	$validas=crm_area_capacidades_validar($capacidades);
+	if($validas===false) { return false; }
+	if(function_exists('crm_asegurar_area_flags')) { crm_asegurar_area_flags(); }
+	$atiende=($validas['puede_clientes'] || $validas['recibe_derivaciones'] || $validas['recibe_turnos']) ? 1 : 0;
+	return acceso_ejecutar(
+		"UPDATE area SET puede_clientes=?, recibe_derivaciones=?, recibe_turnos=?, asignable_empleado=?, atiende_clientes=? WHERE id_area=?",
+		'iiiiii',
+		array($validas['puede_clientes'],$validas['recibe_derivaciones'],$validas['recibe_turnos'],$validas['asignable_empleado'],$atiende,$id_area)
+	);
+}
+
 function crm_area_empleados_conteo($id_area)
 {
 	$id_area=intval($id_area);

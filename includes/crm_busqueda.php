@@ -850,6 +850,10 @@ function crm_dashboard_destino()
 	{
 		return url_crm($area_act.'/dashboard.php');
 	}
+	if($area_act === 'general' && (acceso_es_super() || acceso_es_coord_general()))
+	{
+		return url_crm('general/dashboard.php');
+	}
 	if(acceso_es_super())
 	{
 		return url_crm('admin/home.php');

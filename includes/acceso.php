@@ -247,13 +247,26 @@ function crm_asegurar_area_flags()
 		// Dirección / roles institucionales: no se asignan como área de alta común.
 		$asignable=($clave==='presidencia' || $clave==='general') ? 0 : 1;
 		// Recibe clientes/derivaciones si el módulo tiene pantallas de atención.
-		$atiende=$tiene_aten ? 1 : 0;
-		// Si no hay carpeta todavía, no forzar flags en 0 si ya fueron tocados a mano.
-		acceso_ejecutar(
-			"UPDATE area SET atiende_clientes=?, asignable_empleado=? WHERE id_area=?",
-			'iii',
-			array($atiende, $asignable, intval($a['id_area']))
-		);
+		// Sistemas incorpora una vista de solo consulta y su existencia no debe
+		// alterar las capacidades que ya fueron configuradas para esa área.
+		if($clave==='sistemas')
+		{
+			acceso_ejecutar(
+				"UPDATE area SET asignable_empleado=? WHERE id_area=?",
+				'ii',
+				array($asignable, intval($a['id_area']))
+			);
+		}
+		else
+		{
+			$atiende=$tiene_aten ? 1 : 0;
+			// Si no hay carpeta todavía, no forzar flags en 0 si ya fueron tocados a mano.
+			acceso_ejecutar(
+				"UPDATE area SET atiende_clientes=?, asignable_empleado=? WHERE id_area=?",
+				'iii',
+				array($atiende, $asignable, intval($a['id_area']))
+			);
+		}
 		unset($tiene_mod); // reservado por si se amplía el criterio
 	}
 	// Backfill de las capacidades recién creadas (solo la primera vez).
@@ -1835,6 +1848,28 @@ function acceso_es_coord_de_area($area='')
 	return false;
 }
 
+/** Acceso global de consulta a la sala: coordinación de cualquier área, Coordinación General o Superadmin. */
+function acceso_puede_salas_reuniones()
+{
+	if(acceso_es_super() || acceso_es_coord_general())
+	{
+		return true;
+	}
+	if((isset($_SESSION['rol_base']) && $_SESSION['rol_base']==='coordinador')
+		|| (isset($_SESSION['rol_area']) && $_SESSION['rol_area']==='coordinador'))
+	{
+		return true;
+	}
+	foreach(acceso_roles_adicionales_sesion() as $extra)
+	{
+		if(isset($extra['rol']) && $extra['rol']==='coordinador')
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 /**
  * Acceso transversal exclusivo al Mapa de Eventos.
  * No altera los permisos de los demás módulos.
@@ -2141,6 +2176,12 @@ function acceso_es_general()
 function acceso_puede_ver_informes()
 {
 	return (acceso_es_presidencia() || acceso_es_coord_general() || acceso_es_super());
+}
+
+// Lectura del informe de colaboradores: no concede permisos de edición de RRHH.
+function acceso_puede_ver_informe_colaboradores()
+{
+	return acceso_es_super() || acceso_es_coord_general() || acceso_es_coord_de_area('rrhh');
 }
 
 function acceso_puede_armar_informes()
@@ -2668,11 +2709,11 @@ function tareas_aviso_url($aviso)
 	$etq=acceso_etiquetas_area();
 	if(!isset($etq[$area]))
 	{
-		$area=acceso_area_pantalla();
+		$area=acceso_area_activa();
 	}
-	if($area==acceso_area_pantalla())
+	if(!isset($etq[$area]))
 	{
-		return tareas_link('ver-tarea.php', array('id'=>$id));
+		$area='general';
 	}
 	return url_crm($area.'/ver-tarea.php').'?id='.$id;
 }
@@ -3393,6 +3434,11 @@ function tareas_procesar_accion_si_vino()
 	}
 	if(isset($_POST['agregar_avance']) && isset($_POST['id_tarea']))
 	{
+		if(!function_exists('crm_tarea_extra_csrf_valido') || !crm_tarea_extra_csrf_valido(isset($_POST['csrf_tarea_extra']) ? $_POST['csrf_tarea_extra'] : ''))
+		{
+			$_SESSION['msgtarea']='La sesión expiró o el formulario no es válido. Actualizá la página e intentá nuevamente.';
+			return true;
+		}
 		$id=intval($_POST['id_tarea']);
 		$t=null;
 		if(function_exists('tarea_por_id'))
@@ -3454,6 +3500,14 @@ function tareas_procesar_accion_si_vino()
 	}
 	if(function_exists('tareas_datos_procesar_accion'))
 	{
+		if(isset($_POST['agregar_comentario']) || isset($_POST['agregar_enlace']))
+		{
+			if(!function_exists('crm_tarea_extra_csrf_valido') || !crm_tarea_extra_csrf_valido(isset($_POST['csrf_tarea_extra']) ? $_POST['csrf_tarea_extra'] : ''))
+			{
+				$_SESSION['msgtarea']='La sesión expiró o el formulario no es válido. Actualizá la página e intentá nuevamente.';
+				return true;
+			}
+		}
 		return tareas_datos_procesar_accion();
 	}
 	return false;
@@ -3917,6 +3971,11 @@ function acceso_puede_alta_cliente($area='')
 	if(acceso_es_super())
 	{
 		return true;
+	}
+	// Sistemas tiene consulta del padrón, pero no altas desde su módulo.
+	if($area==='sistemas')
+	{
+		return false;
 	}
 	crm_asegurar_area_flags();
 	$row=acceso_consulta_una(

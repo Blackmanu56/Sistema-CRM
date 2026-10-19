@@ -10,11 +10,75 @@ $roles_extra_ok=function_exists('acceso_roles_extras_permitidos') ? acceso_roles
 	'coordinador_general'=>'Coordinador general'
 );
 $areas_extra=acceso_etiquetas_area_asignables('empleado');
+$roles_principales_completos=acceso_roles_para_alta();
+$roles_principales=$roles_principales_completos;
+$puede_asignar_roles_protegidos=acceso_es_super() || acceso_es_coord_general();
+if(!$puede_asignar_roles_protegidos)
+{
+	unset($roles_principales['presidencia'], $roles_principales['coordinador_general']);
+}
 
 $id_ver=isset($_GET['id']) ? intval($_GET['id']) : 0;
 if($id_ver<=0 && isset($_POST['id_empleado']))
 {
 	$id_ver=intval($_POST['id_empleado']);
+}
+
+if(isset($_POST['guardar_rol_principal']))
+{
+	$id=isset($_POST['id_empleado']) ? intval($_POST['id_empleado']) : 0;
+	$emp=acceso_empleado_por_id($id);
+	$id_logueado=function_exists('crm_id_empleado_sesion') ? crm_id_empleado_sesion() : (isset($_SESSION['id_empleado']) ? intval($_SESSION['id_empleado']) : 0);
+	$rol_principal=isset($_POST['rol_principal']) && is_string($_POST['rol_principal']) ? trim($_POST['rol_principal']) : '';
+	$area_principal=isset($_POST['area_principal']) && is_string($_POST['area_principal']) ? trim($_POST['area_principal']) : '';
+	$puede_gestionar_principal=acceso_puede_gestionar('sistemas') && !acceso_es_empleado();
+
+	if(!$puede_gestionar_principal)
+	{
+		$_SESSION['msgsis']='No tenés permiso para cambiar el rol o el área principal.';
+	}
+	else if(!$emp || $emp['rol']==='superadmin')
+	{
+		$_SESSION['msgsis']='Colaborador no válido o Superadmin no modificable.';
+	}
+	else if($id_logueado>0 && $id===$id_logueado)
+	{
+		$_SESSION['msgsis']='No podés modificar tu propio rol principal ni tu área principal.';
+	}
+	else if(($emp['rol']==='presidencia' || $emp['rol']==='coordinador_general') && !$puede_asignar_roles_protegidos)
+	{
+		$_SESSION['msgsis']='Ese perfil principal está protegido y requiere autorización especial.';
+	}
+	else if(!isset($roles_principales_completos[$rol_principal]))
+	{
+		$_SESSION['msgsis']='El rol principal seleccionado no es válido.';
+	}
+	else if(in_array($rol_principal,array('presidencia','coordinador_general'),true) && !$puede_asignar_roles_protegidos)
+	{
+		$_SESSION['msgsis']='No tenés autorización para asignar ese rol protegido.';
+	}
+	else
+	{
+		if($rol_principal==='presidencia' || $rol_principal==='coordinador_general')
+		{
+			$area_principal='';
+		}
+		$error_rol_area=acceso_validar_rol_area($rol_principal,$area_principal,$id);
+		if($error_rol_area!=='')
+		{
+			$_SESSION['msgsis']=$error_rol_area;
+		}
+		else if(acceso_guardar_empleado($emp['usuario'],array('rol'=>$rol_principal,'area'=>$area_principal)))
+		{
+			$_SESSION['msgsis']='Rol principal y área principal actualizados. Los permisos y áreas asignadas se reflejarán al volver a iniciar sesión.';
+		}
+		else
+		{
+			$_SESSION['msgsis']='No se pudo actualizar el rol y el área. Revisá si ya existe un coordinador asignado a esa área.';
+		}
+	}
+	header('Location: permisos.php?id='.$id);
+	exit();
 }
 
 if(isset($_POST['agregar_rol_extra']))
@@ -106,6 +170,11 @@ if($id_ver>0)
 		$extras=crm_roles_adicionales_de($id_ver);
 	}
 }
+$id_logueado_vista=function_exists('crm_id_empleado_sesion') ? crm_id_empleado_sesion() : (isset($_SESSION['id_empleado']) ? intval($_SESSION['id_empleado']) : 0);
+$puede_editar_rol_principal=$emp_ver && acceso_puede_gestionar('sistemas') && !acceso_es_empleado()
+	&& intval($emp_ver['id'])!==intval($id_logueado_vista)
+	&& ((!in_array($emp_ver['rol'],array('presidencia','coordinador_general'),true)) || $puede_asignar_roles_protegidos);
+$areas_principales=acceso_etiquetas_area_asignables('empleado');
 ?>
 <!DOCTYPE html>
 <html>
@@ -119,6 +188,24 @@ if($id_ver>0)
 <link href="../assets/css/style.css" rel="stylesheet" type="text/css"/>
 <link href="../assets/css/responsive.css" rel="stylesheet" type="text/css"/>
 <link href="../assets/css/custom-icon-set.css" rel="stylesheet" type="text/css"/>
+<style>
+    /* Compact spacing for the Permisos screen only. */
+    .crm-permisos-list .breadcrumb { margin-bottom: 10px; }
+    .crm-permisos-list .crm-compact-heading { margin-top: 8px; margin-bottom: 8px; }
+    .crm-permisos-list > .muted { margin: 0 0 12px; }
+    .crm-permisos-list > .alert { margin-bottom: 12px; }
+    .crm-permisos-list .grid.simple { margin-bottom: 12px; }
+    .crm-permisos-list .grid-title { padding-top: 10px; padding-bottom: 8px; }
+    .crm-permisos-list .grid-body { padding-top: 10px; }
+
+    @media (max-width: 767px) {
+        .crm-permisos-list .breadcrumb { margin-bottom: 8px; }
+        .crm-permisos-list .crm-compact-heading { margin-top: 6px; margin-bottom: 6px; }
+        .crm-permisos-list > .muted { margin-bottom: 10px; }
+        .crm-permisos-list .grid-title { padding-top: 8px; padding-bottom: 6px; }
+        .crm-permisos-list .grid-body { padding-top: 8px; }
+    }
+</style>
 </head>
 <body class="">
 <?php crm_header_staff();?>
@@ -129,14 +216,14 @@ if($id_ver>0)
   </div>
     <div class="page-content">
             <div class="clearfix"></div>
-            <div class="content">
+            <div class="content crm-permisos-page <?php echo $emp_ver ? 'crm-permisos-detail' : 'crm-permisos-list'; ?>">
                 <ul class="breadcrumb">
                     <li><p>ESTÁS AQUÍ</p></li>
                     <li><a href="#" class="active">Sistemas / Permisos</a></li>
                 </ul>
                 <?php include("menu-seccion.php"); ?>
-                <div class="page-title crm-compact-heading"><h3>Permisos adicionales</h3></div>
-                <p class="muted">RRHH carga el rol y el área principales. Acá Sistemas suma o quita excepciones: otra área como colaborador/coordinador, o Coordinador general.</p>
+                <div class="page-title crm-compact-heading"><h3>Roles y permisos</h3></div>
+                <p class="muted">Los administradores autorizados pueden cambiar el rol y el área principales de otros empleados, además de sumar o quitar roles adicionales.</p>
                 <?php if(isset($_SESSION['msgsis']) && $_SESSION['msgsis']!='') { ?>
                 <div class="alert alert-info"><?php echo htmlspecialchars($_SESSION['msgsis']); $_SESSION['msgsis']=''; ?></div>
                 <?php } ?>
@@ -151,6 +238,41 @@ if($id_ver>0)
                             · Rol principal: <strong><?php echo htmlspecialchars(acceso_mostrar_rol($emp_ver['rol'])); ?></strong>
                             · Área: <strong><?php echo htmlspecialchars($emp_ver['area']!='' ? (isset(acceso_etiquetas_area()[$emp_ver['area']]) ? acceso_etiquetas_area()[$emp_ver['area']] : $emp_ver['area']) : 'Sin área'); ?></strong>
                         </p>
+                        <div class="grid simple">
+                            <div class="grid-title no-border"><h4>Rol principal y área principal</h4></div>
+                            <div class="grid-body no-border">
+                                <?php if($puede_editar_rol_principal) { ?>
+                                <form method="post" action="permisos.php?id=<?php echo intval($emp_ver['id']); ?>" id="formRolPrincipal">
+                                    <input type="hidden" name="id_empleado" value="<?php echo intval($emp_ver['id']); ?>" />
+                                    <div class="row">
+                                        <div class="col-md-5 form-group">
+                                            <label for="rol_principal">Rol principal</label>
+                                            <select class="form-control" name="rol_principal" id="rol_principal" required>
+                                                <?php foreach($roles_principales as $clave=>$titulo) { ?>
+                                                <option value="<?php echo htmlspecialchars($clave,ENT_QUOTES,'UTF-8'); ?>" <?php echo $emp_ver['rol']===$clave ? 'selected="selected"' : ''; ?>><?php echo htmlspecialchars($titulo,ENT_QUOTES,'UTF-8'); ?></option>
+                                                <?php } ?>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-5 form-group" id="caja_area_principal">
+                                            <label for="area_principal">Área principal</label>
+                                            <select class="form-control" name="area_principal" id="area_principal">
+                                                <option value="">Sin área</option>
+                                                <?php foreach($areas_principales as $clave=>$titulo) { ?>
+                                                <option value="<?php echo htmlspecialchars($clave,ENT_QUOTES,'UTF-8'); ?>" <?php echo $emp_ver['area']===$clave ? 'selected="selected"' : ''; ?>><?php echo htmlspecialchars($titulo,ENT_QUOTES,'UTF-8'); ?></option>
+                                                <?php } ?>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-2 form-group" style="padding-top:24px;">
+                                            <button class="btn btn-primary" type="submit" name="guardar_rol_principal" value="1">Guardar rol y área</button>
+                                        </div>
+                                    </div>
+                                    <p class="muted">Cambiar estos campos modifica únicamente la asignación principal; los roles adicionales se conservan.</p>
+                                </form>
+                                <?php } else { ?>
+                                <p class="muted">El rol principal y el área principal no se pueden modificar desde esta cuenta para este colaborador.</p>
+                                <?php } ?>
+                            </div>
+                        </div>
                         <?php if($emp_ver['rol']==='presidencia') { ?>
                         <p class="muted">Presidencia es exclusiva: no admite permisos adicionales.</p>
                         <?php } else { ?>
@@ -260,6 +382,17 @@ function confirmarQuitarRolExtra(idEmpleado, idRolExtra, nombreColaborador, rolN
     document.getElementById('modalQuitarRolArea').textContent = rolNombre + (areaNombre && areaNombre !== '—' ? ' (' + areaNombre + ')' : '');
     $('#modalQuitarRolExtra').modal('show');
 }
+function crmToggleAreaPrincipal(){
+    var rol=document.getElementById('rol_principal'), area=document.getElementById('area_principal');
+    var caja=document.getElementById('caja_area_principal');
+    if(!rol || !area || !caja) { return; }
+    var necesitaArea=(rol.value==='empleado' || rol.value==='coordinador');
+    caja.style.display=necesitaArea ? '' : 'none';
+    area.required=necesitaArea;
+    if(!necesitaArea) { area.value=''; }
+}
+var rolPrincipalSelect=document.getElementById('rol_principal');
+if(rolPrincipalSelect) { rolPrincipalSelect.addEventListener('change', crmToggleAreaPrincipal); crmToggleAreaPrincipal(); }
 </script>
 </body>
 </html>
