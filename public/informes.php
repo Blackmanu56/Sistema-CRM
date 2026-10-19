@@ -12,31 +12,58 @@ $crm_informe_actividades_global=acceso_es_super() || acceso_es_coord_general();
 $crm_informe_actividades_areas=array();
 if(!$crm_informe_actividades_global)
 {
-    foreach(acceso_consulta("SELECT id_area, clave, nombre FROM area WHERE activo=1 ORDER BY nombre") as $area_informe_actividad)
-    {
-        $clave_area_actividad=(string)$area_informe_actividad['clave'];
-        if(acceso_es_coord_de_area($clave_area_actividad))
-        {
-            $crm_informe_actividades_areas[$clave_area_actividad]=array(
-                'id'=>intval($area_informe_actividad['id_area']),
-                'id_area'=>intval($area_informe_actividad['id_area']),
-                'clave'=>$clave_area_actividad,
-                'nombre'=>(string)$area_informe_actividad['nombre']
-            );
-        }
-    }
-    // En varios roles de área, respetar el contexto seleccionado en el CRM.
-    // Esto reduce el alcance del informe y nunca concede acceso a otra área.
-    if(count($crm_informe_actividades_areas)>1)
-    {
-        $contexto_actividad=function_exists('acceso_area_activa') ? acceso_area_activa() : '';
-        if($contexto_actividad==='' || !isset($crm_informe_actividades_areas[$contexto_actividad]))
-        {
-            $principal_actividad=function_exists('acceso_area') ? acceso_area() : '';
-            $contexto_actividad=isset($crm_informe_actividades_areas[$principal_actividad]) ? $principal_actividad : (string)key($crm_informe_actividades_areas);
-        }
-        if(isset($crm_informe_actividades_areas[$contexto_actividad])) { $crm_informe_actividades_areas=array($contexto_actividad=>$crm_informe_actividades_areas[$contexto_actividad]); }
-    }
+	$areas_actividades_disponibles=acceso_consulta("SELECT id_area, clave, nombre FROM area WHERE activo=1 ORDER BY nombre");
+	$areas_actividades_coordinadas=array();
+	foreach($areas_actividades_disponibles as $area_informe_actividad)
+	{
+		$clave_area_actividad=(string)$area_informe_actividad['clave'];
+		if(acceso_es_coord_de_area($clave_area_actividad))
+		{
+			$areas_actividades_coordinadas[$clave_area_actividad]=array(
+				'id'=>intval($area_informe_actividad['id_area']),
+				'id_area'=>intval($area_informe_actividad['id_area']),
+				'clave'=>$clave_area_actividad,
+				'nombre'=>(string)$area_informe_actividad['nombre']
+			);
+		}
+	}
+	if(count($areas_actividades_coordinadas)>0)
+	{
+		$crm_informe_actividades_areas=$areas_actividades_coordinadas;
+		// En varios roles coordinadores, respetar el contexto seleccionado.
+		if(count($crm_informe_actividades_areas)>1)
+		{
+			$contexto_actividad=function_exists('acceso_area_activa') ? acceso_area_activa() : '';
+			if($contexto_actividad==='' || !isset($crm_informe_actividades_areas[$contexto_actividad]))
+			{
+				$principal_actividad=function_exists('acceso_area') ? acceso_area() : '';
+				$contexto_actividad=isset($crm_informe_actividades_areas[$principal_actividad]) ? $principal_actividad : (string)key($crm_informe_actividades_areas);
+			}
+			if(isset($crm_informe_actividades_areas[$contexto_actividad])) { $crm_informe_actividades_areas=array($contexto_actividad=>$crm_informe_actividades_areas[$contexto_actividad]); }
+		}
+	}
+	elseif(function_exists('acceso_es_empleado') && acceso_es_empleado())
+	{
+		// La consulta del informe es de solo lectura: empleados pueden ver el
+		// área activa autorizada; no necesitan permisos de coordinación/edición.
+		$contexto_actividad=function_exists('acceso_area_activa') ? acceso_area_activa() : '';
+		if($contexto_actividad!=='' && function_exists('acceso_puede') && acceso_puede($contexto_actividad))
+		{
+			foreach($areas_actividades_disponibles as $area_informe_actividad)
+			{
+				if((string)$area_informe_actividad['clave']===$contexto_actividad)
+				{
+					$crm_informe_actividades_areas[$contexto_actividad]=array(
+						'id'=>intval($area_informe_actividad['id_area']),
+						'id_area'=>intval($area_informe_actividad['id_area']),
+						'clave'=>$contexto_actividad,
+						'nombre'=>(string)$area_informe_actividad['nombre']
+					);
+					break;
+				}
+			}
+		}
+	}
 }
 $puede_ver_actividades=$crm_informe_actividades_global || count($crm_informe_actividades_areas)>0;
 $crm_informe_tareas_global=acceso_es_super() || acceso_es_coord_general();
@@ -369,10 +396,10 @@ elseif($puede_ver_presidencia)
 <div class="crm-informes-heading"><div class="page-title"><h3>Informes</h3></div><p class="crm-informes-description">Consultá, filtrá e imprimí información de las distintas áreas</p></div>
 <div class="crm-informes-tabs-card"><div class="crm-informes-tabs" aria-label="Informes disponibles">
 <?php if($puede_ver_colaboradores) { ?><a class="btn <?php echo $reporte==='colaboradores' ? 'btn-primary' : 'btn-white'; ?>" href="<?php echo htmlspecialchars(url_crm('informes.php?reporte=colaboradores'), ENT_QUOTES, 'UTF-8'); ?>">Colaboradores</a><?php } ?>
-<?php if($puede_ver_clientes) { ?><a class="btn <?php echo $reporte==='clientes' ? 'btn-primary' : 'btn-white'; ?>" href="<?php echo htmlspecialchars(url_crm('informes.php?reporte=clientes'), ENT_QUOTES, 'UTF-8'); ?>">Clientes</a><?php } else { ?><span class="btn btn-white disabled" aria-disabled="true">Clientes</span><?php } ?>
-<?php if($puede_ver_actividades) { ?><a class="btn <?php echo $reporte==='actividades' ? 'btn-primary' : 'btn-white'; ?>" href="<?php echo htmlspecialchars(url_crm('informes.php?reporte=actividades'), ENT_QUOTES, 'UTF-8'); ?>">Actividades</a><?php } else { ?><span class="btn btn-white disabled" aria-disabled="true">Actividades</span><?php } ?>
-<?php if($puede_ver_tareas) { ?><a class="btn <?php echo $reporte==='tareas' ? 'btn-primary' : 'btn-white'; ?>" href="<?php echo htmlspecialchars(url_crm('informes.php?reporte=tareas'), ENT_QUOTES, 'UTF-8'); ?>">Tareas</a><?php } else { ?><span class="btn btn-white disabled" aria-disabled="true">Tareas</span><?php } ?>
-<?php if($puede_ver_atenciones) { ?><a class="btn <?php echo $reporte==='atenciones' ? 'btn-primary' : 'btn-white'; ?>" href="<?php echo htmlspecialchars(url_crm('informes.php?reporte=atenciones'), ENT_QUOTES, 'UTF-8'); ?>">Atenciones</a><?php } else { ?><span class="btn btn-white disabled" aria-disabled="true">Atenciones</span><?php } ?>
+<?php if($puede_ver_clientes) { ?><a class="btn <?php echo $reporte==='clientes' ? 'btn-primary' : 'btn-white'; ?>" href="<?php echo htmlspecialchars(url_crm('informes.php?reporte=clientes'), ENT_QUOTES, 'UTF-8'); ?>">Clientes</a><?php } ?>
+<?php if($puede_ver_actividades) { ?><a class="btn <?php echo $reporte==='actividades' ? 'btn-primary' : 'btn-white'; ?>" href="<?php echo htmlspecialchars(url_crm('informes.php?reporte=actividades'), ENT_QUOTES, 'UTF-8'); ?>">Actividades</a><?php } ?>
+<?php if($puede_ver_tareas) { ?><a class="btn <?php echo $reporte==='tareas' ? 'btn-primary' : 'btn-white'; ?>" href="<?php echo htmlspecialchars(url_crm('informes.php?reporte=tareas'), ENT_QUOTES, 'UTF-8'); ?>">Tareas</a><?php } ?>
+<?php if($puede_ver_atenciones) { ?><a class="btn <?php echo $reporte==='atenciones' ? 'btn-primary' : 'btn-white'; ?>" href="<?php echo htmlspecialchars(url_crm('informes.php?reporte=atenciones'), ENT_QUOTES, 'UTF-8'); ?>">Atenciones</a><?php } ?>
 <?php if($puede_ver_dominios) { ?><a class="btn <?php echo $reporte==='dominios' ? 'btn-primary' : 'btn-white'; ?>" href="<?php echo htmlspecialchars(url_crm('informes.php?reporte=dominios'), ENT_QUOTES, 'UTF-8'); ?>">Dominios</a><?php } ?>
 </div></div>
 <?php if($puede_ver_presidencia) { ?><div class="crm-informes-other"><a class="btn btn-link" href="<?php echo htmlspecialchars(url_crm('admin/informes-presidencia.php'), ENT_QUOTES, 'UTF-8'); ?>">Ir a Informes para Presidencia <i class="fa fa-arrow-right"></i></a></div><?php } ?>

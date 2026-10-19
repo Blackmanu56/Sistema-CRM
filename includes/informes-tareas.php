@@ -12,6 +12,20 @@ $it_date=function($value) {
 $it_state_labels=array('no_iniciada'=>'No iniciada','en_proceso'=>'En proceso','pausada'=>'Pausada','terminada'=>'Terminada');
 $it_priority_labels=array('urgente'=>'Urgente','alta'=>'Alta','media'=>'Media','baja'=>'Baja');
 $it_types=array('independiente'=>'Independiente','vinculada'=>'Vinculada a actividad');
+$it_current_employee_id=function_exists('crm_id_empleado_sesion') ? intval(crm_id_empleado_sesion()) : 0;
+$it_can_view_task=function($task) use ($it_current_employee_id) {
+	$authorization_task=$task;
+	$assigned_ids=isset($task['responsable_ids']) && is_array($task['responsable_ids']) ? array_map('intval',$task['responsable_ids']) : array();
+	$session_identity=isset($_SESSION['tareas_persona']) ? trim((string)$_SESSION['tareas_persona']) : '';
+	// La autorización operativa compara la identidad de sesión con la etiqueta completa.
+	// El informe obtiene la asignación por ID y la agrega solo al objeto temporal de permiso.
+	if($it_current_employee_id>0 && $session_identity!=='' && in_array($it_current_employee_id,$assigned_ids,true))
+	{
+		$authorization_task['responsables']=isset($task['responsables']) && is_array($task['responsables']) ? $task['responsables'] : array();
+		$authorization_task['responsables'][]=$session_identity;
+	}
+	return tarea_puede_ver($authorization_task);
+};
 $it_global=!empty($crm_informe_tareas_global);
 $it_area_keys=isset($crm_informe_tareas_areas) && is_array($crm_informe_tareas_areas) ? array_keys($crm_informe_tareas_areas) : array();
 $it_area_keys=array_values(array_unique(array_filter(array_map('strval',$it_area_keys))));
@@ -87,7 +101,7 @@ foreach($it_candidates as $it_candidate)
 	$it_candidate['responsable']=isset($it_candidate['responsables'][0]) ? $it_candidate['responsables'][0] : '';
 	$it_candidate['responsable_ids']=isset($it_responsibles[$it_id]) ? array_values(array_unique($it_responsibles[$it_id]['ids'])) : array();
 	$it_candidate['responsables_por_id']=isset($it_responsibles[$it_id]) ? $it_responsibles[$it_id]['by_id'] : array();
-	if(tarea_puede_ver($it_candidate)) { $it_visible[$it_id]=$it_candidate; }
+	if($it_can_view_task($it_candidate)) { $it_visible[$it_id]=$it_candidate; }
 }
 foreach($it_visible as $it_id=>&$it_task)
 {
@@ -175,7 +189,7 @@ if(count($it_parent_ids)>0)
 		$it_parent_id=intval($it_child['id_tarea_padre']);
 		if(!isset($it_children_all[$it_parent_id])) { $it_children_all[$it_parent_id]=array(); }
 		$it_children_all[$it_parent_id][]=$it_child;
-		if(tarea_puede_ver($it_child))
+		if($it_can_view_task($it_child))
 		{
 			if(!isset($it_children_visible[$it_parent_id])) { $it_children_visible[$it_parent_id]=array(); }
 			$it_children_visible[$it_parent_id][]=$it_child;
