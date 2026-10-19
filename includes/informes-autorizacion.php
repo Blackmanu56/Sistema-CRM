@@ -15,6 +15,7 @@ function crm_informes_autorizaciones_usuario()
 	require_once BASE_PATH.'/includes/informes-atenciones-scope.php';
 
 	$crm_informe_area_activa=function_exists('acceso_area_activa') ? acceso_area_activa() : '';
+	$crm_informe_modulo_habilitado=crm_informes_area_modulo_habilitado($crm_informe_area_activa);
 	$crm_informes_configuracion_activa=crm_informes_area_configuracion_clave($crm_informe_area_activa);
 	$puede_ver_colaboradores=acceso_puede_ver_informe_colaboradores();
 	$puede_ver_presidencia=acceso_puede_ver_informes();
@@ -133,14 +134,32 @@ function crm_informes_autorizaciones_usuario()
 	$crm_informe_atenciones_areas=array();
 	$crm_informe_atenciones_detalle_area_ids=array();
 	$crm_informe_atenciones_contexto='';
-	if(!$crm_informe_atenciones_global)
+	$areas_activas_atencion=acceso_consulta("SELECT id_area, clave, nombre FROM area WHERE activo=1 ORDER BY nombre");
+	if($crm_informe_atenciones_global)
+	{
+		foreach($areas_activas_atencion as $area_informe_atencion)
+		{
+			$clave_area_atencion=(string)$area_informe_atencion['clave'];
+			if(area_capacidad($clave_area_atencion,'puede_atenciones') && is_file(BASE_PATH.'/public/'.$clave_area_atencion.'/atenciones.php'))
+			{
+				$crm_informe_atenciones_areas[$clave_area_atencion]=array(
+					'id'=>intval($area_informe_atencion['id_area']),
+					'id_area'=>intval($area_informe_atencion['id_area']),
+					'clave'=>$clave_area_atencion,
+					'nombre'=>(string)$area_informe_atencion['nombre']
+				);
+				if(is_file(BASE_PATH.'/public/'.$clave_area_atencion.'/atencion.php')) { $crm_informe_atenciones_detalle_area_ids[]=intval($area_informe_atencion['id_area']); }
+			}
+		}
+	}
+	else
 	{
 		$area_principal_atencion=function_exists('acceso_area') ? acceso_area() : '';
 		$areas_reales_atencion=array_fill_keys(crm_informes_atenciones_role_area_keys($area_principal_atencion,acceso_roles_adicionales_sesion()),true);
-		foreach(acceso_consulta("SELECT id_area, clave, nombre FROM area WHERE activo=1 ORDER BY nombre") as $area_informe_atencion)
+		foreach($areas_activas_atencion as $area_informe_atencion)
 		{
 			$clave_area_atencion=(string)$area_informe_atencion['clave'];
-			if(isset($areas_reales_atencion[$clave_area_atencion]) && is_file(BASE_PATH.'/public/'.$clave_area_atencion.'/atenciones.php'))
+			if(isset($areas_reales_atencion[$clave_area_atencion]) && area_capacidad($clave_area_atencion,'puede_atenciones') && is_file(BASE_PATH.'/public/'.$clave_area_atencion.'/atenciones.php'))
 			{
 				$area_autorizada_atencion=array(
 					'id'=>intval($area_informe_atencion['id_area']),
@@ -159,7 +178,8 @@ function crm_informes_autorizaciones_usuario()
 			array_map(function($area) { return intval($area['id_area']); },$crm_informe_atenciones_areas)
 		));
 	}
-	$puede_ver_atenciones=$crm_informe_atenciones_global || count($crm_informe_atenciones_areas)>0;
+	$crm_informe_atenciones_capacidad_activa=($crm_informe_area_activa==='' || area_capacidad($crm_informe_area_activa,'puede_atenciones'));
+	$puede_ver_atenciones=($crm_informe_atenciones_global || count($crm_informe_atenciones_areas)>0) && $crm_informe_atenciones_capacidad_activa;
 
 	$crm_informe_dominios_global=acceso_es_super() || acceso_es_coord_general();
 	$crm_informe_dominios_contexto=function_exists('acceso_area_activa') ? acceso_area_activa() : '';
@@ -196,10 +216,19 @@ function crm_informes_autorizaciones_usuario()
 	$puede_ver_actividades=crm_informes_disponible_para_usuario($crm_informes_configuracion_activa,'actividades',$puede_ver_actividades);
 	$puede_ver_tareas=crm_informes_disponible_para_usuario($crm_informes_configuracion_activa,'tareas',$puede_ver_tareas);
 	$puede_ver_atenciones=crm_informes_disponible_para_usuario($crm_informes_configuracion_activa,'atenciones',$puede_ver_atenciones);
+	if(!$crm_informe_modulo_habilitado)
+	{
+		$puede_ver_colaboradores=false;
+		$puede_ver_clientes=false;
+		$puede_ver_actividades=false;
+		$puede_ver_tareas=false;
+		$puede_ver_atenciones=false;
+		$puede_ver_dominios=false;
+	}
 
-	$crm_informe_tiene_tab_o_destino=$puede_ver_colaboradores || $puede_ver_clientes || $puede_ver_actividades || $puede_ver_tareas || $puede_ver_atenciones || $puede_ver_dominios || $puede_ver_presidencia;
+	$crm_informe_tiene_tab_o_destino=$crm_informe_modulo_habilitado && ($puede_ver_colaboradores || $puede_ver_clientes || $puede_ver_actividades || $puede_ver_tareas || $puede_ver_atenciones || $puede_ver_dominios || $puede_ver_presidencia);
 	$resultado=compact(
-		'crm_informe_area_activa','crm_informes_configuracion_activa',
+		'crm_informe_area_activa','crm_informe_modulo_habilitado','crm_informes_configuracion_activa',
 		'puede_ver_colaboradores','puede_ver_presidencia','puede_ver_actividades','puede_ver_tareas','puede_ver_atenciones','puede_ver_dominios','puede_ver_clientes',
 		'crm_informe_actividades_global','crm_informe_actividades_areas','crm_informe_tareas_global','crm_informe_tareas_areas','crm_informe_tareas_con_permiso',
 		'crm_informe_atenciones_global','crm_informe_atenciones_areas','crm_informe_atenciones_detalle_area_ids','crm_informe_atenciones_contexto',

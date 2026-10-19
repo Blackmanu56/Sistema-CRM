@@ -4,6 +4,7 @@
 if(!isset($menu_activo)) { $menu_activo='tareas'; }
 ?>
  <div class="crm-menu-seccion">
+	<a href="<?php echo htmlspecialchars(url_crm('sistemas/dashboard.php'), ENT_QUOTES, 'UTF-8'); ?>" class="btn <?php echo (in_array($menu_activo, array('inicio','dashboard'), true) ? 'btn-primary' : 'btn-white'); ?>">Inicio</a>
 	<a href="<?php echo url_crm('sistemas/tareas.php'); ?>" class="btn <?php echo ($menu_activo=='tareas' ? 'btn-primary' : 'btn-white'); ?>">Tareas</a>
 	<a href="<?php echo url_crm('sistemas/actividades.php'); ?>" class="btn <?php echo ($menu_activo=='Actividades' ? 'btn-primary' : 'btn-white'); ?>">Actividades</a>
 	<?php if(crm_puede_gestionar_programas()) { ?>
@@ -12,7 +13,7 @@ if(!isset($menu_activo)) { $menu_activo='tareas'; }
 	<?php if(acceso_puede_clientes_de_area('sistemas')) { ?>
 	<a href="<?php echo url_crm('sistemas/clientes.php'); ?>" class="btn <?php echo ($menu_activo=='clientes' ? 'btn-primary' : 'btn-white'); ?>">Clientes</a>
 	<?php } ?>
-	<?php if(acceso_puede_clientes_de_area('sistemas') || crm_area_ve_todo('sistemas') || acceso_puede('sistemas')) { ?>
+	<?php if(area_capacidad('sistemas', 'puede_atenciones') && (acceso_puede_clientes_de_area('sistemas') || crm_area_ve_todo('sistemas') || acceso_puede('sistemas'))) { ?>
 	<a href="<?php echo url_crm('sistemas/atenciones.php'); ?>" class="btn <?php echo ($menu_activo=='atenciones' ? 'btn-primary' : 'btn-white'); ?>">Atenciones</a>
 	<?php } ?>
 	<a href="<?php echo url_crm('sistemas/dominios.php'); ?>" class="btn <?php echo ($menu_activo=='dominios' ? 'btn-primary' : 'btn-white'); ?>">Dominios</a>

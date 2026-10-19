@@ -41,6 +41,8 @@ BEGIN
     ('area','puede_clientes','tinyint(1)','NO'),
     ('area','recibe_derivaciones','tinyint(1)','NO'),
     ('area','recibe_turnos','tinyint(1)','NO'),
+    ('area','puede_atenciones','tinyint(1)','NO'),
+    ('area','informes_habilitados','tinyint(1)','NO'),
     ('area','asignable_empleado','tinyint(1)','NO'),
     ('area','creado_en','timestamp','NO'),
     ('area_informe','id_area','smallint(5) unsigned','NO'),
@@ -392,6 +394,8 @@ BEGIN
     ('area','puede_clientes'),
     ('area','recibe_derivaciones'),
     ('area','recibe_turnos'),
+    ('area','puede_atenciones'),
+    ('area','informes_habilitados'),
     ('atencion','fecha_derivacion'),
     ('atencion','id_area_origen'),
     ('atencion','id_empleado_origen'),
@@ -467,6 +471,8 @@ BEGIN
   `puede_clientes` tinyint(1) NOT NULL DEFAULT 0,
   `recibe_derivaciones` tinyint(1) NOT NULL DEFAULT 0,
   `recibe_turnos` tinyint(1) NOT NULL DEFAULT 0,
+  `puede_atenciones` tinyint(1) NOT NULL DEFAULT 1,
+  `informes_habilitados` tinyint(1) NOT NULL DEFAULT 1,
   `asignable_empleado` tinyint(1) NOT NULL DEFAULT 1,
   `creado_en` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id_area`),
@@ -1158,6 +1164,8 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='area' AND COLUMN_NAME='puede_clientes') THEN ALTER TABLE `area` ADD COLUMN `puede_clientes` tinyint(1) NOT NULL DEFAULT 0; END IF;
   IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='area' AND COLUMN_NAME='recibe_derivaciones') THEN ALTER TABLE `area` ADD COLUMN `recibe_derivaciones` tinyint(1) NOT NULL DEFAULT 0; END IF;
   IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='area' AND COLUMN_NAME='recibe_turnos') THEN ALTER TABLE `area` ADD COLUMN `recibe_turnos` tinyint(1) NOT NULL DEFAULT 0; END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='area' AND COLUMN_NAME='puede_atenciones') THEN ALTER TABLE `area` ADD COLUMN `puede_atenciones` tinyint(1) NOT NULL DEFAULT 1; END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='area' AND COLUMN_NAME='informes_habilitados') THEN ALTER TABLE `area` ADD COLUMN `informes_habilitados` tinyint(1) NOT NULL DEFAULT 1; END IF;
   IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='atencion' AND COLUMN_NAME='fecha_derivacion') THEN ALTER TABLE `atencion` ADD COLUMN `fecha_derivacion` datetime DEFAULT NULL; END IF;
   IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='atencion' AND COLUMN_NAME='id_area_origen') THEN ALTER TABLE `atencion` ADD COLUMN `id_area_origen` smallint(5) unsigned DEFAULT NULL; END IF;
   IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='atencion' AND COLUMN_NAME='id_empleado_origen') THEN ALTER TABLE `atencion` ADD COLUMN `id_empleado_origen` int(10) unsigned DEFAULT NULL; END IF;
@@ -1218,19 +1226,19 @@ BEGIN
 (4, 'empleado', 'Empleado'),
 (5, 'presidencia', 'Presidencia'),
 (6, 'admin_tareas', 'Administración de tareas');
-  INSERT IGNORE INTO area (id_area,clave,nombre,activo,atiende_clientes,puede_clientes,recibe_derivaciones,recibe_turnos,asignable_empleado) VALUES
-(1, 'recepcion', 'Recepción', 1, 1, 1, 1, 1, 1),
-(2, 'marketing', 'Marketing', 1, 1, 1, 1, 1, 1),
-(3, 'empresas', 'Empresas', 1, 1, 1, 1, 1, 1),
-(4, 'emprendedores', 'Emprendedores', 1, 1, 1, 1, 1, 1),
-(5, 'comercio', 'Comercio exterior', 1, 1, 1, 1, 1, 1),
-(6, 'rrhh', 'Recursos humanos', 1, 1, 1, 1, 1, 1),
-(7, 'vinculaciones', 'Vinculación académica', 1, 1, 1, 1, 1, 1),
-(8, 'sistemas', 'Sistemas', 1, 0, 1, 0, 0, 1),
-(9, 'administracion', 'Administración', 1, 1, 1, 1, 1, 1),
-(10, 'general', 'Coordinación general', 1, 0, 0, 0, 0, 0),
-(11, 'presidencia', 'Presidencia', 1, 0, 0, 0, 0, 0),
-(14, 'analista', 'Analista', 1, 1, 1, 1, 1, 1);
+  INSERT IGNORE INTO area (id_area,clave,nombre,activo,atiende_clientes,puede_clientes,recibe_derivaciones,recibe_turnos,puede_atenciones,informes_habilitados,asignable_empleado) VALUES
+(1, 'recepcion', 'Recepción', 1, 1, 1, 1, 1, 1, 1, 1),
+(2, 'marketing', 'Marketing', 1, 1, 1, 1, 1, 1, 1, 1),
+(3, 'empresas', 'Empresas', 1, 1, 1, 1, 1, 1, 1, 1),
+(4, 'emprendedores', 'Emprendedores', 1, 1, 1, 1, 1, 1, 1, 1),
+(5, 'comercio', 'Comercio exterior', 1, 1, 1, 1, 1, 1, 1, 1),
+(6, 'rrhh', 'Recursos humanos', 1, 1, 1, 1, 1, 1, 1, 1),
+(7, 'vinculaciones', 'Vinculación académica', 1, 1, 1, 1, 1, 1, 1, 1),
+(8, 'sistemas', 'Sistemas', 1, 0, 1, 0, 0, 1, 1, 1),
+(9, 'administracion', 'Administración', 1, 1, 1, 1, 1, 1, 1, 1),
+(10, 'general', 'Coordinación general', 1, 0, 0, 0, 0, 1, 1, 0),
+(11, 'presidencia', 'Presidencia', 1, 0, 0, 0, 0, 1, 1, 0),
+(14, 'analista', 'Analista', 1, 1, 1, 1, 1, 1, 1, 1);
   IF v_area_informe_existe=0 THEN
     INSERT IGNORE INTO area_informe (id_area,codigo_informe,habilitado) SELECT id_area,'colaboradores',1 FROM area;
     INSERT IGNORE INTO area_informe (id_area,codigo_informe,habilitado) SELECT id_area,'clientes',1 FROM area;

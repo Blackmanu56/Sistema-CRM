@@ -68,6 +68,36 @@ function crm_informes_area_configuracion_clave($clave_area)
 	return $area ? crm_informes_area_configuracion(intval($area['id_area'])) : $config;
 }
 
+/** Module-level availability; this never grants a report's data permission. */
+function crm_informes_area_modulo_habilitado($clave_area)
+{
+	$clave_area=is_string($clave_area) ? trim($clave_area) : '';
+	if($clave_area==='') { return true; }
+	if(function_exists('crm_asegurar_area_flags')) { crm_asegurar_area_flags(); }
+	// Older installations without the new column retain existing access until
+	// the unified BDD upgrade is applied.
+	if(function_exists('crm_columna_existe') && !crm_columna_existe('area','informes_habilitados')) { return true; }
+	$fila=acceso_consulta_una(
+		"SELECT a.informes_habilitados AS v FROM area a WHERE a.clave=? AND a.activo=1 LIMIT 1",
+		's',
+		array($clave_area)
+	);
+	return $fila && intval($fila['v'])===1;
+}
+
+function crm_informes_area_modulo_guardar($id_area, $habilitado)
+{
+	$id_area=intval($id_area);
+	if($id_area<=0 || !is_scalar($habilitado) || !in_array((string)$habilitado,array('0','1'),true)) { return false; }
+	if(function_exists('crm_asegurar_area_flags')) { crm_asegurar_area_flags(); }
+	if(function_exists('crm_columna_existe') && !crm_columna_existe('area','informes_habilitados')) { return false; }
+	return acceso_ejecutar(
+		"UPDATE area SET informes_habilitados=? WHERE id_area=?",
+		'ii',
+		array((int)$habilitado,$id_area)
+	);
+}
+
 function crm_informes_area_configuraciones_todas()
 {
 	$config=array();
@@ -157,4 +187,13 @@ function crm_informes_seleccionados_validar_estricto($seleccionados)
 		$validos[$codigo]=$codigo;
 	}
 	return array_values($validos);
+}
+
+/** Reject an enabled Reports module with no selected report. */
+function crm_informes_seleccionados_requeridos_validar($seleccionados, $modulo_habilitado)
+{
+	$validos=crm_informes_seleccionados_validar_estricto($seleccionados);
+	if($validos===false || !is_scalar($modulo_habilitado) || !in_array((string)$modulo_habilitado,array('0','1'),true)) { return false; }
+	if((string)$modulo_habilitado==='1' && count($validos)===0) { return false; }
+	return $validos;
 }

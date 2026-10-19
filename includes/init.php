@@ -63,6 +63,14 @@ function crm_proteger_staff($area=null,$preservar_area_activa=null)
 		$preservar_area_activa=($pag==='actividades.php' || $pag==='nueva-actividad.php');
 	}
 	check_login($area,(bool)$preservar_area_activa);
+	if($area!==null && $area!=='' && in_array($pag, array('atenciones.php','atencion.php','nueva-atencion.php','nuevo-turno.php'), true))
+	{
+		if(!function_exists('area_capacidad') || !area_capacidad($area, 'puede_atenciones'))
+		{
+			http_response_code(403);
+			exit('El módulo de Atenciones está deshabilitado para esta área.');
+		}
+	}
 	if($pag=='change-password.php' || $pag=='logout.php')
 	{
 		return;
@@ -151,7 +159,13 @@ function crm_menu_seccion_informes()
 	$ruta=isset($_SERVER['SCRIPT_NAME']) ? str_replace('\\', '/', $_SERVER['SCRIPT_NAME']) : '';
 	$activo=basename($ruta)==='informes.php';
 	$clase=$activo ? 'btn-primary' : 'btn-white';
-	echo '<a href="'.htmlspecialchars(url_crm('informes.php'), ENT_QUOTES, 'UTF-8').'" class="btn '.$clase.'"><i class="fa fa-file-text-o"></i> Informes</a>';
+	$href=url_crm('informes.php');
+	if($area_activa==='general')
+	{
+		require_once BASE_PATH.'/includes/navegacion-contexto.php';
+		$href=crm_navegacion_general_url('informes.php');
+	}
+	echo '<a href="'.htmlspecialchars($href, ENT_QUOTES, 'UTF-8').'" class="btn '.$clase.'"><i class="fa fa-file-text-o" aria-hidden="true"></i> Informes</a>';
 }
 
 function crm_header_cliente()

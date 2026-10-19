@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__.'/../../_init.php';
 require_once __DIR__.'/contexto.php';
+require_once BASE_PATH.'/includes/navegacion-contexto.php';
 crm_proteger_staff();
 include __DIR__.'/../datos-tareas.php';
 tareas_iniciar_contexto();
@@ -18,6 +19,13 @@ $geojson_url=is_file($geojson)
 $mapa_token_general=isset($_GET['origen_general']) && mapa_interactivo_contexto_general_valido($_GET['origen_general'])
 	? $_GET['origen_general']
 	: '';
+$mapa_contexto_nav_general=isset($_GET['contexto_general']) && is_string($_GET['contexto_general']) && crm_navegacion_contexto_general_valido($_GET['contexto_general']);
+$mapa_navbar_path='';
+$mapa_navbar_area=function_exists('acceso_area_activa') ? acceso_area_activa() : '';
+if($mapa_contexto_nav_general) { $mapa_navbar_path=BASE_PATH.'/public/general/menu-seccion.php'; }
+elseif($mapa_navbar_area!=='' && $mapa_navbar_area!=='admin' && is_file(BASE_PATH.'/public/'.$mapa_navbar_area.'/menu-seccion.php')) { $mapa_navbar_path=BASE_PATH.'/public/'.$mapa_navbar_area.'/menu-seccion.php'; }
+elseif(acceso_es_super() || acceso_es_coord_general()) { $mapa_navbar_path=BASE_PATH.'/public/general/menu-seccion.php'; }
+$menu_activo='mapa_eventos';
 $mapa_token_retorno=mapa_interactivo_token_retorno();
 $mapa_retorno_valido=isset($_GET['mapa_retorno']) && mapa_interactivo_token_retorno_valido($_GET['mapa_retorno'])
 	? $_GET['mapa_retorno']
@@ -77,6 +85,7 @@ $mapa_retorno_valido=isset($_GET['mapa_retorno']) && mapa_interactivo_token_reto
 			<li><a href="<?php echo htmlspecialchars(url_crm('general/actividades.php'), ENT_QUOTES, 'UTF-8'); ?>">Actividades</a></li>
 			<li><a href="#" class="active">Mapa interactivo</a></li>
 		</ul>
+		<?php if($mapa_navbar_path!=='') { require $mapa_navbar_path; } ?>
 		<div class="page-title"><h3>Mapa interactivo de eventos · Misiones</h3></div>
 		<div class="grid simple">
 			<div class="grid-body">

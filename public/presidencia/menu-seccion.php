@@ -4,6 +4,7 @@
 if(!isset($menu_activo)) { $menu_activo='tareas'; }
 ?>
  <div class="crm-menu-seccion">
+	<a href="<?php echo htmlspecialchars(url_crm('presidencia/dashboard.php'), ENT_QUOTES, 'UTF-8'); ?>" class="btn <?php echo (in_array($menu_activo, array('inicio','dashboard'), true) ? 'btn-primary' : 'btn-white'); ?>">Inicio</a>
 	<a href="<?php echo url_crm('presidencia/tareas.php'); ?>" class="btn <?php echo ($menu_activo=='tareas' ? 'btn-primary' : 'btn-white'); ?>">Tareas</a>
 	<a href="<?php echo url_crm('presidencia/actividades.php'); ?>" class="btn <?php echo (in_array($menu_activo, array('actividades', 'Actividades'), true) ? 'btn-primary' : 'btn-white'); ?>">Actividades</a>
 <?php crm_menu_seccion_sala_reuniones(); ?>

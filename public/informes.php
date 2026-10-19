@@ -4,10 +4,10 @@ crm_proteger_staff();
 require_once BASE_PATH.'/includes/informes-autorizacion.php';
 $crm_informe_permisos=crm_informes_autorizaciones_usuario();
 extract($crm_informe_permisos, EXTR_SKIP);
-if(!$crm_informe_tiene_permiso_nativo)
+if(empty($crm_informe_modulo_habilitado))
 {
-	header('Location: '.acceso_destino_login());
-	exit();
+	http_response_code(403);
+	exit('El módulo de Informes está deshabilitado para el área activa.');
 }
 $reporte=isset($_GET['reporte']) && is_scalar($_GET['reporte']) ? trim((string)$_GET['reporte']) : '';
 $reporte_no_disponible=($reporte!=='' && !in_array($reporte, array('colaboradores','clientes','actividades','tareas','atenciones','dominios'), true));
@@ -145,11 +145,19 @@ if($impresion_fichas)
     exit();
 }
 $menu_activo='informes';
+require_once BASE_PATH.'/includes/navegacion-contexto.php';
+$crm_contexto_general_token=isset($_GET['contexto_general']) && is_string($_GET['contexto_general']) && crm_navegacion_contexto_general_valido($_GET['contexto_general']) ? $_GET['contexto_general'] : '';
+$crm_contexto_general_activo=($crm_contexto_general_token!=='');
+$crm_informes_contexto_query=$crm_contexto_general_activo ? '&contexto_general='.urlencode($crm_contexto_general_token) : '';
 $navbar_area=function_exists('acceso_area_activa') ? acceso_area_activa() : '';
 $navbar_path='';
 // Keep the report navigation consistent with the area selected in the CRM,
 // including when a global role (Superadmin or Coordinación General) is active.
-if($navbar_area!=='' && $navbar_area!=='admin' && is_file(BASE_PATH.'/public/'.$navbar_area.'/menu-seccion.php'))
+if($crm_contexto_general_activo)
+{
+    $navbar_path=BASE_PATH.'/public/general/menu-seccion.php';
+}
+elseif($navbar_area!=='' && $navbar_area!=='admin' && is_file(BASE_PATH.'/public/'.$navbar_area.'/menu-seccion.php'))
 {
     $navbar_path=BASE_PATH.'/public/'.$navbar_area.'/menu-seccion.php';
 }
@@ -206,12 +214,12 @@ elseif($puede_ver_presidencia)
 <?php if($navbar_path!=='') { require $navbar_path; } ?>
 <div class="crm-informes-heading"><div class="page-title"><h3>Informes</h3></div><p class="crm-informes-description">Consultá, filtrá e imprimí información de las distintas áreas</p></div>
 <div class="crm-informes-tabs-card"><div class="crm-informes-tabs" aria-label="Informes disponibles">
-<?php if($puede_ver_colaboradores) { ?><a class="btn <?php echo $reporte==='colaboradores' ? 'btn-primary' : 'btn-white'; ?>" href="<?php echo htmlspecialchars(url_crm('informes.php?reporte=colaboradores'), ENT_QUOTES, 'UTF-8'); ?>">Colaboradores</a><?php } ?>
-<?php if($puede_ver_clientes) { ?><a class="btn <?php echo $reporte==='clientes' ? 'btn-primary' : 'btn-white'; ?>" href="<?php echo htmlspecialchars(url_crm('informes.php?reporte=clientes'), ENT_QUOTES, 'UTF-8'); ?>">Clientes</a><?php } ?>
-<?php if($puede_ver_actividades) { ?><a class="btn <?php echo $reporte==='actividades' ? 'btn-primary' : 'btn-white'; ?>" href="<?php echo htmlspecialchars(url_crm('informes.php?reporte=actividades'), ENT_QUOTES, 'UTF-8'); ?>">Actividades</a><?php } ?>
-<?php if($puede_ver_tareas) { ?><a class="btn <?php echo $reporte==='tareas' ? 'btn-primary' : 'btn-white'; ?>" href="<?php echo htmlspecialchars(url_crm('informes.php?reporte=tareas'), ENT_QUOTES, 'UTF-8'); ?>">Tareas</a><?php } ?>
-<?php if($puede_ver_atenciones) { ?><a class="btn <?php echo $reporte==='atenciones' ? 'btn-primary' : 'btn-white'; ?>" href="<?php echo htmlspecialchars(url_crm('informes.php?reporte=atenciones'), ENT_QUOTES, 'UTF-8'); ?>">Atenciones</a><?php } ?>
-<?php if($puede_ver_dominios) { ?><a class="btn <?php echo $reporte==='dominios' ? 'btn-primary' : 'btn-white'; ?>" href="<?php echo htmlspecialchars(url_crm('informes.php?reporte=dominios'), ENT_QUOTES, 'UTF-8'); ?>">Dominios</a><?php } ?>
+<?php if($puede_ver_colaboradores) { ?><a class="btn <?php echo $reporte==='colaboradores' ? 'btn-primary' : 'btn-white'; ?>" href="<?php echo htmlspecialchars(url_crm('informes.php?reporte=colaboradores'.$crm_informes_contexto_query), ENT_QUOTES, 'UTF-8'); ?>">Colaboradores</a><?php } ?>
+<?php if($puede_ver_clientes) { ?><a class="btn <?php echo $reporte==='clientes' ? 'btn-primary' : 'btn-white'; ?>" href="<?php echo htmlspecialchars(url_crm('informes.php?reporte=clientes'.$crm_informes_contexto_query), ENT_QUOTES, 'UTF-8'); ?>">Clientes</a><?php } ?>
+<?php if($puede_ver_actividades) { ?><a class="btn <?php echo $reporte==='actividades' ? 'btn-primary' : 'btn-white'; ?>" href="<?php echo htmlspecialchars(url_crm('informes.php?reporte=actividades'.$crm_informes_contexto_query), ENT_QUOTES, 'UTF-8'); ?>">Actividades</a><?php } ?>
+<?php if($puede_ver_tareas) { ?><a class="btn <?php echo $reporte==='tareas' ? 'btn-primary' : 'btn-white'; ?>" href="<?php echo htmlspecialchars(url_crm('informes.php?reporte=tareas'.$crm_informes_contexto_query), ENT_QUOTES, 'UTF-8'); ?>">Tareas</a><?php } ?>
+<?php if($puede_ver_atenciones) { ?><a class="btn <?php echo $reporte==='atenciones' ? 'btn-primary' : 'btn-white'; ?>" href="<?php echo htmlspecialchars(url_crm('informes.php?reporte=atenciones'.$crm_informes_contexto_query), ENT_QUOTES, 'UTF-8'); ?>">Atenciones</a><?php } ?>
+<?php if($puede_ver_dominios) { ?><a class="btn <?php echo $reporte==='dominios' ? 'btn-primary' : 'btn-white'; ?>" href="<?php echo htmlspecialchars(url_crm('informes.php?reporte=dominios'.$crm_informes_contexto_query), ENT_QUOTES, 'UTF-8'); ?>">Dominios</a><?php } ?>
 </div></div>
 <?php if($puede_ver_presidencia) { ?><div class="crm-informes-other"><a class="btn btn-link" href="<?php echo htmlspecialchars(url_crm('admin/informes-presidencia.php'), ENT_QUOTES, 'UTF-8'); ?>">Ir a Informes para Presidencia <i class="fa fa-arrow-right"></i></a></div><?php } ?>
 <?php if($reporte==='colaboradores' && $puede_ver_colaboradores) { require BASE_PATH.'/includes/informes-colaboradores.php'; } elseif($reporte_no_disponible) { ?>

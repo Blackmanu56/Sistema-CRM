@@ -4,6 +4,7 @@ crm_proteger_staff(null, true);
 require_once BASE_PATH.'/includes/actividades.php';
 require_once BASE_PATH.'/includes/crm_extra.php';
 require_once BASE_PATH.'/includes/calendario-institucional.php';
+require_once BASE_PATH.'/includes/navegacion-contexto.php';
 
 if(!crm_es_staff())
 {
@@ -24,6 +25,13 @@ if(function_exists('acceso_mis_areas_asignadas'))
 		}
 	}
 }
+$ci_contexto_general_token=isset($_GET['contexto_general']) && is_string($_GET['contexto_general']) && crm_navegacion_contexto_general_valido($_GET['contexto_general']) ? $_GET['contexto_general'] : '';
+$ci_menu_activo='calendario_institucional';
+$ci_navbar_path='';
+$ci_navbar_area=function_exists('acceso_area_activa') ? acceso_area_activa() : '';
+if($ci_contexto_general_token!=='') { $ci_navbar_path=BASE_PATH.'/public/general/menu-seccion.php'; }
+elseif($ci_navbar_area!=='' && $ci_navbar_area!=='admin' && is_file(BASE_PATH.'/public/'.$ci_navbar_area.'/menu-seccion.php')) { $ci_navbar_path=BASE_PATH.'/public/'.$ci_navbar_area.'/menu-seccion.php'; }
+elseif(acceso_es_super() || acceso_es_coord_general()) { $ci_navbar_path=BASE_PATH.'/public/general/menu-seccion.php'; }
 
 function crm_calendario_institucional_json($data, $status=200)
 {
@@ -169,6 +177,7 @@ if(isset($_GET['ajax']) && is_string($_GET['ajax']) && $_GET['ajax']==='1')
 	<div class="clearfix"></div>
 	<div class="content">
 		<ul class="breadcrumb"><li><p>ESTÁS AQUÍ</p></li><li><a href="#" class="active">Calendario Institucional</a></li></ul>
+		<?php if($ci_navbar_path!=='') { $menu_activo=$ci_menu_activo; require $ci_navbar_path; } ?>
 		<div class="ci-page-title"><h3><i class="fa fa-calendar"></i> Calendario Institucional</h3><span class="text-muted">Actividades disponibles según tus permisos actuales.</span></div>
 		<div class="grid simple"><div class="grid-title"><h4>Filtros</h4></div><div class="grid-body">
 			<div class="ci-filters">

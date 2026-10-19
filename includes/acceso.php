@@ -190,9 +190,8 @@ function crm_schema_marcar($clave)
 function crm_asegurar_area_flags()
 {
 	static $listo=false;
-	if($listo || crm_schema_al_dia('area_flags_v1'))
+	if($listo)
 	{
-		$listo=true;
 		return;
 	}
 	global $con;
@@ -208,6 +207,23 @@ function crm_asegurar_area_flags()
 		{
 			$cols[$r['Field']]=true;
 		}
+	}
+	// Independent access controls added after the original area flags. Default
+	// both to enabled so existing areas keep their current behavior.
+	if(!isset($cols['puede_atenciones']))
+	{
+		@mysqli_query($con, "ALTER TABLE area ADD COLUMN puede_atenciones TINYINT(1) NOT NULL DEFAULT 1");
+	}
+	if(!isset($cols['informes_habilitados']))
+	{
+		@mysqli_query($con, "ALTER TABLE area ADD COLUMN informes_habilitados TINYINT(1) NOT NULL DEFAULT 1");
+	}
+	// The v1 migration has already populated its legacy flags. Don't rerun its
+	// data backfill just to add the new columns.
+	if(crm_schema_al_dia('area_flags_v1'))
+	{
+		$listo=true;
+		return;
 	}
 	if(!isset($cols['atiende_clientes']))
 	{
@@ -404,13 +420,19 @@ function area_capacidad($clave, $cap)
 	static $permitidas=null;
 	if($permitidas===null)
 	{
-		$permitidas=array('puede_clientes','recibe_derivaciones','recibe_turnos');
+		$permitidas=array('puede_clientes','recibe_derivaciones','recibe_turnos','puede_atenciones');
 	}
 	crm_asegurar_area_flags();
 	$clave=trim((string)$clave);
 	if($clave==='' || !in_array($cap, $permitidas, true))
 	{
 		return 0;
+	}
+	// Until the unified schema update is applied, preserve the legacy Atenciones
+	// access instead of hiding the module from every existing area.
+	if($cap==='puede_atenciones' && function_exists('crm_columna_existe') && !crm_columna_existe('area','puede_atenciones'))
+	{
+		return 1;
 	}
 	$row=acceso_consulta_una(
 		"SELECT {$cap} AS v FROM area WHERE clave=? AND activo=1 LIMIT 1",
@@ -1732,6 +1754,8 @@ function acceso_buscar_personal($usuario, $clave)
 
 function acceso_iniciar_sesion($persona)
 {
+	// Do not carry a previous account's General navigation context into this login.
+	unset($_SESSION['crm_navegacion_contexto_general'], $_SESSION['crm_navegacion_contexto_general_area'], $_SESSION['crm_mapa_general_origen'], $_SESSION['crm_mapa_retorno_token']);
 	$rol=isset($persona['rol']) ? $persona['rol'] : '';
 	if($rol=='trabajador')
 	{
@@ -1756,6 +1780,11 @@ function acceso_iniciar_sesion($persona)
 	$_SESSION['tareas_persona']=$_SESSION['persona_tareas'];
 	$_SESSION['roles_adicionales']=isset($persona['roles_adicionales']) && is_array($persona['roles_adicionales']) ? $persona['roles_adicionales'] : array();
 	$_SESSION['primer_acceso']=isset($persona['primer_acceso']) ? intval($persona['primer_acceso']) : 0;
+	if(($rol==='superadmin' || $rol==='coordinador_general') && function_exists('acceso_puede') && acceso_puede('general'))
+	{
+		$_SESSION['area_activa']='general';
+		$_SESSION['area_usuario']='general';
+	}
 }
 
 function acceso_es_super()
@@ -4098,6 +4127,12 @@ function acceso_destino_login()
 	if(isset($_SESSION['primer_acceso']) && intval($_SESSION['primer_acceso'])==1)
 	{
 		return url_crm('change-password.php');
+	}
+	if((acceso_es_super() || acceso_es_coord_general())
+		&& function_exists('acceso_puede') && acceso_puede('general')
+		&& function_exists('acceso_area_activa') && acceso_area_activa()==='general')
+	{
+		return url_crm('general/dashboard.php');
 	}
 	if(acceso_es_presidencia())
 	{

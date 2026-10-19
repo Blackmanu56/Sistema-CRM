@@ -8,25 +8,17 @@ $iaa_areas=isset($crm_informe_atenciones_areas) && is_array($crm_informe_atencio
 $iaa_area_ids=array();
 foreach($iaa_areas as $iaa_area) { $iaa_area_ids[]=intval(isset($iaa_area['id_area']) ? $iaa_area['id_area'] : $iaa_area['id']); }
 $iaa_area_ids=array_values(array_unique(array_filter($iaa_area_ids)));
-if(!$iaa_global && count($iaa_area_ids)===0) { http_response_code(403); exit('No estás autorizado para consultar este informe.'); }
+if(count($iaa_area_ids)===0) { http_response_code(403); exit('No estás autorizado para consultar este informe.'); }
 
-$iaa_scope=crm_informes_atenciones_scope_condition($iaa_area_ids,$iaa_global);
+$iaa_scope=crm_informes_atenciones_scope_condition($iaa_area_ids,false);
 $iaa_detail_area_ids=isset($crm_informe_atenciones_detalle_area_ids) && is_array($crm_informe_atenciones_detalle_area_ids) ? array_values(array_unique(array_filter(array_map('intval',$crm_informe_atenciones_detalle_area_ids)))) : array();
-$iaa_detail_scope=crm_informes_atenciones_scope_condition($iaa_detail_area_ids,$iaa_global);
-$iaa_can_view_details=($iaa_global || count($iaa_detail_area_ids)>0);
-$iaa_row_can_view_detail=function($row) use ($iaa_global,$iaa_detail_area_ids) {
-	return $iaa_global || in_array(intval($row['id_area']),$iaa_detail_area_ids,true);
+$iaa_detail_scope=crm_informes_atenciones_scope_condition($iaa_detail_area_ids,false);
+$iaa_can_view_details=(count($iaa_detail_area_ids)>0);
+$iaa_row_can_view_detail=function($row) use ($iaa_detail_area_ids) {
+	return in_array(intval($row['id_area']),$iaa_detail_area_ids,true);
 };
-$iaa_all_areas=acceso_consulta("SELECT id_area, clave, nombre FROM area WHERE activo=1 ORDER BY nombre");
 $iaa_area_options=array();
-if($iaa_global)
-{
-	foreach($iaa_all_areas as $iaa_area) { $iaa_area_options[intval($iaa_area['id_area'])]=(string)$iaa_area['nombre']; }
-}
-else
-{
-	foreach($iaa_areas as $iaa_area) { $iaa_area_options[intval(isset($iaa_area['id_area']) ? $iaa_area['id_area'] : $iaa_area['id'])]=(string)$iaa_area['nombre']; }
-}
+foreach($iaa_areas as $iaa_area) { $iaa_area_options[intval(isset($iaa_area['id_area']) ? $iaa_area['id_area'] : $iaa_area['id'])]=(string)$iaa_area['nombre']; }
 asort($iaa_area_options,SORT_NATURAL|SORT_FLAG_CASE);
 $iaa_show_area=$iaa_global;
 $iaa_report_key='atenciones';

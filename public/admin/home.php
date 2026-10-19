@@ -14,6 +14,18 @@ if(!acceso_es_super() && !acceso_es_coord_general())
 }
 acceso_exigir_dashboard();
 require_once BASE_PATH.'/includes/informes.php';
+require_once BASE_PATH.'/includes/navegacion-contexto.php';
+$admin_home_contexto_general=isset($_GET['contexto_general']) && crm_navegacion_contexto_general_valido($_GET['contexto_general']);
+$admin_home_area=function_exists('acceso_area_activa') ? acceso_area_activa() : '';
+$admin_home_menu_path='';
+if($admin_home_contexto_general || $admin_home_area==='general')
+{
+	$admin_home_menu_path=BASE_PATH.'/public/general/menu-seccion.php';
+}
+elseif($admin_home_area!=='' && $admin_home_area!=='admin' && is_file(BASE_PATH.'/public/'.$admin_home_area.'/menu-seccion.php'))
+{
+	$admin_home_menu_path=BASE_PATH.'/public/'.$admin_home_area.'/menu-seccion.php';
+}
 
 $filtro=isset($_GET['area']) ? $_GET['area'] : 'todas';
 $areas_ok=acceso_etiquetas_area();
@@ -95,7 +107,7 @@ $menu_activo='panel_operativo';
             <div class="clearfix"></div>
             <div class="content crm-operativo-page">
                 <ul class="breadcrumb"><li><p>ESTÁS AQUÍ</p></li><li><a href="#" class="active">Panel Operativo</a></li></ul>
-                <?php if(acceso_es_super() || acceso_es_coord_general()) { include BASE_PATH.'/public/general/menu-seccion.php'; } ?>
+                <?php if($admin_home_menu_path!=='') { require $admin_home_menu_path; } ?>
                 <div class="page-title">
                     <h3>Panel Operativo</h3>
                 </div>
