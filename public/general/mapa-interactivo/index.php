@@ -20,6 +20,7 @@ $mapa_token_general=isset($_GET['origen_general']) && mapa_interactivo_contexto_
 	? $_GET['origen_general']
 	: '';
 $mapa_contexto_nav_general=isset($_GET['contexto_general']) && is_string($_GET['contexto_general']) && crm_navegacion_contexto_general_valido($_GET['contexto_general']);
+$mapa_token_nav_general=$mapa_contexto_nav_general ? $_GET['contexto_general'] : '';
 $mapa_navbar_path='';
 $mapa_navbar_area=function_exists('acceso_area_activa') ? acceso_area_activa() : '';
 if($mapa_contexto_nav_general) { $mapa_navbar_path=BASE_PATH.'/public/general/menu-seccion.php'; }
@@ -123,6 +124,7 @@ $mapa_retorno_valido=isset($_GET['mapa_retorno']) && mapa_interactivo_token_reto
 				<div id="mapa-eventos"
 					data-endpoint="<?php echo htmlspecialchars(url_crm('general/mapa-interactivo/api.php'), ENT_QUOTES, 'UTF-8'); ?>"
 					data-origen-general="<?php echo htmlspecialchars($mapa_token_general, ENT_QUOTES, 'UTF-8'); ?>"
+					data-contexto-general="<?php echo htmlspecialchars($mapa_token_nav_general, ENT_QUOTES, 'UTF-8'); ?>"
 					data-return-token="<?php echo htmlspecialchars($mapa_token_retorno, ENT_QUOTES, 'UTF-8'); ?>"
 					data-return-marker="<?php echo htmlspecialchars($mapa_retorno_valido, ENT_QUOTES, 'UTF-8'); ?>"
 					data-geojson="<?php echo htmlspecialchars($geojson_url, ENT_QUOTES, 'UTF-8'); ?>"></div>
@@ -212,6 +214,8 @@ $mapa_retorno_valido=isset($_GET['mapa_retorno']) && mapa_interactivo_token_reto
 				var tokenGeneral = mapaEl.getAttribute('data-origen-general');
 				if(!tokenGeneral || destino.searchParams.get('origen_general') !== tokenGeneral) { return null; }
 			}
+			var contextoGeneral = mapaEl.getAttribute('data-contexto-general');
+			if(contextoGeneral) { destino.searchParams.set('contexto_general', contextoGeneral); }
 			var tokenRetorno = mapaEl.getAttribute('data-return-token');
 			if(tokenRetorno) { destino.searchParams.set('mapa_retorno', tokenRetorno); }
 			return destino.href;

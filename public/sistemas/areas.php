@@ -329,9 +329,9 @@ $configuracion_informes_areas = crm_informes_area_configuraciones_todas();
 .crm-informes-area-options + .crm-informes-area-options { margin-top:20px; }
 .crm-informes-area-options-grid { display:flex; flex-wrap:wrap; gap:6px 18px; }
 .crm-informes-area-options-grid .checkbox { margin:0; white-space:nowrap; }
-.crm-area-actions { min-width:355px; }
-.crm-area-count-button { min-width:42px; padding-left:10px; padding-right:10px; }
-.crm-area-action-buttons { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:6px; }
+.crm-area-actions { min-width:280px; }
+.crm-area-count-button { display:inline-flex; align-items:center; justify-content:center; min-width:42px; padding-left:10px; padding-right:10px; }
+.crm-area-action-buttons { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:5px; }
 .crm-area-action-buttons > .btn { min-height:30px; white-space:nowrap; }
 .crm-area-toggle-form { display:inline-flex; margin:0; }
 .crm-area-toggle-form .btn-danger { border-color:#e6b9b9; background:#fff7f7; color:#a94442; }

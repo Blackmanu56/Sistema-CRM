@@ -1,6 +1,7 @@
 <?php
 // Listado de actividades del area que esta abierta.
 include_once BASE_PATH.'/includes/actividades.php';
+require_once BASE_PATH.'/includes/navegacion-contexto.php';
 $menu_activo='Actividades';
 $area_act=acceso_area_pantalla();
 $etq=acceso_etiquetas_area();
@@ -11,6 +12,10 @@ $crm_actividad_contexto_general = isset($_GET['contexto']) && $_GET['contexto'] 
 	&& isset($_GET['origen_general'])
 	&& function_exists('mapa_interactivo_contexto_general_valido')
 	&& mapa_interactivo_contexto_general_valido($_GET['origen_general']);
+$crm_actividad_nav_token_general = isset($_GET['contexto_general']) && is_string($_GET['contexto_general'])
+	&& crm_navegacion_contexto_general_valido($_GET['contexto_general'])
+	? $_GET['contexto_general']
+	: '';
 $crm_mapa_retorno_url = '';
 if(isset($_GET['mapa_retorno']) && function_exists('mapa_interactivo_url_retorno'))
 {
@@ -18,12 +23,17 @@ if(isset($_GET['mapa_retorno']) && function_exists('mapa_interactivo_url_retorno
 		$_GET['mapa_retorno'],
 		$crm_actividad_contexto_general ? $_GET['origen_general'] : ''
 	);
+	if($crm_mapa_retorno_url!=='' && $crm_actividad_nav_token_general!=='')
+	{
+		$crm_mapa_retorno_url.='&contexto_general='.urlencode($crm_actividad_nav_token_general);
+	}
 }
-$crm_actividad_url_lista = function($extra=array()) use ($crm_actividad_contexto_general) {
+$crm_actividad_url_lista = function($extra=array()) use ($crm_actividad_contexto_general, $crm_actividad_nav_token_general) {
 	if($crm_actividad_contexto_general)
 	{
 		$extra['contexto']='general';
 		$extra['origen_general']=$_GET['origen_general'];
+		if($crm_actividad_nav_token_general!=='') { $extra['contexto_general']=$crm_actividad_nav_token_general; }
 		return url_crm('general/actividades.php?'.http_build_query($extra));
 	}
 	return tareas_link('actividades.php', $extra);
