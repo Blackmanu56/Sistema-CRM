@@ -124,14 +124,34 @@ function crm_menu_staff()
 
 function crm_menu_seccion_sala_reuniones()
 {
-	if(!function_exists('acceso_puede_salas_reuniones') || !acceso_puede_salas_reuniones())
+	$ruta=isset($_SERVER['SCRIPT_NAME']) ? str_replace('\\', '/', $_SERVER['SCRIPT_NAME']) : '';
+	if(function_exists('acceso_puede_salas_reuniones') && acceso_puede_salas_reuniones())
+	{
+		$activo=basename($ruta)==='salas-reuniones.php';
+		$clase=$activo ? 'btn-primary' : 'btn-white';
+		echo '<a href="'.htmlspecialchars(url_crm('salas-reuniones.php'), ENT_QUOTES, 'UTF-8').'" class="btn '.$clase.'"><i class="fa fa-calendar"></i> Sala de reuniones</a>';
+	}
+	crm_menu_seccion_informes();
+}
+
+function crm_menu_seccion_informes()
+{
+	$area_activa=function_exists('acceso_area_activa') ? acceso_area_activa() : '';
+	// Presidency has a separate reports workflow and is not a selectable report area.
+	if($area_activa==='presidencia' || !function_exists('crm_es_staff') || !crm_es_staff())
+	{
+		return;
+	}
+	require_once BASE_PATH.'/includes/informes-autorizacion.php';
+	$permisos=crm_informes_autorizaciones_usuario();
+	if(empty($permisos['crm_informe_tiene_tab_o_destino']))
 	{
 		return;
 	}
 	$ruta=isset($_SERVER['SCRIPT_NAME']) ? str_replace('\\', '/', $_SERVER['SCRIPT_NAME']) : '';
-	$activo=basename($ruta)==='salas-reuniones.php';
+	$activo=basename($ruta)==='informes.php';
 	$clase=$activo ? 'btn-primary' : 'btn-white';
-	echo '<a href="'.htmlspecialchars(url_crm('salas-reuniones.php'), ENT_QUOTES, 'UTF-8').'" class="btn '.$clase.'"><i class="fa fa-calendar"></i> Sala de reuniones</a>';
+	echo '<a href="'.htmlspecialchars(url_crm('informes.php'), ENT_QUOTES, 'UTF-8').'" class="btn '.$clase.'"><i class="fa fa-file-text-o"></i> Informes</a>';
 }
 
 function crm_header_cliente()

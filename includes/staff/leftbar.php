@@ -285,39 +285,9 @@ $left_profile_url=url_crm('perfil-empleado.php');
       $crm_mapa_token_general=$crm_vista_general_menu ? mapa_interactivo_contexto_general_token() : '';
       if($crm_mapa_token_general!=='') { $crm_mapa_href.='?origen_general='.urlencode($crm_mapa_token_general); }
       $crm_panel_op_activo = $crm_panel_operativo_route;
-      require_once BASE_PATH.'/includes/informes-dominios-scope.php';
-      $crm_puede_ver_informe_dominios = crm_informes_dominios_puede_consultar(
-        $left_area_act,
-        acceso_es_super() || acceso_es_coord_general(),
-        function_exists('acceso_puede') && acceso_puede('sistemas')
-      );
-      $crm_puede_ver_informe_comercio = $left_area_act === 'comercio'
-        && (acceso_es_super() || acceso_es_coord_general() || (function_exists('acceso_puede') && acceso_puede('comercio')));
-      $crm_puede_ver_informe_emprendedores = $left_area_act === 'emprendedores'
-        && function_exists('acceso_puede') && acceso_puede('emprendedores');
-      $crm_puede_ver_informe_empresas = $left_area_act === 'empresas'
-        && function_exists('acceso_puede') && acceso_puede('empresas');
-      $crm_puede_ver_informe_marketing = $left_area_act === 'marketing'
-        && function_exists('acceso_puede') && acceso_puede('marketing');
-      $crm_puede_ver_informe_vinculaciones = $left_area_act === 'vinculaciones'
-        && function_exists('acceso_puede') && acceso_puede('vinculaciones');
-      $crm_puede_ver_informe_administracion = $left_area_act === 'administracion'
-        && function_exists('acceso_puede') && acceso_puede('administracion');
-      $crm_puede_ver_informe_general_area = $left_area_act === 'general'
-        && function_exists('acceso_puede') && acceso_puede('general');
-      $crm_puede_ver_informe_recepcion = $left_area_act === 'recepcion'
-        && function_exists('acceso_puede') && acceso_puede('recepcion');
-      $crm_puede_ver_informes = (function_exists('acceso_puede_ver_informe_colaboradores') && acceso_puede_ver_informe_colaboradores())
-        || (function_exists('acceso_puede_ver_informes') && acceso_puede_ver_informes())
-        || $crm_puede_ver_informe_dominios
-        || $crm_puede_ver_informe_comercio
-        || $crm_puede_ver_informe_emprendedores
-        || $crm_puede_ver_informe_empresas
-        || $crm_puede_ver_informe_marketing
-        || $crm_puede_ver_informe_vinculaciones
-        || $crm_puede_ver_informe_administracion
-        || $crm_puede_ver_informe_general_area
-        || $crm_puede_ver_informe_recepcion;
+      require_once BASE_PATH.'/includes/informes-autorizacion.php';
+      $crm_informe_permisos=crm_informes_autorizaciones_usuario();
+      $crm_puede_ver_informes=!empty($crm_informe_permisos['crm_informe_tiene_tab_o_destino']);
       $crm_es_inicio = in_array($crm_cur_script, array('dashboard.php', 'home.php', 'inicio.php'), true) && !$crm_panel_op_activo;
       $dash_href=function_exists('crm_dashboard_destino') ? crm_dashboard_destino() : url_crm('admin/home.php');
       // ¿El bloque de área de abajo imprime su propio "Clientes"? Si lo imprime (y el archivo existe),

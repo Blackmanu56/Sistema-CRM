@@ -32,7 +32,4 @@ if($mapa_general_token!=='') { $mapa_general_href.='?origen_general='.urlencode(
 	<?php if(acceso_es_super() || acceso_es_coord_general()) { ?>
 	<a href="<?php echo url_crm('admin/home.php'); ?>" class="btn <?php echo ($menu_activo=='panel_operativo' ? 'btn-primary' : 'btn-white'); ?>">Panel Operativo</a>
 	<?php } ?>
-	<?php if(function_exists('acceso_puede_ver_informe_colaboradores') && acceso_puede_ver_informe_colaboradores()) { ?>
-	<a href="<?php echo url_crm('informes.php'); ?>" class="btn <?php echo ($menu_activo=='informes' ? 'btn-primary' : 'btn-white'); ?>">Informes</a>
-	<?php } ?>
 </div>
