@@ -147,17 +147,19 @@ if($impresion_fichas)
 $menu_activo='informes';
 $navbar_area=function_exists('acceso_area_activa') ? acceso_area_activa() : '';
 $navbar_path='';
-if(acceso_es_super() || acceso_es_coord_general())
+// Keep the report navigation consistent with the area selected in the CRM,
+// including when a global role (Superadmin or Coordinación General) is active.
+if($navbar_area!=='' && $navbar_area!=='admin' && is_file(BASE_PATH.'/public/'.$navbar_area.'/menu-seccion.php'))
+{
+    $navbar_path=BASE_PATH.'/public/'.$navbar_area.'/menu-seccion.php';
+}
+elseif(acceso_es_super() || acceso_es_coord_general())
 {
     $navbar_path=BASE_PATH.'/public/general/menu-seccion.php';
 }
 elseif($puede_ver_colaboradores)
 {
     $navbar_path=BASE_PATH.'/public/rrhh/menu-seccion.php';
-}
-elseif($navbar_area!=='' && $navbar_area!=='admin' && is_file(BASE_PATH.'/public/'.$navbar_area.'/menu-seccion.php'))
-{
-    $navbar_path=BASE_PATH.'/public/'.$navbar_area.'/menu-seccion.php';
 }
 elseif($puede_ver_presidencia)
 {
