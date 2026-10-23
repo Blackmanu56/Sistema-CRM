@@ -6,6 +6,13 @@ if(!acceso_puede_clientes_de_area($area_cli))
 	header('Location: '.acceso_destino_login());
 	exit();
 }
+$modo_ficha_solo_lectura=isset($_GET['vista']) && is_string($_GET['vista']) && $_GET['vista']==='ficha';
+if($modo_ficha_solo_lectura && isset($_SERVER['REQUEST_METHOD']) && strtoupper($_SERVER['REQUEST_METHOD'])==='POST')
+{
+	http_response_code(403);
+	header('Content-Type: text/plain; charset=UTF-8');
+	exit('Acceso denegado.');
+}
 clientes_asegurar_columnas();
 include_once BASE_PATH.'/includes/provincias.php';
 
@@ -39,7 +46,7 @@ $etq=acceso_etiquetas_area();
 $nombre_area=isset($etq[$area_cli]) ? $etq[$area_cli] : $area_cli;
 
 $id=0;
-if(isset($_POST['id_cliente']))
+if(!$modo_ficha_solo_lectura && isset($_POST['id_cliente']))
 {
 	$id=intval($_POST['id_cliente']);
 }
@@ -61,11 +68,17 @@ if(!$rw || !crm_cliente_puede_ver($id, $area_cli))
 	exit();
 }
 $clientes_solo_lectura=crm_cliente_area_solo_lectura($area_cli);
-if($clientes_solo_lectura && isset($_SERVER['REQUEST_METHOD']) && strtoupper($_SERVER['REQUEST_METHOD'])==='POST')
+if(($clientes_solo_lectura || $modo_ficha_solo_lectura) && isset($_SERVER['REQUEST_METHOD']) && strtoupper($_SERVER['REQUEST_METHOD'])==='POST')
 {
 	http_response_code(403);
 	header('Content-Type: text/plain; charset=UTF-8');
 	exit('Acceso denegado.');
+}
+$empresa_seguimiento_post_resultado=array('error'=>'', 'valores'=>array(), 'accion'=>'');
+if($area_cli==='empresas')
+{
+	require_once BASE_PATH.'/includes/empresas-seguimiento.php';
+	$empresa_seguimiento_post_resultado=empresa_seguimiento_procesar_post($id, $area_cli, $clientes_solo_lectura);
 }
 
 function cliente_area_dato($fila, $clave)
@@ -77,6 +90,10 @@ function cliente_area_sql($con, $texto)
 {
 	return mysqli_real_escape_string($con, $texto);
 }
+
+$cliente_modal_abierto='';
+$cliente_modal_error='';
+$cliente_modal_valores=array();
 
 if(isset($_POST['reabrir_atencion']))
 {
@@ -116,16 +133,24 @@ if(isset($_POST['anotar_programa']) && function_exists('crm_puede_anotar_program
 }
 if(isset($_POST['nueva_atencion']))
 {
-	crm_atencion_abrir(array(
+	unset($_SESSION['msgrecepcion']);
+	$id_atencion_nueva=crm_atencion_abrir(array(
 		'id_cliente'=>$id,
 		'area'=>$area_cli,
 		'motivo'=>isset($_POST['motivo']) ? $_POST['motivo'] : 'consulta',
 		'canal'=>isset($_POST['canal']) ? $_POST['canal'] : 'presencial',
 		'detalle'=>isset($_POST['detalle_atencion']) ? $_POST['detalle_atencion'] : ''
 	));
-	$_SESSION['msgcliente']='Atención abierta. El área quedó avisada.';
-	echo "<script>window.location.href='editar-cliente.php?id=".$id."'</script>";
-	exit();
+	if($id_atencion_nueva>0)
+	{
+		$_SESSION['msgcliente']='Atención abierta. El área quedó avisada.';
+		echo "<script>window.location.href='editar-cliente.php?id=".$id."'</script>";
+		exit();
+	}
+	$cliente_modal_abierto='turno';
+	$cliente_modal_error=(isset($_SESSION['msgrecepcion']) && trim((string)$_SESSION['msgrecepcion'])!=='') ? $_SESSION['msgrecepcion'] : 'No se pudo abrir el turno. Revisá los datos e intentá nuevamente.';
+	unset($_SESSION['msgrecepcion']);
+	$cliente_modal_valores=$_POST;
 }
 
 if(isset($_POST['derivar_cliente_directo']))
@@ -144,10 +169,15 @@ if(isset($_POST['derivar_cliente_directo']))
 	}
 	else
 	{
-		$_SESSION['msgcliente'] = $err;
+		$cliente_modal_abierto='derivacion';
+		$cliente_modal_error=$err;
+		$cliente_modal_valores=$_POST;
 	}
-	echo "<script>window.location.href='editar-cliente.php?id=".$id."'</script>";
-	exit();
+	if($err==='')
+	{
+		echo "<script>window.location.href='editar-cliente.php?id=".$id."'</script>";
+		exit();
+	}
 }
 
 if(isset($_POST['update']))
@@ -191,6 +221,138 @@ foreach($provincias as $provincia_item)
 }
 $etiquetas_area_cliente=acceso_etiquetas_area();
 $area_cliente_texto=isset($etiquetas_area_cliente[$area_sel]) ? $etiquetas_area_cliente[$area_sel] : $area_sel;
+
+// La ficha de consulta se resuelve antes de cargar historial y acciones operativas.
+// Comparte la autorización del cliente, pero no expone formularios ni controles de edición.
+if($modo_ficha_solo_lectura)
+{
+	$valor_ficha=function($valor) {
+		return ($valor===null || trim((string)$valor)==='') ? 'No registrado' : (string)$valor;
+	};
+	$tipo_cliente_ficha=$valor_ficha(cliente_tipo_etiqueta(cliente_area_dato($rw, 'tipo_cliente')));
+	$nombre_cliente_ficha=$valor_ficha(cliente_area_dato($rw, 'name'));
+	$dni_cliente_ficha=$valor_ficha(cliente_area_dato($rw, 'dni'));
+	$correo_cliente_ficha=$valor_ficha(cliente_area_dato($rw, 'email'));
+	$cuil_cliente_ficha=$valor_ficha(cliente_area_dato($rw, 'cuil_cuit'));
+	$telefono_cliente_ficha=$valor_ficha(cliente_area_dato($rw, 'mobile'));
+	$provincia_cliente_ficha=$valor_ficha($nombre_provincia_cliente);
+	$localidad_cliente_ficha=$valor_ficha(cliente_area_dato($rw, 'localidad'));
+	$direccion_cliente_ficha=$valor_ficha(cliente_area_dato($rw, 'address'));
+	$area_cliente_ficha=$valor_ficha($area_cliente_texto);
+	$editar_cliente_url='editar-cliente.php?id='.intval($id);
+	$cliente_legajo_modo_consulta=true;
+	?>
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CRM | <?php echo texto_mostrar($nombre_cliente_ficha); ?> - Ficha del cliente</title>
+<link href="../assets/plugins/boostrapv3/css/bootstrap.min.css" rel="stylesheet" type="text/css" />
+<link href="../assets/plugins/font-awesome/css/font-awesome.css" rel="stylesheet" type="text/css" />
+<link href="../assets/css/style.css" rel="stylesheet" type="text/css" />
+<link href="../assets/css/responsive.css" rel="stylesheet" type="text/css" />
+<style>
+.cliente-ficha-lectura { width:100%; max-width:none; margin:0; }
+.cliente-ficha-seccion { margin-bottom:18px; }
+.cliente-ficha-seccion .grid-title h4 { margin:0; }
+.cliente-ficha-datos { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 28px; }
+.cliente-ficha-dato { padding:11px 0; border-bottom:1px solid #e7edf3; min-width:0; }
+.cliente-ficha-dato dt { color:#64748b; font-size:12px; font-weight:600; margin-bottom:4px; }
+.cliente-ficha-dato dd { color:#24364b; margin:0; overflow-wrap:anywhere; white-space:pre-wrap; }
+.cliente-ficha-acciones { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 18px; }
+#clienteFichaPrint { display:none; }
+@media (max-width:767px) { .cliente-ficha-datos { grid-template-columns:1fr; } }
+@media print {
+	@page { size:A4 portrait; margin:13mm 14mm; }
+	* { box-sizing:border-box; }
+	body.crm-cliente-ficha-lectura { background:#fff !important; color:#1e293b !important; font:10.5pt/1.4 Arial,sans-serif !important; }
+	body.crm-cliente-ficha-lectura > *:not(#clienteFichaPrint) { display:none !important; }
+	body.crm-cliente-ficha-lectura #clienteFichaPrint { display:block !important; width:100% !important; margin:0 !important; padding:0 !important; color:#1e293b !important; font:10.5pt/1.4 Arial,sans-serif !important; }
+	#clienteFichaPrint .cliente-ficha-print-cabecera { border-bottom:2px solid #2563eb; padding-bottom:9px; margin-bottom:0; }
+	#clienteFichaPrint .cliente-ficha-marca { color:#334155; font-size:9pt; letter-spacing:.14em; font-weight:700; }
+	#clienteFichaPrint h1 { color:#17365d; font-size:19pt; margin:4px 0 2px; }
+	#clienteFichaPrint .cliente-ficha-print-subtitulo { margin:0; color:#64748b; }
+	#clienteFichaPrint .cliente-ficha-print-emision { margin-top:7px; color:#64748b; font-size:8.5pt; }
+	#clienteFichaPrint h2 { color:#1e3a5f; font-size:11pt; border-bottom:1px solid #cbd5e1; padding-bottom:5px; margin:17px 0 9px; }
+	#clienteFichaPrint .cliente-ficha-print-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px 18px; }
+	#clienteFichaPrint .cliente-ficha-print-item { min-width:0; overflow-wrap:anywhere; break-inside:avoid; page-break-inside:avoid; }
+	#clienteFichaPrint .cliente-ficha-print-label { display:block; color:#64748b; font-size:8pt; text-transform:uppercase; letter-spacing:.06em; margin-bottom:2px; }
+	#clienteFichaPrint .cliente-ficha-print-footer { margin-top:22px; padding-top:7px; border-top:1px solid #cbd5e1; color:#64748b; font-size:8pt; text-align:center; }
+}
+</style>
+</head>
+<body class="crm-cliente-ficha-lectura">
+<?php crm_header_staff(); ?>
+<div class="page-container row">
+	<?php crm_menu_staff(); ?>
+	<div class="clearfix"></div>
+</div>
+</div>
+<div class="page-content">
+		<div class="content cliente-ficha-lectura">
+			<ul class="breadcrumb"><li><p>ESTÁS AQUÍ</p></li><li><a href="clientes.php"><?php echo texto_mostrar($nombre_area); ?> / Clientes</a></li><li><a href="#" class="active">Ficha</a></li></ul>
+			<?php include("menu-seccion.php"); ?>
+			<div class="page-title"><h3>Ficha del cliente</h3></div>
+			<div class="cliente-ficha-acciones no-print">
+				<button type="button" class="btn btn-primary" onclick="window.print();"><i class="fa fa-print"></i> Imprimir ficha</button>
+				<?php if(!$clientes_solo_lectura) { ?><a class="btn btn-white" href="<?php echo htmlspecialchars($editar_cliente_url, ENT_QUOTES, 'UTF-8'); ?>"><i class="fa fa-pencil"></i> Editar cliente</a><?php } ?>
+				<a class="btn btn-white" href="clientes.php"><i class="fa fa-arrow-left"></i> Volver</a>
+			</div>
+			<div class="grid simple cliente-ficha-seccion">
+				<div class="grid-title"><h4>Datos personales</h4></div>
+				<div class="grid-body"><dl class="cliente-ficha-datos">
+					<div class="cliente-ficha-dato"><dt>Nombre completo</dt><dd><?php echo texto_mostrar($nombre_cliente_ficha); ?></dd></div>
+					<div class="cliente-ficha-dato"><dt>Tipo de cliente</dt><dd><?php echo texto_mostrar($tipo_cliente_ficha); ?></dd></div>
+					<div class="cliente-ficha-dato"><dt>DNI</dt><dd><?php echo texto_mostrar($dni_cliente_ficha); ?></dd></div>
+					<div class="cliente-ficha-dato"><dt>CUIL / CUIT</dt><dd><?php echo texto_mostrar($cuil_cliente_ficha); ?></dd></div>
+				</dl></div>
+			</div>
+			<div class="grid simple cliente-ficha-seccion">
+				<div class="grid-title"><h4>Contacto</h4></div>
+				<div class="grid-body"><dl class="cliente-ficha-datos">
+					<div class="cliente-ficha-dato"><dt>Correo electrónico</dt><dd><?php echo texto_mostrar($correo_cliente_ficha); ?></dd></div>
+					<div class="cliente-ficha-dato"><dt>Teléfono</dt><dd><?php echo texto_mostrar($telefono_cliente_ficha); ?></dd></div>
+					<div class="cliente-ficha-dato"><dt>Dirección</dt><dd><?php echo texto_mostrar($direccion_cliente_ficha); ?></dd></div>
+					<div class="cliente-ficha-dato"><dt>Localidad</dt><dd><?php echo texto_mostrar($localidad_cliente_ficha); ?></dd></div>
+					<div class="cliente-ficha-dato"><dt>Provincia</dt><dd><?php echo texto_mostrar($provincia_cliente_ficha); ?></dd></div>
+				</dl></div>
+			</div>
+			<?php include BASE_PATH.'/includes/clientes-areas-involucradas.php'; ?>
+			<?php include BASE_PATH.'/includes/clientes-legajo-seccion.php'; ?>
+			<?php include BASE_PATH.'/includes/clientes-historial-institucional.php'; ?>
+			<?php if($area_cli==='empresas' && cliente_tipo_normalizar(cliente_area_dato($rw, 'tipo_cliente'))==='empresa') { empresa_seguimiento_render($id,$rw,$area_cli,false,array(),true); } ?>
+		</div>
+</div>
+</div>
+<main id="clienteFichaPrint" aria-hidden="true">
+	<header class="cliente-ficha-print-cabecera"><div class="cliente-ficha-marca">ADEMI · INFORME DE CLIENTES</div><h1><?php echo texto_mostrar($nombre_cliente_ficha); ?></h1><p class="cliente-ficha-print-subtitulo"><?php echo texto_mostrar($tipo_cliente_ficha); ?></p><div class="cliente-ficha-print-emision">Emitida el <?php echo date('d/m/Y'); ?></div></header>
+	<section><h2>Datos personales</h2><div class="cliente-ficha-print-grid">
+		<div class="cliente-ficha-print-item"><span class="cliente-ficha-print-label">Nombre completo</span><?php echo texto_mostrar($nombre_cliente_ficha); ?></div>
+		<div class="cliente-ficha-print-item"><span class="cliente-ficha-print-label">Tipo de cliente</span><?php echo texto_mostrar($tipo_cliente_ficha); ?></div>
+		<div class="cliente-ficha-print-item"><span class="cliente-ficha-print-label">DNI</span><?php echo texto_mostrar($dni_cliente_ficha); ?></div>
+		<div class="cliente-ficha-print-item"><span class="cliente-ficha-print-label">CUIL / CUIT</span><?php echo texto_mostrar($cuil_cliente_ficha); ?></div>
+	</div></section>
+	<section><h2>Contacto</h2><div class="cliente-ficha-print-grid">
+		<div class="cliente-ficha-print-item"><span class="cliente-ficha-print-label">Correo electrónico</span><?php echo texto_mostrar($correo_cliente_ficha); ?></div>
+		<div class="cliente-ficha-print-item"><span class="cliente-ficha-print-label">Teléfono</span><?php echo texto_mostrar($telefono_cliente_ficha); ?></div>
+		<div class="cliente-ficha-print-item"><span class="cliente-ficha-print-label">Dirección</span><?php echo texto_mostrar($direccion_cliente_ficha); ?></div>
+		<div class="cliente-ficha-print-item"><span class="cliente-ficha-print-label">Localidad</span><?php echo texto_mostrar($localidad_cliente_ficha); ?></div>
+		<div class="cliente-ficha-print-item"><span class="cliente-ficha-print-label">Provincia</span><?php echo texto_mostrar($provincia_cliente_ficha); ?></div>
+	</div></section>
+	<section><h2>Área de referencia registrada</h2><div class="cliente-ficha-print-grid"><div class="cliente-ficha-print-item"><span class="cliente-ficha-print-label">Área asignada al cliente</span><?php echo texto_mostrar($area_cliente_ficha); ?></div></div></section>
+	<footer class="cliente-ficha-print-footer">ADEMI · Documento generado por el sistema institucional</footer>
+</main>
+<script src="../assets/plugins/jquery-1.8.3.min.js" type="text/javascript"></script>
+<script src="../assets/plugins/boostrapv3/js/bootstrap.min.js" type="text/javascript"></script>
+<script>window.addEventListener('beforeprint', function(){ document.body.classList.add('crm-cliente-ficha-lectura'); });</script>
+</body>
+</html>
+	<?php
+	exit();
+}
+
+// El historial institucional se consulta y pagina en el punto de renderizado.
 ?>
 <!DOCTYPE html>
 <html>
@@ -210,6 +372,16 @@ $area_cliente_texto=isset($etiquetas_area_cliente[$area_sel]) ? $etiquetas_area_
 <link href="../assets/css/style.css" rel="stylesheet" type="text/css"/>
 <link href="../assets/css/responsive.css" rel="stylesheet" type="text/css"/>
 <link href="../assets/css/custom-icon-set.css" rel="stylesheet" type="text/css"/>
+<style type="text/css">
+.cliente-acciones-operativas { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:18px; }
+#modalAbrirTurno .modal-body, #modalDerivarCliente .modal-body { max-height:calc(100vh - 190px); overflow-y:auto; }
+@media (max-width:767px) {
+	.cliente-acciones-operativas { align-items:stretch; flex-direction:column; }
+	.cliente-acciones-operativas .btn { width:100%; }
+	#modalAbrirTurno .modal-dialog, #modalDerivarCliente .modal-dialog { margin:10px; }
+	#modalAbrirTurno .modal-body, #modalDerivarCliente .modal-body { max-height:calc(100vh - 150px); }
+}
+</style>
 <script language="javascript" type="text/javascript">
 function valid()
 {
@@ -262,7 +434,6 @@ function valid()
                 <div class="page-title">
                     <h3><?php echo $clientes_solo_lectura ? 'Ficha del cliente' : 'Editar cliente'; ?></h3>
                 </div>
-
                 <div class="row">
                     <div class="col-md-12">
                         <div class="grid simple">
@@ -375,98 +546,106 @@ function valid()
                         <?php } ?>
                         </div>
                         </div>
+						<?php $cliente_legajo_modo_consulta=!empty($clientes_solo_lectura); include BASE_PATH.'/includes/clientes-legajo-seccion.php'; ?>
 
-                        <?php
-                        $mostrar_nuevo_turno=false;
-						if(!$clientes_solo_lectura) {
-                        include BASE_PATH.'/includes/cliente-seguimiento.php';
-                        }
-                        ?>
+                        <?php if($area_cli==='empresas' && cliente_tipo_normalizar(cliente_area_dato($rw, 'tipo_cliente'))==='empresa') { empresa_seguimiento_render($id,$rw,$area_cli,!$clientes_solo_lectura,$empresa_seguimiento_post_resultado,false); } ?>
 
                         <?php if(!$clientes_solo_lectura) { ?>
-                        <div class="grid simple">
-                        <div class="grid-title no-border">
-                            <h4>Abrir turno en esta área</h4>
-                        </div>
-                        <div class="grid-body no-border">
-                            <form method="post" action="">
-                                <input type="hidden" name="id_cliente" value="<?php echo intval($id); ?>">
-                                <div class="form-group">
-                                    <label>Motivo</label>
-                                    <select name="motivo" class="form-control">
-                                        <option value="consulta">Consulta</option>
-                                        <option value="documentacion">Documentación</option>
-                                        <option value="seguimiento">Seguimiento</option>
-                                        <option value="tramite">Trámite</option>
-                                        <option value="otro">Otro</option>
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <label>Canal</label>
-                                    <select name="canal" class="form-control">
-                                        <option value="presencial">Presencial</option>
-                                        <option value="web">Web</option>
-                                        <option value="redes">Redes</option>
-                                        <option value="whatsapp">WhatsApp</option>
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <label>Nota</label>
-                                    <input type="text" name="detalle_atencion" class="form-control"/>
-                                </div>
-                                <button type="submit" name="nueva_atencion" value="1" class="btn btn-white">Abrir turno</button>
-                            </form>
-                        </div>
-                        </div>
-
                         <?php
                         $puede_derivar_area = function_exists('crm_areas_destino_derivacion');
                         $destinos_disp = $puede_derivar_area ? crm_areas_destino_derivacion($area_cli) : array();
-                        if(count($destinos_disp) > 0) {
                         ?>
-                        <div class="grid simple">
-                        <div class="grid-title no-border">
-                            <h4><i class="fa fa-share text-info"></i> Derivar cliente a otra área</h4>
+                        <div class="cliente-acciones-operativas">
+                            <button type="button" class="btn btn-white" data-toggle="modal" data-target="#modalAbrirTurno"><i class="fa fa-calendar"></i> Abrir turno en esta área</button>
+                            <?php if(count($destinos_disp)>0) { ?><button type="button" class="btn btn-primary" data-toggle="modal" data-target="#modalDerivarCliente"><i class="fa fa-share"></i> Derivar cliente a otra área</button><?php } ?>
                         </div>
-                        <div class="grid-body no-border">
-                            <p class="muted">Derivá este cliente a otra área operativa de ADEMI para su atención o seguimiento.</p>
-                            <form method="post" action="">
-                                <input type="hidden" name="id_cliente" value="<?php echo intval($id); ?>">
-                                <div class="form-group">
-                                    <label>Área de destino</label>
-                                    <select name="area_destino" class="form-control" required>
-                                        <option value="">Elegir área destinataria...</option>
-                                        <?php foreach($destinos_disp as $c_dest => $n_dest) { ?>
-                                        <option value="<?php echo htmlspecialchars($c_dest); ?>"><?php echo htmlspecialchars($n_dest); ?></option>
-                                        <?php } ?>
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <label>Motivo</label>
-                                    <select name="motivo" class="form-control">
-                                        <option value="consulta">Consulta</option>
-                                        <option value="documentacion">Documentación</option>
-                                        <option value="seguimiento">Seguimiento</option>
-                                        <option value="tramite">Trámite</option>
-                                        <option value="otro">Otro</option>
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <label>Canal de contacto</label>
-                                    <select name="canal" class="form-control">
-                                        <option value="presencial">Presencial</option>
-                                        <option value="whatsapp">WhatsApp</option>
-                                        <option value="web">Web</option>
-                                        <option value="redes">Redes</option>
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <label>Observaciones / Motivo de derivación</label>
-                                    <textarea name="observaciones_derivacion" class="form-control" rows="2" placeholder="Indicá las observaciones para el área de destino..."></textarea>
-                                </div>
-                                <button type="submit" name="derivar_cliente_directo" value="1" class="btn btn-primary"><i class="fa fa-share"></i> Derivar cliente</button>
-                            </form>
+                        <div class="modal fade" id="modalAbrirTurno" tabindex="-1" role="dialog" aria-labelledby="modalAbrirTurnoTitulo" aria-hidden="true">
+                            <div class="modal-dialog" role="document"><div class="modal-content">
+                                <form method="post" action="editar-cliente.php?id=<?php echo intval($id); ?>">
+                                    <div class="modal-header">
+                                        <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button>
+                                        <h4 class="modal-title" id="modalAbrirTurnoTitulo">Abrir turno en esta área</h4>
+                                    </div>
+                                    <div class="modal-body">
+                                        <?php if($cliente_modal_abierto==='turno' && $cliente_modal_error!=='') { ?><div class="alert alert-danger" role="alert"><?php echo texto_mostrar($cliente_modal_error); ?></div><?php } ?>
+                                        <input type="hidden" name="id_cliente" value="<?php echo intval($id); ?>">
+                                        <div class="form-group">
+                                            <label>Motivo</label>
+                                            <select name="motivo" class="form-control">
+                                                <?php foreach(array('consulta'=>'Consulta','documentacion'=>'Documentación','seguimiento'=>'Seguimiento','tramite'=>'Trámite','otro'=>'Otro') as $valor_motivo=>$etiqueta_motivo) { ?>
+                                                <option value="<?php echo htmlspecialchars($valor_motivo, ENT_QUOTES, 'UTF-8'); ?>" <?php echo (isset($cliente_modal_valores['motivo']) && $cliente_modal_valores['motivo']===$valor_motivo) ? 'selected' : ''; ?>><?php echo htmlspecialchars($etiqueta_motivo, ENT_QUOTES, 'UTF-8'); ?></option>
+                                                <?php } ?>
+                                            </select>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Canal</label>
+                                            <select name="canal" class="form-control">
+                                                <?php foreach(array('presencial'=>'Presencial','web'=>'Web','redes'=>'Redes','whatsapp'=>'WhatsApp') as $valor_canal=>$etiqueta_canal) { ?>
+                                                <option value="<?php echo htmlspecialchars($valor_canal, ENT_QUOTES, 'UTF-8'); ?>" <?php echo (isset($cliente_modal_valores['canal']) && $cliente_modal_valores['canal']===$valor_canal) ? 'selected' : ''; ?>><?php echo htmlspecialchars($etiqueta_canal, ENT_QUOTES, 'UTF-8'); ?></option>
+                                                <?php } ?>
+                                            </select>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Nota</label>
+                                            <input type="text" name="detalle_atencion" class="form-control" value="<?php echo isset($cliente_modal_valores['detalle_atencion']) ? htmlspecialchars((string)$cliente_modal_valores['detalle_atencion'], ENT_QUOTES, 'UTF-8') : ''; ?>" />
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-white" data-dismiss="modal">Cancelar</button>
+                                        <button type="submit" name="nueva_atencion" value="1" class="btn btn-primary">Abrir turno</button>
+                                    </div>
+                                </form>
+                            </div></div>
                         </div>
+
+                        <?php if(count($destinos_disp)>0) { ?>
+                        <div class="modal fade" id="modalDerivarCliente" tabindex="-1" role="dialog" aria-labelledby="modalDerivarClienteTitulo" aria-hidden="true">
+                            <div class="modal-dialog" role="document"><div class="modal-content">
+                                <form method="post" action="editar-cliente.php?id=<?php echo intval($id); ?>">
+                                    <div class="modal-header">
+                                        <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button>
+                                        <h4 class="modal-title" id="modalDerivarClienteTitulo"><i class="fa fa-share text-info"></i> Derivar cliente a otra área</h4>
+                                    </div>
+                                    <div class="modal-body">
+                                        <?php if($cliente_modal_abierto==='derivacion' && $cliente_modal_error!=='') { ?><div class="alert alert-danger" role="alert"><?php echo texto_mostrar($cliente_modal_error); ?></div><?php } ?>
+                                        <p class="muted">Derivá este cliente a otra área operativa de ADEMI para su atención o seguimiento.</p>
+                                        <input type="hidden" name="id_cliente" value="<?php echo intval($id); ?>">
+                                        <div class="form-group">
+                                            <label>Área de destino</label>
+                                            <select name="area_destino" class="form-control" required>
+                                                <option value="">Elegir área destinataria...</option>
+                                                <?php foreach($destinos_disp as $c_dest=>$n_dest) { ?>
+                                                <option value="<?php echo htmlspecialchars($c_dest, ENT_QUOTES, 'UTF-8'); ?>" <?php echo (isset($cliente_modal_valores['area_destino']) && $cliente_modal_valores['area_destino']===$c_dest) ? 'selected' : ''; ?>><?php echo htmlspecialchars($n_dest, ENT_QUOTES, 'UTF-8'); ?></option>
+                                                <?php } ?>
+                                            </select>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Motivo</label>
+                                            <select name="motivo" class="form-control">
+                                                <?php foreach(array('consulta'=>'Consulta','documentacion'=>'Documentación','seguimiento'=>'Seguimiento','tramite'=>'Trámite','otro'=>'Otro') as $valor_motivo=>$etiqueta_motivo) { ?>
+                                                <option value="<?php echo htmlspecialchars($valor_motivo, ENT_QUOTES, 'UTF-8'); ?>" <?php echo (isset($cliente_modal_valores['motivo']) && $cliente_modal_valores['motivo']===$valor_motivo) ? 'selected' : ''; ?>><?php echo htmlspecialchars($etiqueta_motivo, ENT_QUOTES, 'UTF-8'); ?></option>
+                                                <?php } ?>
+                                            </select>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Canal de contacto</label>
+                                            <select name="canal" class="form-control">
+                                                <?php foreach(array('presencial'=>'Presencial','whatsapp'=>'WhatsApp','web'=>'Web','redes'=>'Redes') as $valor_canal=>$etiqueta_canal) { ?>
+                                                <option value="<?php echo htmlspecialchars($valor_canal, ENT_QUOTES, 'UTF-8'); ?>" <?php echo (isset($cliente_modal_valores['canal']) && $cliente_modal_valores['canal']===$valor_canal) ? 'selected' : ''; ?>><?php echo htmlspecialchars($etiqueta_canal, ENT_QUOTES, 'UTF-8'); ?></option>
+                                                <?php } ?>
+                                            </select>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Observaciones / Motivo de derivación</label>
+                                            <textarea name="observaciones_derivacion" class="form-control" rows="2" placeholder="Indicá las observaciones para el área de destino..."><?php echo isset($cliente_modal_valores['observaciones_derivacion']) ? htmlspecialchars((string)$cliente_modal_valores['observaciones_derivacion'], ENT_QUOTES, 'UTF-8') : ''; ?></textarea>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-white" data-dismiss="modal">Cancelar</button>
+                                        <button type="submit" name="derivar_cliente_directo" value="1" class="btn btn-primary"><i class="fa fa-share"></i> Derivar cliente</button>
+                                    </div>
+                                </form>
+                            </div></div>
                         </div>
                         <?php } ?>
                         <?php } ?>
@@ -521,6 +700,11 @@ if(recSelProv)
 		recLlenarLocalidades(this.value, '');
 	};
 }
+<?php if($cliente_modal_abierto==='turno') { ?>
+$(function() { $('#modalAbrirTurno').modal('show'); });
+<?php } elseif($cliente_modal_abierto==='derivacion') { ?>
+$(function() { $('#modalDerivarCliente').modal('show'); });
+<?php } ?>
 </script>
 </body>
 </html>

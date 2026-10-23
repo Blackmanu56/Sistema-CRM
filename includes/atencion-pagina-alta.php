@@ -24,10 +24,36 @@ if(!acceso_puede_clientes_de_area($area_cli) && !crm_area_ve_todo($area_cli) && 
 
 $menu_activo = 'atenciones';
 $areas_disp = function_exists('recepcion_areas_cliente') ? recepcion_areas_cliente() : array();
+$areas_walkin = $area_cli === 'recepcion' && function_exists('crm_areas_destino_derivacion') ? crm_areas_destino_derivacion('recepcion') : array();
+
+if(!isset($_SESSION['crm_walkin_issued']) || !is_array($_SESSION['crm_walkin_issued'])) { $_SESSION['crm_walkin_issued']=array(); }
+if(!isset($_SESSION['crm_walkin_done']) || !is_array($_SESSION['crm_walkin_done'])) { $_SESSION['crm_walkin_done']=array(); }
+$walkin_token_random=function() {
+	if(function_exists('random_bytes')) { return bin2hex(random_bytes(16)); }
+	if(function_exists('openssl_random_pseudo_bytes')) { return bin2hex(openssl_random_pseudo_bytes(16)); }
+	return md5(uniqid((string)mt_rand(), true));
+};
+$walkin_token=isset($_POST['walkin_token']) && is_scalar($_POST['walkin_token']) ? trim((string)$_POST['walkin_token']) : '';
+$walkin_token_valid=($walkin_token!=='' && isset($_SESSION['crm_walkin_issued'][$walkin_token]));
+if($walkin_token!=='' && isset($_SESSION['crm_walkin_done'][$walkin_token]))
+{
+	$id_done=intval($_SESSION['crm_walkin_done'][$walkin_token]);
+	if($id_done>0)
+	{
+		header('Location: atencion.php?id='.$id_done);
+		exit();
+	}
+}
+if(!$walkin_token_valid)
+{
+	$walkin_token=$walkin_token_random();
+	$_SESSION['crm_walkin_issued'][$walkin_token]=1;
+	if(count($_SESSION['crm_walkin_issued'])>30) { array_shift($_SESSION['crm_walkin_issued']); }
+}
 
 // Cliente preseleccionado si viene por GET
 $id_pre = isset($_GET['id']) ? intval($_GET['id']) : (isset($_GET['id_cliente']) ? intval($_GET['id_cliente']) : (isset($_GET['cliente_id']) ? intval($_GET['cliente_id']) : 0));
-if($id_pre <= 0 && isset($_POST['id_cliente']))
+if($id_pre <= 0 && isset($_POST['id_cliente']) && is_scalar($_POST['id_cliente']))
 {
 	$id_pre = intval($_POST['id_cliente']);
 }
@@ -53,23 +79,35 @@ if($fecha_def == '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha_def))
 	$fecha_def = $hoy;
 }
 $hora_def = isset($_GET['hora']) ? trim($_GET['hora']) : (isset($_POST['hora']) ? trim($_POST['hora']) : '');
+$modalidad_def = isset($_POST['modalidad']) && in_array($_POST['modalidad'], array('turno_programado','atencion_espontanea'), true) ? $_POST['modalidad'] : 'turno_programado';
 
 // Procesar formulario POST
 if(isset($_POST['guardar_atencion']))
 {
-	$id_cli = isset($_POST['id_cliente']) ? intval($_POST['id_cliente']) : 0;
-	$area_form = isset($_POST['area']) ? trim($_POST['area']) : $area_cli;
+	$id_cli = isset($_POST['id_cliente']) && is_scalar($_POST['id_cliente']) ? intval($_POST['id_cliente']) : 0;
+	$modalidad = isset($_POST['modalidad']) && is_scalar($_POST['modalidad']) ? trim($_POST['modalidad']) : '';
+	$area_walkin_form = isset($_POST['walkin_destino']) && is_scalar($_POST['walkin_destino']) ? trim($_POST['walkin_destino']) : '';
+	$es_walkin_recepcion = ($area_cli === 'recepcion' && $modalidad === 'atencion_espontanea');
+	$area_form = $es_walkin_recepcion ? 'recepcion' : (isset($_POST['area']) && is_scalar($_POST['area']) ? trim($_POST['area']) : $area_cli);
 	if($area_cli !== 'recepcion' && !acceso_es_super() && !acceso_es_coord_general())
 	{
 		$area_form = $area_cli;
 	}
-	$modalidad = isset($_POST['modalidad']) ? trim($_POST['modalidad']) : 'turno_programado';
-	$motivo = isset($_POST['motivo']) ? trim($_POST['motivo']) : 'consulta';
-	$canal = isset($_POST['canal']) ? trim($_POST['canal']) : 'presencial';
-	$detalle = isset($_POST['detalle']) ? trim($_POST['detalle']) : '';
-	$id_empleado_asig = isset($_POST['id_empleado']) ? intval($_POST['id_empleado']) : 0;
+	$motivo = isset($_POST['motivo']) && is_scalar($_POST['motivo']) ? trim($_POST['motivo']) : 'consulta';
+	$canal = isset($_POST['canal']) && is_scalar($_POST['canal']) ? trim($_POST['canal']) : 'presencial';
+	$detalle = isset($_POST['detalle']) && is_scalar($_POST['detalle']) ? trim($_POST['detalle']) : '';
+	$id_empleado_asig = isset($_POST['id_empleado']) && is_scalar($_POST['id_empleado']) ? intval($_POST['id_empleado']) : 0;
+	if($es_walkin_recepcion) { $id_empleado_asig=0; }
 
 	$errores = array();
+	if(!in_array($modalidad, array('turno_programado','atencion_espontanea'), true))
+	{
+		$errores[] = 'Seleccioná una modalidad de atención válida.';
+	}
+	if($es_walkin_recepcion && !$walkin_token_valid)
+	{
+		$errores[] = 'El formulario venció. Actualizá la página e intentá nuevamente.';
+	}
 	if($area_cli === 'recepcion' && !acceso_es_super() && !acceso_es_coord_general() && $id_empleado_asig > 0)
 	{
 		$errores[] = 'Recepción no puede asignar un colaborador. El área destinataria lo asignará desde Atenciones.';
@@ -79,7 +117,11 @@ if(isset($_POST['guardar_atencion']))
 	{
 		$errores[] = 'Seleccioná un cliente registrado de la lista.';
 	}
-	if($area_form === '' || !isset($areas_disp[$area_form]))
+	if($es_walkin_recepcion && $area_walkin_form !== 'recepcion' && !isset($areas_walkin[$area_walkin_form]))
+	{
+		$errores[] = 'Seleccioná Recepción o un área habilitada para recibir derivaciones.';
+	}
+	else if(!$es_walkin_recepcion && ($area_form === '' || !isset($areas_disp[$area_form])))
 	{
 		$errores[] = 'Seleccioná un área válida para el turno o atención.';
 	}
@@ -105,11 +147,12 @@ if(isset($_POST['guardar_atencion']))
 
 	if($modalidad === 'atencion_espontanea')
 	{
-		// Atención inmediata / espontánea
+		// Recepción siempre registra la visita en su propia área antes de derivarla.
 		$iniciar_ya = !empty($_POST['iniciar_inmediato']);
 		$datos_alta['estado'] = $iniciar_ya ? 'en_atencion' : 'abierta';
 		$datos_alta['espontanea'] = 1;
 		$datos_alta['modalidad'] = 'atencion_espontanea';
+		$datos_alta['tipo_ingreso'] = 'sin_turno';
 		$datos_alta['fecha'] = date('Y-m-d');
 		$datos_alta['hora'] = date('H:i');
 	}
@@ -134,17 +177,47 @@ if(isset($_POST['guardar_atencion']))
 				$datos_alta['fecha'] = $fecha_form;
 				$datos_alta['hora'] = $hora_form;
 				$datos_alta['estado'] = 'abierta';
+				$datos_alta['tipo_ingreso'] = 'turno';
 			}
 		}
 	}
 
 	if(count($errores) === 0)
 	{
-		$id_nueva = crm_atencion_abrir($datos_alta);
+		if($es_walkin_recepcion)
+		{
+			$id_origen_walkin=crm_atencion_abrir($datos_alta);
+			$id_nueva=$id_origen_walkin;
+			if($id_origen_walkin>0 && $area_walkin_form !== 'recepcion')
+			{
+				$origen_walkin=crm_atencion_traer($id_origen_walkin);
+				if($origen_walkin && $origen_walkin['estado']==='derivada')
+				{
+					$derivada_existente=crm_atencion_derivada_siguiente($id_origen_walkin);
+					$id_nueva=$derivada_existente ? intval($derivada_existente['id_atencion']) : 0;
+				}
+				else
+				{
+					$id_nueva=0;
+					$error_derivacion=crm_atencion_derivar($id_origen_walkin, $area_walkin_form, $detalle, $id_nueva);
+					if($error_derivacion!=='') { $errores[]=$error_derivacion; }
+				}
+			}
+		}
+		else
+		{
+			$id_nueva = crm_atencion_abrir($datos_alta);
+		}
 		if($id_nueva > 0)
 		{
+			if($es_walkin_recepcion)
+			{
+				$_SESSION['crm_walkin_done'][$walkin_token]=$id_nueva;
+				unset($_SESSION['crm_walkin_issued'][$walkin_token]);
+				if(count($_SESSION['crm_walkin_done'])>30) { array_shift($_SESSION['crm_walkin_done']); }
+			}
 			$_SESSION['msgatencion'] = ($modalidad === 'atencion_espontanea')
-				? 'Atención registrada con éxito (#'.$id_nueva.').'
+				? ($es_walkin_recepcion && $area_walkin_form!=='recepcion' ? 'Visita registrada y derivada correctamente (#'.$id_nueva.').' : 'Atención registrada con éxito (#'.$id_nueva.').')
 				: 'Turno programado correctamente (#'.$id_nueva.').';
 			if(!headers_sent())
 			{
@@ -154,7 +227,7 @@ if(isset($_POST['guardar_atencion']))
 			echo "<script>window.location.href='atencion.php?id=".$id_nueva."'</script>";
 			exit();
 		}
-		else
+		else if(count($errores)===0)
 		{
 			$errores[] = 'No se pudo guardar la atención en el sistema.';
 		}
@@ -162,7 +235,7 @@ if(isset($_POST['guardar_atencion']))
 
 	$_SESSION['msgerror'] = implode(' ', $errores);
 	$id_pre = $id_cli;
-	$area_def = $area_form;
+	if(!$es_walkin_recepcion) { $area_def = $area_form; }
 	$cli_pre = cliente_traer($id_pre);
 	$cli_nombre_pre = $cli_pre ? (isset($cli_pre['name']) ? $cli_pre['name'] : '') : '';
 }
@@ -262,6 +335,7 @@ $url_ajax_alta_cliente = url_crm('recepcion/ajax/cliente-rapido.php');
                     </div>
                     <div class="grid-body no-border">
                         <form name="form_turno" id="form_turno" method="post" action="" onsubmit="return validarFormulario();">
+                            <?php if($area_cli === 'recepcion') { ?><input type="hidden" name="walkin_token" value="<?php echo htmlspecialchars($walkin_token, ENT_QUOTES, 'UTF-8'); ?>"><?php } ?>
                             
                             <!-- 1. IDENTIFICACIÓN Y BÚSQUEDA DE CLIENTE -->
                             <div class="form-group" style="position:relative; margin-bottom:20px;">
@@ -311,8 +385,8 @@ $url_ajax_alta_cliente = url_crm('recepcion/ajax/cliente-rapido.php');
                                             <div style="display:flex; align-items:flex-start; gap:10px;">
                                                 <input type="radio" name="modalidad" id="opt_inmediata" value="atencion_espontanea" style="margin-top:3px;">
                                                 <div>
-                                                    <strong style="color:#0f172a; font-size:13.5px;">Atención espontánea (sin turno previo)</strong>
-                                                    <p class="muted" style="margin:2px 0 0; font-size:12px;">El cliente se encuentra presente en la fundación y requiere atención directa inmediata.</p>
+                                                    <strong style="color:#0f172a; font-size:13.5px;"><?php echo $area_cli === 'recepcion' ? 'Atender sin turno' : 'Atención espontánea (sin turno previo)'; ?></strong>
+                                                    <p class="muted" style="margin:2px 0 0; font-size:12px;"><?php echo $area_cli === 'recepcion' ? 'Registrá la llegada del cliente y derivala al área que corresponda.' : 'El cliente se encuentra presente en la fundación y requiere atención directa inmediata.'; ?></p>
                                                 </div>
                                             </div>
                                         </div>
@@ -323,7 +397,7 @@ $url_ajax_alta_cliente = url_crm('recepcion/ajax/cliente-rapido.php');
                             <!-- 3. ÁREA DESTINO Y COLABORADOR RESPONSABLE -->
                             <div class="row">
                                 <div class="col-sm-6">
-                                    <div class="form-group">
+                                    <div class="form-group" id="area_turno_wrap">
                                         <label style="font-weight:600;"><i class="fa fa-building-o"></i> Área de atención *</label>
                                         <?php if($area_cli === 'recepcion' || acceso_es_super() || acceso_es_coord_general()) { ?>
                                         <select name="area" id="area_turno" class="form-control" onchange="actualizarAreaYHorarios();">
@@ -340,8 +414,20 @@ $url_ajax_alta_cliente = url_crm('recepcion/ajax/cliente-rapido.php');
                                         </p>
                                         <?php } ?>
                                     </div>
+                                    <?php if($area_cli === 'recepcion') { ?>
+                                    <div class="form-group" id="area_walkin_wrap" style="display:none;">
+                                        <label style="font-weight:600;"><i class="fa fa-share"></i> Derivación de la visita</label>
+                                        <select name="walkin_destino" id="area_walkin" class="form-control">
+                                            <option value="recepcion" <?php if(isset($_POST['walkin_destino']) && $_POST['walkin_destino']==='recepcion') echo 'selected'; ?>>Mantener en Recepción</option>
+                                            <?php foreach($areas_walkin as $clave => $titulo) { ?>
+                                            <option value="<?php echo htmlspecialchars($clave); ?>" <?php if(isset($_POST['walkin_destino']) && $_POST['walkin_destino']===$clave) echo 'selected'; ?>><?php echo htmlspecialchars($titulo); ?></option>
+                                            <?php } ?>
+                                        </select>
+                                        <p class="muted" style="margin-top:4px; font-size:11.5px;">Solo aparecen áreas habilitadas para recibir derivaciones.</p>
+                                    </div>
+                                    <?php } ?>
                                 </div>
-                                <div class="col-sm-6">
+                                <div class="col-sm-6" id="empleado_wrap">
                                     <div class="form-group">
                                         <label style="font-weight:600;"><i class="fa fa-user-circle-o"></i> Colaborador responsable</label>
                                         <?php if($area_cli === 'recepcion' && !acceso_es_super() && !acceso_es_coord_general()) { ?>
@@ -494,18 +580,27 @@ var urlAltaClienteRapido = <?php echo json_encode($url_ajax_alta_cliente, JSON_U
 var timerBuscar = null;
 
 function seleccionarModalidad(mod) {
+    var areaTurnoWrap = document.getElementById('area_turno_wrap');
+    var areaWalkinWrap = document.getElementById('area_walkin_wrap');
+    var empleadoWrap = document.getElementById('empleado_wrap');
     if(mod === 'atencion_espontanea') {
         document.getElementById('opt_inmediata').checked = true;
         document.getElementById('card_modalidad_inmediata').className = 'modalidad-card active';
         document.getElementById('card_modalidad_turno').className = 'modalidad-card';
         document.getElementById('bloque_programado').style.display = 'none';
         document.getElementById('bloque_inmediata').style.display = 'block';
+        if(areaWalkinWrap) { areaWalkinWrap.style.display = 'block'; }
+        if(areaTurnoWrap && areaWalkinWrap) { areaTurnoWrap.style.display = 'none'; }
+        if(empleadoWrap && areaWalkinWrap) { empleadoWrap.style.display = 'none'; }
     } else {
         document.getElementById('opt_turno').checked = true;
         document.getElementById('card_modalidad_turno').className = 'modalidad-card active';
         document.getElementById('card_modalidad_inmediata').className = 'modalidad-card';
         document.getElementById('bloque_programado').style.display = 'block';
         document.getElementById('bloque_inmediata').style.display = 'none';
+        if(areaWalkinWrap) { areaWalkinWrap.style.display = 'none'; }
+        if(areaTurnoWrap) { areaTurnoWrap.style.display = 'block'; }
+        if(empleadoWrap) { empleadoWrap.style.display = 'block'; }
     }
 }
 
@@ -666,6 +761,7 @@ function validarFormulario() {
 }
 
 document.getElementById('buscar_cliente').onkeyup = buscarClientes;
+seleccionarModalidad(<?php echo json_encode($modalidad_def); ?>);
 document.addEventListener('click', function(e) {
     var caja = document.getElementById('resultados_cliente');
     var bus = document.getElementById('buscar_cliente');

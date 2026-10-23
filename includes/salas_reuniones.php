@@ -220,6 +220,15 @@ function salas_reuniones_puede_gestionar($reserva)
 	{
 		return false;
 	}
+	if(acceso_es_super() || acceso_es_coord_general())
+	{
+		return true;
+	}
+	$id_empleado=crm_id_empleado_sesion();
+	if($id_empleado<=0 || !isset($reserva['id_empleado']) || intval($reserva['id_empleado'])!==$id_empleado)
+	{
+		return false;
+	}
 	return salas_reuniones_puede_gestionar_area($reserva['area_clave']);
 }
 

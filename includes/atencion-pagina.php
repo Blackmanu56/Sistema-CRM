@@ -605,6 +605,10 @@ $historial_seguimiento=function_exists('crm_atencion_seguimiento_historial') ? c
                                             $dot_color = '#059669';
                                             $badge_accion = 'badge-success';
                                             $accion_titulo = 'Atención espontánea';
+		} else if($accion_tipo === 'alta_sin_turno') {
+			$dot_color = '#059669';
+			$badge_accion = 'badge-success';
+			$accion_titulo = 'Visita sin turno';
                                         } else if($accion_tipo === 'inicio_atencion') {
                                             $dot_color = '#10b981';
                                             $badge_accion = 'badge-success';
@@ -621,6 +625,10 @@ $historial_seguimiento=function_exists('crm_atencion_seguimiento_historial') ? c
                                             $dot_color = '#f59e0b';
                                             $badge_accion = 'badge-warning';
                                             $accion_titulo = 'Derivación';
+		} else if($accion_tipo === 'derivacion_sin_turno') {
+			$dot_color = '#f59e0b';
+			$badge_accion = 'badge-warning';
+			$accion_titulo = 'Derivación de visita sin turno';
                                         } else if($accion_tipo === 'recepcion') {
                                             $dot_color = '#10b981';
                                             $badge_accion = 'badge-success';

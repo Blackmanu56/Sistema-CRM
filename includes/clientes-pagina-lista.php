@@ -61,7 +61,29 @@ body.crm-clientes-page .crm-clientes-list-grid > .grid-body > p:not(.muted) {
 	margin-top: 4px;
 	margin-bottom: 0;
 }
+body.crm-clientes-page .crm-client-row-actions {
+	display: flex;
+	flex-wrap: nowrap;
+	align-items: center;
+	gap: 7px;
+	white-space: nowrap;
+}
+body.crm-clientes-page .crm-client-row-actions .btn {
+	flex: 0 0 auto;
+	margin: 0;
+}
+body.crm-clientes-page .crm-client-row-action-cell {
+	min-width: 190px;
+	white-space: nowrap;
+}
 @media (max-width: 767px) {
+	body.crm-clientes-page .crm-client-row-actions {
+		flex-wrap: wrap;
+		white-space: normal;
+	}
+	body.crm-clientes-page .crm-client-row-action-cell {
+		min-width: 0;
+	}
 	body.crm-clientes-page .crm-clientes-subtitle {
 		margin-bottom: 8px;
 	}
@@ -144,8 +166,11 @@ body.crm-clientes-page .crm-clientes-list-grid > .grid-body > p:not(.muted) {
                                             <td><?php echo texto_mostrar(crm_nombres_areas_cliente($row['id'])); ?></td>
                                             <td><?php echo texto_mostrar($row['mobile']);?></td>
                                             <td><?php echo texto_mostrar($row['localidad']);?></td>
-                                            <td>
-                                                <a href="editar-cliente.php?id=<?php echo intval($row['id']);?>" class="btn btn-primary btn-xs btn-mini"><?php echo $clientes_solo_lectura ? 'Ver ficha' : 'Ver y editar'; ?></a>
+                                            <td class="crm-client-row-action-cell">
+                                                <div class="crm-client-row-actions" role="group" aria-label="Acciones del cliente">
+                                                    <a href="editar-cliente.php?id=<?php echo intval($row['id']);?>&amp;vista=ficha" class="btn btn-white btn-xs btn-mini">Ver ficha</a>
+                                                    <?php if(!$clientes_solo_lectura) { ?><a href="editar-cliente.php?id=<?php echo intval($row['id']);?>" class="btn btn-primary btn-xs btn-mini">Editar cliente</a><?php } ?>
+                                                </div>
                                             </td>
                                         </tr>
                                     <?php $cnt++; } ?>

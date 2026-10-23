@@ -23,6 +23,13 @@ $id_empleado=intval($empleado['id']);
 $url_editar='editar-empleado.php?usuario='.rawurlencode((string)$empleado['usuario']);
 $csrf_foto=function_exists('crm_tarea_extra_csrf_token') ? crm_tarea_extra_csrf_token() : '';
 $csrf_legajo=$csrf_foto;
+$csrf_admin=$csrf_foto;
+$csrf_admin_post=isset($_POST['csrf_tarea_extra']) && is_string($_POST['csrf_tarea_extra']) ? $_POST['csrf_tarea_extra'] : '';
+$csrf_admin_valido=false;
+if(isset($_POST['guardar']) || isset($_POST['agregar_rol_extra']) || isset($_POST['quitar_rol_extra']))
+{
+	$csrf_admin_valido=function_exists('crm_tarea_extra_csrf_valido') && crm_tarea_extra_csrf_valido($csrf_admin_post);
+}
 if(isset($_POST['accion_foto']) || isset($_POST['accion_legajo']))
 {
 	$accion_foto=isset($_POST['accion_foto']) && is_string($_POST['accion_foto']) ? $_POST['accion_foto'] : '';
@@ -200,7 +207,11 @@ $areas_extra=acceso_etiquetas_area_asignables('empleado');
 if(isset($_POST['agregar_rol_extra']))
 {
 	$rol_extra=isset($_POST['rol_extra']) ? trim($_POST['rol_extra']) : '';
-	if(!$puede_extras)
+	if(!$csrf_admin_valido)
+	{
+		$_SESSION['msgrrhh']='La sesión expiró o el formulario no es válido. Actualizá la página e intentá nuevamente.';
+	}
+	else if(!$puede_extras)
 	{
 		$_SESSION['msgrrhh']='No tenés permiso para asignar roles o áreas adicionales.';
 	}
@@ -230,7 +241,11 @@ if(isset($_POST['agregar_rol_extra']))
 }
 if(isset($_POST['quitar_rol_extra']))
 {
-	if(!$puede_extras)
+	if(!$csrf_admin_valido)
+	{
+		$_SESSION['msgrrhh']='La sesión expiró o el formulario no es válido. Actualizá la página e intentá nuevamente.';
+	}
+	else if(!$puede_extras)
 	{
 		$_SESSION['msgrrhh']='No tenés permiso para quitar roles adicionales.';
 	}
@@ -251,7 +266,11 @@ if(isset($_POST['quitar_rol_extra']))
 	exit();
 }
 
-if(isset($_POST['guardar']))
+if(isset($_POST['guardar']) && !$csrf_admin_valido)
+{
+	$_SESSION['msgrrhh']='La sesión expiró o el formulario no es válido. Actualizá la página e intentá nuevamente.';
+}
+else if(isset($_POST['guardar']))
 {
 	$nombres=trim(isset($_POST['nombres']) ? $_POST['nombres'] : '');
 	$apellido=trim(isset($_POST['apellido']) ? $_POST['apellido'] : '');
@@ -486,7 +505,7 @@ if(isset($_POST['guardar']))
                             <h4>Datos del colaborador</h4>
                         </div>
                         <div class="grid-body no-border">
-                        <form id="rrhh-employee-data-form" method="post" action="<?php echo htmlspecialchars($url_editar, ENT_QUOTES, 'UTF-8'); ?>" accept-charset="UTF-8"></form>
+                        <form id="rrhh-employee-data-form" method="post" action="<?php echo htmlspecialchars($url_editar, ENT_QUOTES, 'UTF-8'); ?>" accept-charset="UTF-8"><input type="hidden" name="csrf_tarea_extra" value="<?php echo htmlspecialchars($csrf_admin, ENT_QUOTES, 'UTF-8'); ?>" /></form>
                                 <?php if(isset($_SESSION['msgrrhh']) && $_SESSION['msgrrhh']!='') { ?>
                                 <div class="alert alert-info"><?php echo htmlspecialchars($_SESSION['msgrrhh']); $_SESSION['msgrrhh']=''; ?></div>
                                 <?php } ?>
@@ -704,6 +723,7 @@ if(isset($_POST['guardar']))
                             <?php } ?>
                             <?php if($puede_extras) { ?>
                             <form method="post" style="margin-top:12px;">
+                                <input type="hidden" name="csrf_tarea_extra" value="<?php echo htmlspecialchars($csrf_admin, ENT_QUOTES, 'UTF-8'); ?>" />
                                 <div class="rrhh-extra-add-fields">
                                 <div class="form-group">
                                     <label>Agregar rol</label>
@@ -751,6 +771,7 @@ if(isset($_POST['guardar']))
       </div>
       <div class="modal-footer">
         <form method="post" id="formQuitarRolExtra" style="display:inline;">
+          <input type="hidden" name="csrf_tarea_extra" value="<?php echo htmlspecialchars($csrf_admin, ENT_QUOTES, 'UTF-8'); ?>" />
           <input type="hidden" name="id_rol_extra" id="modalQuitarIdRolExtra" value="">
           <button type="button" class="btn btn-white" data-dismiss="modal">Cancelar</button>
           <button type="submit" name="quitar_rol_extra" value="1" class="btn btn-danger">Sí, quitar rol</button>

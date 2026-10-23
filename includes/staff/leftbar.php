@@ -366,6 +366,9 @@ $left_profile_url=url_crm('perfil-empleado.php');
       <?php } elseif($left_area_act === 'rrhh' && area_capacidad('rrhh', 'puede_atenciones')) { ?>
       <li class="<?php echo in_array($crm_cur_script, array('atenciones.php','nueva-atencion.php','atencion.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm('rrhh/atenciones.php'); ?>"><span class="fa fa-clock-o"></span>&nbsp;&nbsp;Atenciones</a></li>
       <?php } ?>
+      <?php if($left_area_act === 'empresas' && acceso_puede('empresas') && acceso_puede_clientes_de_area('empresas') && is_file(BASE_PATH.'/public/empresas/seguimientos.php')) { ?>
+      <li class="<?php echo ($crm_cur_script === 'seguimientos.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('empresas/seguimientos.php'); ?>"><span class="fa fa-line-chart"></span>&nbsp;&nbsp;Seguimientos</a></li>
+      <?php } ?>
       <?php if($left_area_act === 'sistemas') { ?>
       <li class="<?php echo ($crm_cur_script === 'dominios.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('sistemas/dominios.php'); ?>"><span class="fa fa-globe"></span>&nbsp;&nbsp;Dominios</a></li>
       <?php } ?>

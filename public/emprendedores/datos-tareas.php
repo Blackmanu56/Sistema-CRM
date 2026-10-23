@@ -1,6 +1,7 @@
 <?php
 // Tareas de Coordinacion de emprendedores.
 require_once __DIR__.'/tareas-base.php';
+require_once dirname(__DIR__, 2).'/includes/tareas_repositorio.php';
 
 // Quien entro: el admin ve todo; el coordinador ve las del equipo; el empleado, solo las suyas.
 function tareas_iniciar_contexto()
@@ -777,7 +778,11 @@ function tareas_datos_procesar_accion()
         $nuevo=$lista[0];
         if ($nuevo==$item) { return false; }
         $estados=array('No iniciada'=>'no_iniciada','En proceso'=>'en_proceso','Pausada'=>'pausada','Terminada'=>'terminada');
-        emp_consulta('UPDATE tarea SET estado=?, avance=?, fecha_inicio=? WHERE id_tarea=?','sisi',array($estados[$nuevo['estado']],$nuevo['avance'],$nuevo['fecha_inicio'],$id));
+        if ($accion==='terminar' && $estados[$nuevo['estado']]==='terminada') {
+            emp_consulta('UPDATE tarea SET estado=?, avance=?, fecha_inicio=?, fecha_cierre_real=CURDATE() WHERE id_tarea=?','sisi',array($estados[$nuevo['estado']],$nuevo['avance'],$nuevo['fecha_inicio'],$id));
+        } else {
+            emp_consulta('UPDATE tarea SET estado=?, avance=?, fecha_inicio=? WHERE id_tarea=?','sisi',array($estados[$nuevo['estado']],$nuevo['avance'],$nuevo['fecha_inicio'],$id));
+        }
         if ($accion==='iniciar') {
             $ids=emp_responsables_ids(array(tareas_persona()));
             emp_consulta('INSERT INTO tarea_inicio (id_tarea,id_empleado) VALUES (?,?) ON DUPLICATE KEY UPDATE id_empleado=VALUES(id_empleado)','ii',array($id,$ids[0]));

@@ -255,6 +255,11 @@ function tareas_ids_empleados_por_persona($persona)
 	{
 		return array();
 	}
+	if(function_exists('repo_nombre_a_id'))
+	{
+		$id_directo=repo_nombre_a_id($persona);
+		if($id_directo>0) { return array($id_directo); }
+	}
 	$ids=array();
 	$sin_accentos=tareas_sin_tildes($persona);
 	foreach(tareas_indice_personas_empleados() as $nombre=>$id)
@@ -1025,9 +1030,9 @@ function tareas_datos_guardar_nueva($area)
 		return $area;
 	}
 	$responsables=tareas_leer_responsables_post($area);
-	if(count($responsables)==0)
+	if(!empty($GLOBALS['tareas_responsable_post_invalido']) || count($responsables)==0)
 	{
-		return $area;
+		return false;
 	}
 	$cliente=tareas_leer_cliente_post();
 	$tipo=isset($_POST['tipo']) ? trim($_POST['tipo']) : '';
@@ -1042,6 +1047,14 @@ function tareas_datos_guardar_nueva($area)
 	{
 		return $area;
 	}
+	$responsables_ids=array();
+	foreach($responsables as $nom)
+	{
+		$id_resp=tareas_empleado_id_por_persona($nom);
+		if($id_resp<=0 || !function_exists('repo_responsable_autorizado_area') || !repo_responsable_autorizado_area($id_resp, $id_area)) { return false; }
+		if(!in_array($id_resp, $responsables_ids, true)) { $responsables_ids[]=$id_resp; }
+	}
+	if(count($responsables_ids)===0) { return false; }
 	$prioridad=tareas_prioridad_a_bd(isset($_POST['prioridad']) ? $_POST['prioridad'] : 'Media');
 	$fecha_inicio=isset($_POST['fecha_inicio']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_POST['fecha_inicio']) ? $_POST['fecha_inicio'] : date('Y-m-d');
 	$fecha_cierre=isset($_POST['fecha_cierre']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_POST['fecha_cierre']) ? $_POST['fecha_cierre'] : $fecha_inicio;
@@ -1063,17 +1076,8 @@ function tareas_datos_guardar_nueva($area)
 		return $area;
 	}
 	$primero=true;
-	foreach($responsables as $nom)
+	foreach($responsables_ids as $id_resp)
 	{
-		$id_resp=tareas_empleado_id_por_persona($nom);
-		if($id_resp<=0)
-		{
-			continue;
-		}
-		if(function_exists('crm_empleado_pertenece_a_area') && !crm_empleado_pertenece_a_area($id_resp, $id_area))
-		{
-			continue;
-		}
 		tareas_bd_ejecutar("INSERT INTO tarea_responsable (id_tarea, id_empleado, es_principal) VALUES (?, ?, ?)", 'iii', array($id_tarea, $id_resp, $primero?1:0));
 		$primero=false;
 	}
@@ -1083,9 +1087,8 @@ function tareas_datos_guardar_nueva($area)
 	// repositorio compartido del includes, no mas en JSON.
 	if($id_empleado>0 && function_exists('repo_avisos_crear'))
 	{
-		foreach($responsables as $nom)
+		foreach($responsables_ids as $id_para)
 		{
-			$id_para=tareas_empleado_id_por_persona($nom);
 			if($id_para>0)
 			{
 				@repo_avisos_crear($id_tarea, $id_empleado, $id_para);
@@ -1117,7 +1120,7 @@ function tareas_datos_actualizar($id)
 	$area=acceso_area_pantalla();
 	$id_area=tareas_id_area_panel();
 	$responsables=tareas_leer_responsables_post($area, $tarea);
-	if(count($responsables)==0)
+	if(!empty($GLOBALS['tareas_responsable_post_invalido']) || count($responsables)==0)
 	{
 		return false;
 	}
@@ -1148,14 +1151,24 @@ function tareas_datos_actualizar($id)
 		$rid=tareas_empleado_id_por_persona($nom);
 		if($rid>0)
 		{
-			if(function_exists('crm_empleado_pertenece_a_area') && !crm_empleado_pertenece_a_area($rid, $id_area))
+			$anteriores=function_exists('repo_tarea_responsable_ids') ? repo_tarea_responsable_ids($id) : array();
+			$historico=in_array($rid, $anteriores, true);
+			if(!$historico && (!function_exists('repo_responsable_autorizado_area') || !repo_responsable_autorizado_area($rid, $id_area)))
 			{
-				continue;
+				return false;
 			}
 			if(!in_array($rid, $ids_nuevos, true))
 			{
 				$ids_nuevos[]=$rid;
 			}
+		}
+	}
+	$anteriores=function_exists('repo_tarea_responsable_ids') ? repo_tarea_responsable_ids($id) : array();
+	foreach($anteriores as $previo)
+	{
+		if((!function_exists('repo_responsable_autorizado_area') || !repo_responsable_autorizado_area($previo, $id_area)) && !in_array($previo, $ids_nuevos, true))
+		{
+			$ids_nuevos[]=$previo;
 		}
 	}
 	if(count($ids_nuevos)==0)
@@ -1344,7 +1357,7 @@ function tareas_datos_procesar_accion()
 	}
 	else if($accion=='terminar' && ($est=='En proceso' || $est=='Pausada'))
 	{
-		tareas_bd_ejecutar("UPDATE tarea SET estado='terminada', avance=100 WHERE id_tarea=?", 'i', array($id));
+		tareas_bd_ejecutar("UPDATE tarea SET estado='terminada', avance=100, fecha_cierre_real=CURDATE() WHERE id_tarea=?", 'i', array($id));
 		$actividad_tipo='completada';
 	}
 	if($actividad_tipo!='')

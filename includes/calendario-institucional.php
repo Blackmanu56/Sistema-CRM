@@ -14,7 +14,7 @@ function crm_calendario_institucional_eventos_autorizados()
 {
 	if(!function_exists('crm_es_staff') || !crm_es_staff()
 		|| !function_exists('acceso_consulta') || !function_exists('crm_eventos_de_area')
-		|| !function_exists('actividad_puede_ver')) { return array(); }
+		|| !function_exists('actividad_puede_ver_en_area') || !function_exists('actividad_puede_ver_en_areas_autorizadas')) { return array(); }
 
 	$areas=acceso_consulta("SELECT clave FROM area WHERE clave IS NOT NULL AND clave<>'' ORDER BY nombre");
 	$por_id=array();
@@ -25,7 +25,7 @@ function crm_calendario_institucional_eventos_autorizados()
 		foreach((array)crm_eventos_de_area($clave, true) as $evento)
 		{
 			$id=intval(isset($evento['id_evento']) ? $evento['id_evento'] : (isset($evento['id']) ? $evento['id'] : 0));
-			if($id<=0 || isset($por_id[$id]) || !actividad_puede_ver($evento)) { continue; }
+			if($id<=0 || isset($por_id[$id]) || !actividad_puede_ver_en_area($evento, $clave, true)) { continue; }
 			$fecha=isset($evento['fecha']) ? trim((string)$evento['fecha']) : '';
 			$fecha_dia=substr($fecha, 0, 10);
 			if(!crm_calendario_institucional_fecha_valida($fecha_dia)) { continue; }
@@ -76,9 +76,9 @@ function crm_calendario_institucional_detalle_autorizado($id_evento)
 {
 	$id=intval($id_evento);
 	if($id<=0 || !function_exists('crm_es_staff') || !crm_es_staff()
-		|| !function_exists('crm_evento_por_id') || !function_exists('actividad_puede_ver')) { return null; }
+		|| !function_exists('crm_evento_por_id') || !function_exists('actividad_puede_ver_en_areas_autorizadas')) { return null; }
 	$evento=crm_evento_por_id($id);
-	if(!$evento || !actividad_puede_ver($evento)) { return null; }
+	if(!$evento || !actividad_puede_ver_en_areas_autorizadas($evento)) { return null; }
 	$fecha=isset($evento['fecha']) ? trim((string)$evento['fecha']) : '';
 	$dia=substr($fecha, 0, 10);
 	if(!crm_calendario_institucional_fecha_valida($dia)) { return null; }

@@ -127,6 +127,12 @@ function repo_nombre_a_id($nombre_display)
 	{
 		return 0;
 	}
+	// Los formularios de responsables envían IDs opacos para evitar ambigüedades
+	// cuando una persona tiene más de un rol o varias personas comparten nombre.
+	if(preg_match('/^id:(\\d+)$/', $nombre_display, $match))
+	{
+		return intval($match[1]);
+	}
 	// Separar nombre y area por el separador " - "
 	$partes=explode(' - ', $nombre_display, 2);
 	$nombre_persona=trim($partes[0]);
@@ -172,6 +178,22 @@ function repo_nombre_a_id($nombre_display)
 	$result=@mysqli_stmt_get_result($stmt);
 	$row=mysqli_fetch_assoc($result);
 	@mysqli_stmt_close($stmt);
+	if(!$row && $nombre_area!='' && function_exists('acceso_tabla_existe') && acceso_tabla_existe('empleado_rol_adicional'))
+	{
+		$sql_ad="SELECT e.id_empleado FROM empleado_rol_adicional x
+			INNER JOIN empleado e ON e.id_empleado=x.id_empleado
+			INNER JOIN area a ON a.id_area=x.id_area
+			WHERE CONCAT(e.nombres,' ',e.apellido)=? AND e.activo=1 AND x.fecha_desde<=CURDATE() AND x.fecha_hasta IS NULL
+			AND (a.nombre=? OR a.clave=? OR a.nombre LIKE ?) LIMIT 1";
+		$stmt_ad=@mysqli_prepare($con, $sql_ad);
+		if($stmt_ad)
+		{
+			@mysqli_stmt_bind_param($stmt_ad, 'ssss', $nombre_persona, $nombre_area, $clave_area, $params[3]);
+			@mysqli_stmt_execute($stmt_ad); $res_ad=@mysqli_stmt_get_result($stmt_ad);
+			$row=$res_ad ? @mysqli_fetch_assoc($res_ad) : null;
+			@mysqli_stmt_close($stmt_ad);
+		}
+	}
 	return $row ? intval($row['id_empleado']) : 0;
 }
 
@@ -932,7 +954,7 @@ function repo_tareas_responsables_disponibles($id_area)
 function repo_tarea_crear($datos, $responsables_ids, $id_empleado_creador)
 {
 	global $con;
-	if(!$con)
+	if(!$con || !empty($GLOBALS['tareas_responsable_post_invalido']))
 	{
 		return 0;
 	}
@@ -966,6 +988,16 @@ function repo_tarea_crear($datos, $responsables_ids, $id_empleado_creador)
 			return 0;
 		}
 	}
+	// Nunca crear una tarea con responsable omitido, duplicado o no autorizado.
+	$responsables_validos=array();
+	foreach((array)$responsables_ids as $rid)
+	{
+		$rid=intval($rid);
+		if($rid<=0 || !repo_responsable_autorizado_area($rid, $id_area)) { return 0; }
+		if(!in_array($rid, $responsables_validos, true)) { $responsables_validos[]=$rid; }
+	}
+	if(count($responsables_validos)===0) { return 0; }
+	$responsables_ids=$responsables_validos;
 
 	// Iniciar transaccion: si falla algun INSERT, se revierte todo
 	@mysqli_begin_transaction($con);
@@ -1026,11 +1058,7 @@ function repo_tarea_crear($datos, $responsables_ids, $id_empleado_creador)
 		foreach($responsables_ids as $rid)
 		{
 			$rid=intval($rid);
-			if($rid<=0) { continue; }
-			if(function_exists('crm_empleado_pertenece_a_area') && !crm_empleado_pertenece_a_area($rid, $id_area))
-			{
-				continue;
-			}
+			if($rid<=0) { @mysqli_stmt_close($stmt); @mysqli_rollback($con); return 0; }
 			$es_principal=$primero ? 1 : 0;
 			@mysqli_stmt_bind_param($stmt, 'iii', $id_tarea, $rid, $es_principal);
 			if(!@mysqli_stmt_execute($stmt))
@@ -1069,7 +1097,12 @@ function repo_tarea_actualizar($id_tarea, $datos, $responsables_ids)
 {
 	global $con;
 	$id=intval($id_tarea);
-	if($id<=0 || !$con)
+	if($id<=0 || !$con || !empty($GLOBALS['tareas_responsable_post_invalido']))
+	{
+		return false;
+	}
+	$tarea_actual=function_exists('repo_tarea_por_id') ? repo_tarea_por_id($id) : null;
+	if(!$tarea_actual || !function_exists('tarea_puede_editar') || !tarea_puede_editar($tarea_actual))
 	{
 		return false;
 	}
@@ -1103,6 +1136,27 @@ function repo_tarea_actualizar($id_tarea, $datos, $responsables_ids)
 	{
 		return false;
 	}
+	// Conservar responsables históricos aunque hayan perdido autorización, pero
+	// impedir que se añadan responsables inactivos o ajenos al área de la tarea.
+	$anteriores=function_exists('repo_tarea_responsable_ids') ? repo_tarea_responsable_ids($id) : array();
+	$responsables_validos=array();
+	foreach((array)$responsables_ids as $rid)
+	{
+		$rid=intval($rid);
+		if($rid<=0) { return false; }
+		$es_historico=in_array($rid, $anteriores, true);
+		if(!$es_historico && !repo_responsable_autorizado_area($rid, $id_area)) { return false; }
+		if(!in_array($rid, $responsables_validos, true)) { $responsables_validos[]=$rid; }
+	}
+	foreach($anteriores as $rid_anterior)
+	{
+		if(!repo_responsable_autorizado_area($rid_anterior, $id_area) && !in_array($rid_anterior, $responsables_validos, true))
+		{
+			$responsables_validos[]=$rid_anterior;
+		}
+	}
+	if(count($responsables_validos)===0) { return false; }
+	$responsables_ids=$responsables_validos;
 	if($fecha_inicio==='') { $fecha_inicio=null; }
 	if($fecha_cierre==='') { $fecha_cierre=null; }
 	if($id_cliente<=0) { $id_cliente=null; }
@@ -1154,11 +1208,7 @@ function repo_tarea_actualizar($id_tarea, $datos, $responsables_ids)
 		foreach($responsables_ids as $rid)
 		{
 			$rid=intval($rid);
-			if($rid<=0) { continue; }
-			if(function_exists('crm_empleado_pertenece_a_area') && !crm_empleado_pertenece_a_area($rid, $id_area))
-			{
-				continue;
-			}
+			if($rid<=0) { @mysqli_stmt_close($stmt); @mysqli_rollback($con); return false; }
 			$es_principal=$primero ? 1 : 0;
 			@mysqli_stmt_bind_param($stmt, 'iii', $id, $rid, $es_principal);
 			if(!@mysqli_stmt_execute($stmt))
@@ -1212,6 +1262,11 @@ function repo_tarea_cambiar_estado($id_tarea, $nuevo_estado, $id_empleado)
 	if(!$fila_check) { return false; }
 
 	$estado_actual=$fila_check['estado'];
+	$tarea_actual=repo_tarea_por_id($id);
+	if(!$tarea_actual || (function_exists('tarea_padre_finalizada') && tarea_padre_finalizada($tarea_actual)))
+	{
+		return false;
+	}
 
 	// Mapa de transiciones validas: estado_actual => array de estados destino permitidos
 	$transiciones_validas=array(
@@ -1242,6 +1297,12 @@ function repo_tarea_cambiar_estado($id_tarea, $nuevo_estado, $id_empleado)
 	if($estado_actual==='terminada' && $db_estado==='en_proceso')
 	{
 		$sql="UPDATE tarea SET estado=?, fecha_cierre_real=NULL WHERE id_tarea=?";
+	}
+	else if($db_estado==='terminada')
+	{
+		// Guardar estado, avance y fecha real en una sola operación. La columna
+		// fecha_cierre_real es DATE, por lo que CURDATE() respeta su tipo.
+		$sql="UPDATE tarea SET estado=?, avance=100, fecha_cierre_real=CURDATE() WHERE id_tarea=?";
 	}
 	else
 	{
@@ -1290,18 +1351,6 @@ function repo_tarea_cambiar_estado($id_tarea, $nuevo_estado, $id_empleado)
 			{
 				@mysqli_query($con, "UPDATE crm_aviso SET confirmado=1 WHERE id_tarea=".intval($id)." AND (id_empleado_para=".intval($id_emp)." OR id_empleado_para=0)");
 			}
-		}
-	}
-	else if($db_estado==='terminada')
-	{
-		// Al terminar, el avance siempre es 100 y se guarda la fecha de cierre real
-		$sql_av="UPDATE tarea SET avance=100, fecha_cierre_real=CURDATE() WHERE id_tarea=?";
-		$stmt=@mysqli_prepare($con, $sql_av);
-		if($stmt)
-		{
-			@mysqli_stmt_bind_param($stmt, 'i', $id);
-			@mysqli_stmt_execute($stmt);
-			@mysqli_stmt_close($stmt);
 		}
 	}
 
@@ -2023,10 +2072,11 @@ function repo_empleados_por_area($id_area, $solo_activos=true)
 		return $salida;
 	}
 	$filtro=$solo_activos ? " AND e.activo=1" : "";
-	$sql="SELECT e.id_empleado, e.nombres, e.apellido, a.nombre AS nombre_area
+	$sql="SELECT e.id_empleado, e.nombres, e.apellido, a.nombre AS nombre_area, a.clave AS clave_area
 		FROM empleado e
+		INNER JOIN rol r ON r.id_rol=e.id_rol
 		INNER JOIN area a ON a.id_area=e.id_area
-		WHERE e.id_area=? ".$filtro."
+		WHERE e.id_area=? AND r.clave<>'superadmin' ".$filtro."
 		ORDER BY e.apellido, e.nombres";
 	$stmt=@mysqli_prepare($con, $sql);
 	if(!$stmt)
@@ -2043,7 +2093,8 @@ function repo_empleados_por_area($id_area, $solo_activos=true)
 		$ya[$id_e]=1;
 		$salida[]=array(
 			'id'=>$id_e,
-			'nombre'=>repo_nombre_empleado($row)
+			'nombre'=>trim($row['nombres'].' '.$row['apellido']),
+			'etiqueta'=>trim($row['nombres'].' '.$row['apellido']).' - '.acceso_etiqueta_corta_area($row['clave_area'])
 		);
 	}
 	@mysqli_stmt_close($stmt);
@@ -2053,8 +2104,9 @@ function repo_empleados_por_area($id_area, $solo_activos=true)
 		$sql_ad="SELECT e.id_empleado, e.nombres, e.apellido, a.nombre AS nombre_area, a.clave AS clave_area
 			FROM empleado_rol_adicional x
 			INNER JOIN empleado e ON e.id_empleado=x.id_empleado
+			INNER JOIN rol r ON r.id_rol=x.id_rol
 			INNER JOIN area a ON a.id_area=x.id_area
-			WHERE x.id_area=? AND x.fecha_hasta IS NULL ".$filtro."
+			WHERE x.id_area=? AND x.fecha_desde<=CURDATE() AND x.fecha_hasta IS NULL AND r.clave<>'superadmin' ".$filtro."
 			ORDER BY e.apellido, e.nombres";
 		$stmt_ad=@mysqli_prepare($con, $sql_ad);
 		if($stmt_ad)
@@ -2064,7 +2116,7 @@ function repo_empleados_por_area($id_area, $solo_activos=true)
 			$res_ad=@mysqli_stmt_get_result($stmt_ad);
 			if($res_ad)
 			{
-				while($row_ad=mysqli_fetch_assoc($res_ad))
+			while($row_ad=mysqli_fetch_assoc($res_ad))
 				{
 					$id_e=intval($row_ad['id_empleado']);
 					if(!isset($ya[$id_e]))
@@ -2072,7 +2124,8 @@ function repo_empleados_por_area($id_area, $solo_activos=true)
 						$ya[$id_e]=1;
 						$salida[]=array(
 							'id'=>$id_e,
-							'nombre'=>repo_nombre_empleado($row_ad)
+						'nombre'=>trim($row_ad['nombres'].' '.$row_ad['apellido']),
+						'etiqueta'=>trim($row_ad['nombres'].' '.$row_ad['apellido']).' - '.acceso_etiqueta_corta_area($row_ad['clave_area'])
 						);
 					}
 				}
@@ -2081,6 +2134,67 @@ function repo_empleados_por_area($id_area, $solo_activos=true)
 		}
 	}
 	return $salida;
+}
+
+/** IDs de responsables actualmente vinculados a una tarea, incluidos vínculos históricos. */
+function repo_tarea_responsable_ids($id_tarea)
+{
+	global $con;
+	$id=intval($id_tarea);
+	$ids=array();
+	if($id<=0 || !$con) { return $ids; }
+	$stmt=@mysqli_prepare($con, "SELECT id_empleado FROM tarea_responsable WHERE id_tarea=? ORDER BY es_principal DESC, id_empleado");
+	if(!$stmt) { return $ids; }
+	@mysqli_stmt_bind_param($stmt, 'i', $id);
+	@mysqli_stmt_execute($stmt);
+	$res=@mysqli_stmt_get_result($stmt);
+	if($res) { while($row=mysqli_fetch_assoc($res)) { $ids[]=intval($row['id_empleado']); } }
+	@mysqli_stmt_close($stmt);
+	return array_values(array_unique($ids));
+}
+
+/** Nombre de un empleado para el área de la tarea, también para vínculos históricos. */
+function repo_responsable_etiqueta_area($id_empleado, $id_area)
+{
+	global $con;
+	$id_e=intval($id_empleado); $id_a=intval($id_area);
+	if($id_e<=0 || $id_a<=0 || !$con) { return ''; }
+	$stmt=@mysqli_prepare($con, "SELECT e.nombres, e.apellido, a.clave FROM empleado e INNER JOIN area a ON a.id_area=? WHERE e.id_empleado=? LIMIT 1");
+	if(!$stmt) { return ''; }
+	@mysqli_stmt_bind_param($stmt, 'ii', $id_a, $id_e);
+	@mysqli_stmt_execute($stmt);
+	$res=@mysqli_stmt_get_result($stmt); $row=$res ? @mysqli_fetch_assoc($res) : null;
+	@mysqli_stmt_close($stmt);
+	if(!$row) { return ''; }
+	return trim($row['nombres'].' '.$row['apellido']).' - '.acceso_etiqueta_corta_area($row['clave']);
+}
+
+/** Validación de servidor: personal activo con rol principal/adicional vigente en el área. */
+function repo_responsable_autorizado_area($id_empleado, $id_area)
+{
+	global $con;
+	$id_e=intval($id_empleado); $id_a=intval($id_area);
+	if($id_e<=0 || $id_a<=0 || !$con) { return false; }
+	$stmt=@mysqli_prepare($con, "SELECT e.id_empleado FROM empleado e INNER JOIN rol r ON r.id_rol=e.id_rol WHERE e.id_empleado=? AND e.id_area=? AND e.activo=1 AND r.clave<>'superadmin' LIMIT 1");
+	if($stmt)
+	{
+		@mysqli_stmt_bind_param($stmt, 'ii', $id_e, $id_a); @mysqli_stmt_execute($stmt);
+		$res=@mysqli_stmt_get_result($stmt); $ok=$res && mysqli_num_rows($res)>0;
+		@mysqli_stmt_close($stmt);
+		if($ok) { return true; }
+	}
+	if(function_exists('acceso_tabla_existe') && acceso_tabla_existe('empleado_rol_adicional'))
+	{
+		$stmt=@mysqli_prepare($con, "SELECT e.id_empleado FROM empleado_rol_adicional x INNER JOIN empleado e ON e.id_empleado=x.id_empleado INNER JOIN rol r ON r.id_rol=x.id_rol WHERE e.id_empleado=? AND x.id_area=? AND x.fecha_desde<=CURDATE() AND x.fecha_hasta IS NULL AND e.activo=1 AND r.clave<>'superadmin' LIMIT 1");
+		if($stmt)
+		{
+			@mysqli_stmt_bind_param($stmt, 'ii', $id_e, $id_a); @mysqli_stmt_execute($stmt);
+			$res=@mysqli_stmt_get_result($stmt); $ok=$res && mysqli_num_rows($res)>0;
+			@mysqli_stmt_close($stmt);
+			return $ok;
+		}
+	}
+	return false;
 }
 
 /**

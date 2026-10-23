@@ -330,6 +330,11 @@ function emp_tipo_tarea_id($area_clave, $nombre)
 function emp_empleado_id_por_persona($persona)
 {
 	global $con;
+	if(function_exists('repo_nombre_a_id'))
+	{
+		$id_directo=repo_nombre_a_id($persona);
+		if($id_directo>0) { return $id_directo; }
+	}
 	$nombre=trim(preg_replace('/\s*-\s*[^-]+$/', '', $persona));
 	if($nombre=='')
 	{
@@ -378,6 +383,14 @@ function tareas_datos_guardar_nueva($area)
 	}
 
 	$responsables=tareas_leer_responsables_post($area);
+	if(!empty($GLOBALS['tareas_responsable_post_invalido']) || count($responsables)===0) { return false; }
+	$responsables_ids=array();
+	foreach($responsables as $persona)
+	{
+		$id_resp=emp_empleado_id_por_persona($persona);
+		if($id_resp<=0 || !function_exists('repo_responsable_autorizado_area') || !repo_responsable_autorizado_area($id_resp, $id_area)) { return false; }
+		if(!in_array($id_resp, $responsables_ids, true)) { $responsables_ids[]=$id_resp; }
+	}
 	$cliente=tareas_leer_cliente_post();
 	$titulo=isset($_POST['titulo']) ? trim($_POST['titulo']) : '';
 	$descripcion=isset($_POST['descripcion']) ? trim($_POST['descripcion']) : '';
@@ -423,13 +436,8 @@ function tareas_datos_guardar_nueva($area)
 		crm_aplicar_eje_post($id_tarea, $id_tipo);
 	}
 
-	foreach($responsables as $i=>$persona)
+	foreach($responsables_ids as $i=>$id_empleado)
 	{
-		$id_empleado=emp_empleado_id_por_persona($persona);
-		if($id_empleado<=0)
-		{
-			continue;
-		}
 		mysqli_query(
 			$con,
 			"INSERT IGNORE INTO tarea_responsable (id_tarea, id_empleado, es_principal)
@@ -480,6 +488,25 @@ function tareas_datos_actualizar($id)
 	}
 
 	$responsables=tareas_leer_responsables_post($area, $tarea);
+	if(!empty($GLOBALS['tareas_responsable_post_invalido'])) { return false; }
+	$responsables_ids=array();
+	$anteriores=function_exists('repo_tarea_responsable_ids') ? repo_tarea_responsable_ids($id) : array();
+	foreach($responsables as $persona)
+	{
+		$id_resp=emp_empleado_id_por_persona($persona);
+		if($id_resp<=0) { return false; }
+		$historico=in_array($id_resp, $anteriores, true);
+		if(!$historico && (!function_exists('repo_responsable_autorizado_area') || !repo_responsable_autorizado_area($id_resp, $id_area))) { return false; }
+		if(!in_array($id_resp, $responsables_ids, true)) { $responsables_ids[]=$id_resp; }
+	}
+	foreach($anteriores as $previo)
+	{
+		if(!function_exists('repo_responsable_autorizado_area') || !repo_responsable_autorizado_area($previo, $id_area))
+		{
+			if(!in_array($previo, $responsables_ids, true)) { $responsables_ids[]=$previo; }
+		}
+	}
+	if(count($responsables_ids)===0) { return false; }
 	$cliente=tareas_leer_cliente_post();
 	$titulo=isset($_POST['titulo']) ? trim($_POST['titulo']) : '';
 	$descripcion=isset($_POST['descripcion']) ? trim($_POST['descripcion']) : '';
@@ -519,13 +546,8 @@ function tareas_datos_actualizar($id)
 	// criterio que usa el resto del equipo en su capa compartida al editar).
 	mysqli_query($con, "DELETE FROM tarea_responsable WHERE id_tarea='".$id."'");
 
-	foreach($responsables as $i=>$persona)
+	foreach($responsables_ids as $i=>$id_empleado)
 	{
-		$id_empleado=emp_empleado_id_por_persona($persona);
-		if($id_empleado<=0)
-		{
-			continue;
-		}
 		mysqli_query(
 			$con,
 			"INSERT IGNORE INTO tarea_responsable (id_tarea, id_empleado, es_principal)

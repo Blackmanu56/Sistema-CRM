@@ -30,6 +30,7 @@
             }
           }
           $notif_volver=isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '';
+          $notif_csrf=function_exists('crm_tarea_extra_csrf_token') ? crm_tarea_extra_csrf_token() : '';
           ?>
           <style type="text/css">
             #crm-campana-menu {
@@ -224,6 +225,7 @@
                   <?php if($notif_total>0) { ?>
                   <form method="post" action="">
                     <input type="hidden" name="notif_volver" value="<?php echo htmlspecialchars($notif_volver); ?>">
+                    <input type="hidden" name="csrf_tarea_extra" value="<?php echo htmlspecialchars($notif_csrf); ?>">
                     <button type="submit" name="notif_marcar_todas" value="1" title="Marcar todas como leídas"><i class="fa fa-check-square-o"></i> Marcar leídas</button>
                   </form>
                   <?php } ?>
@@ -279,10 +281,11 @@
                     $u_abrir = isset($n['url_abrir']) && $n['url_abrir']!='' ? $n['url_abrir'] : (isset($n['url']) ? $n['url'] : '');
                     if($u_abrir!='') { 
                   ?>
-                  <a class="crm-n-ver" href="<?php echo htmlspecialchars($u_abrir); ?>"><i class="fa fa-external-link"></i> Abrir</a>
+                  <a class="crm-n-ver" href="<?php echo htmlspecialchars($u_abrir); ?>"><i class="fa fa-external-link"></i> <?php echo isset($n['accion_etiqueta']) && trim((string)$n['accion_etiqueta'])!=='' ? htmlspecialchars($n['accion_etiqueta']) : 'Abrir'; ?></a>
                   <?php } ?>
                   <form method="post" action="">
                     <input type="hidden" name="notif_volver" value="<?php echo htmlspecialchars($notif_volver); ?>">
+                    <input type="hidden" name="csrf_tarea_extra" value="<?php echo htmlspecialchars($notif_csrf); ?>">
                     <input type="hidden" name="<?php echo htmlspecialchars($n['campo']); ?>" value="<?php echo htmlspecialchars((string)$n['id']); ?>">
                     <button type="submit" class="crm-n-ok"><i class="fa fa-check"></i> Marcar leída</button>
                   </form>

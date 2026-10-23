@@ -81,6 +81,9 @@ $esc=function($valor) { return htmlspecialchars((string)$valor, ENT_QUOTES, 'UTF
 .crm-perfil-photo-form[hidden] { display:none !important; }
 .crm-perfil-photo-form label { display:block; margin:0 0 5px; color:#60758b; font-size:11px; font-weight:600; }
 .crm-perfil-photo-form input[type=file] { display:block; width:100%; max-width:100%; min-width:0; box-sizing:border-box; font-size:12px; }
+.crm-perfil-photo-preview { display:flex; align-items:center; gap:10px; margin-top:10px; padding:8px; border:1px solid #dce5ef; border-radius:6px; background:#fff; color:#60758b; font-size:11px; }
+.crm-perfil-photo-preview[hidden] { display:none !important; }
+.crm-perfil-photo-preview img { width:64px; height:64px; flex:0 0 64px; display:block; object-fit:cover; border-radius:50%; background:#edf2f7; }
 .crm-perfil-photo-form-actions { display:flex; gap:6px; margin-top:8px; }
 .crm-perfil-head-main { order:2; flex:1 1 260px; min-width:0; }
 .crm-foto-perfil-title { margin:0 0 5px; color:#1f3147; font-size:22px; font-weight:700; }
@@ -117,7 +120,7 @@ $esc=function($valor) { return htmlspecialchars((string)$valor, ENT_QUOTES, 'UTF
 					</div>
 					<?php if($columna_disponible) { ?>
 					<div class="crm-perfil-photo-controls">
-						<button type="button" class="btn btn-primary btn-xs" id="crm-perfil-photo-toggle" aria-controls="crm-perfil-photo-form" aria-expanded="false"><i class="fa fa-camera"></i> <?php echo $foto_key!=='' ? 'Modificar foto' : 'Agregar foto'; ?></button>
+						<button type="button" class="btn btn-primary btn-xs" id="crm-perfil-photo-toggle" aria-controls="crm-perfil-photo-form" aria-expanded="false"><i class="fa fa-camera"></i> Cambiar foto</button>
 						<?php if($foto_key!=='') { ?>
 						<form method="post" onsubmit="return confirm('¿Quitar tu fotografía y volver al avatar predeterminado?');" style="margin:0;">
 							<input type="hidden" name="csrf_tarea_extra" value="<?php echo $esc($csrf); ?>" />
@@ -139,6 +142,10 @@ $esc=function($valor) { return htmlspecialchars((string)$valor, ENT_QUOTES, 'UTF
 					<input type="hidden" name="accion_foto" value="subir" />
 					<label for="foto_empleado">Imagen JPG, PNG o WebP · máximo 5 MB</label>
 					<input id="foto_empleado" type="file" name="foto_empleado" accept="image/jpeg,image/png,image/webp" required />
+					<div id="crm-perfil-photo-preview" class="crm-perfil-photo-preview" hidden>
+						<img id="crm-perfil-photo-preview-image" alt="Vista previa de la fotografía seleccionada" />
+						<span>Vista previa de la nueva foto</span>
+					</div>
 					<div class="crm-perfil-photo-form-actions">
 						<button type="submit" class="btn btn-primary btn-xs"><i class="fa fa-save"></i> Guardar foto</button>
 						<button type="button" class="btn btn-white btn-xs" id="crm-perfil-photo-cancel">Cancelar</button>
@@ -165,9 +172,29 @@ $esc=function($valor) { return htmlspecialchars((string)$valor, ENT_QUOTES, 'UTF
   var toggle=document.getElementById('crm-perfil-photo-toggle');
   var form=document.getElementById('crm-perfil-photo-form');
   var cancel=document.getElementById('crm-perfil-photo-cancel');
+  var input=document.getElementById('foto_empleado');
+  var preview=document.getElementById('crm-perfil-photo-preview');
+  var previewImage=document.getElementById('crm-perfil-photo-preview-image');
+  var previewUrl='';
   if(!toggle || !form) return;
+  function clearPreview(){
+    if(previewUrl && window.URL && typeof window.URL.revokeObjectURL==='function') window.URL.revokeObjectURL(previewUrl);
+    previewUrl='';
+    if(previewImage) previewImage.removeAttribute('src');
+    if(preview) preview.hidden=true;
+  }
   toggle.addEventListener('click',function(){ form.hidden=false; toggle.hidden=true; toggle.setAttribute('aria-expanded','true'); });
-  if(cancel) cancel.addEventListener('click',function(){ form.reset(); form.hidden=true; toggle.hidden=false; toggle.setAttribute('aria-expanded','false'); });
+  if(input) input.addEventListener('change',function(){
+    clearPreview();
+    var file=input.files && input.files.length ? input.files[0] : null;
+    if(!file || !window.URL || typeof window.URL.createObjectURL!=='function') return;
+    if(file.type && ['image/jpeg','image/png','image/webp'].indexOf(file.type)===-1){ input.setCustomValidity('Seleccioná una imagen JPG, PNG o WebP.'); input.reportValidity(); return; }
+    input.setCustomValidity('');
+    previewUrl=window.URL.createObjectURL(file);
+    previewImage.src=previewUrl;
+    preview.hidden=false;
+  });
+  if(cancel) cancel.addEventListener('click',function(){ form.reset(); clearPreview(); form.hidden=true; toggle.hidden=false; toggle.setAttribute('aria-expanded','false'); });
 })();
 </script>
 </body>

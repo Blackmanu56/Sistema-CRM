@@ -155,9 +155,16 @@ function llenarOpciones(sel, valor)
 {
 	var lista = (equiposTarea[areaActualTarea()] || []).slice();
 	var usados = nombresElegidos(sel);
-	if(valor && valor !== '' && lista.indexOf(valor) === -1)
+	var actualLabel = '';
+	for(var x=0; x<sel.options.length; x++)
 	{
-		lista.push(valor);
+		if(sel.options[x].value === valor) { actualLabel = sel.options[x].text; break; }
+	}
+	var ids = [];
+	for(var k=0; k<lista.length; k++) { ids.push('id:' + lista[k].id); }
+	if(valor && valor !== '' && ids.indexOf(valor) === -1)
+	{
+		lista.push({id: valor.replace(/^id:/, ''), etiqueta: actualLabel || 'Responsable histórico'});
 	}
 	sel.innerHTML = '';
 	var vacio = document.createElement('option');
@@ -166,11 +173,12 @@ function llenarOpciones(sel, valor)
 	sel.appendChild(vacio);
 	for(var i=0; i<lista.length; i++)
 	{
-		if(usados.indexOf(lista[i]) !== -1 && lista[i] !== valor) { continue; }
+		var id = 'id:' + lista[i].id;
+		if(usados.indexOf(id) !== -1 && id !== valor) { continue; }
 		var o = document.createElement('option');
-		o.value = lista[i];
-		o.text = lista[i];
-		if(lista[i] === valor) { o.selected = true; }
+		o.value = id;
+		o.text = lista[i].etiqueta || lista[i].nombre || 'Responsable';
+		if(id === valor) { o.selected = true; }
 		sel.appendChild(o);
 	}
 }

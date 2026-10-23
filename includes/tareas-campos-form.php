@@ -34,13 +34,76 @@ else if(isset($_POST['area_crm']) && $_POST['area_crm']!='')
 {
 	$area_equipo=$_POST['area_crm'];
 }
-$nombres_equipo=acceso_nombres_equipo($area_equipo);
-// Si el responsable actual no está en el equipo (otra área), lo agregamos para que no desaparezca.
-foreach($responsables_actuales as $nom_act)
+$id_area_equipo=acceso_id_por_clave('area', $area_equipo);
+$equipo_responsables=($id_area_equipo>0 && function_exists('repo_empleados_por_area')) ? repo_empleados_por_area($id_area_equipo, true) : array();
+$responsables_ids_actuales=array();
+if($modo=='editar' && isset($tarea['id_tarea']) && function_exists('repo_tarea_responsable_ids'))
 {
-	if($nom_act!='' && !in_array($nom_act, $nombres_equipo, true))
+	$responsables_ids_actuales=repo_tarea_responsable_ids(intval($tarea['id_tarea']));
+}
+$responsables_ids_bd=$responsables_ids_actuales;
+if($modo=='editar' && count($responsables_ids_actuales)==0)
+{
+	foreach($responsables_actuales as $nom_act)
 	{
-		$nombres_equipo[]=$nom_act;
+		$id_act=function_exists('repo_nombre_a_id') ? repo_nombre_a_id($nom_act) : 0;
+		if($id_act>0 && !in_array($id_act, $responsables_ids_actuales, true)) { $responsables_ids_actuales[]=$id_act; }
+	}
+}
+if($modo=='nueva' && isset($_POST['responsables']) && is_array($_POST['responsables']))
+{
+	foreach($_POST['responsables'] as $valor_post)
+	{
+		$valor_post=trim((string)$valor_post);
+		$id_post=0;
+		if(preg_match('/^id:(\\d+)$/', $valor_post, $m)) { $id_post=intval($m[1]); }
+		else if(ctype_digit($valor_post)) { $id_post=intval($valor_post); }
+		if($id_post>0 && function_exists('repo_responsable_autorizado_area') && repo_responsable_autorizado_area($id_post, $id_area_equipo) && !in_array($id_post, $responsables_ids_actuales, true))
+		{
+			$responsables_ids_actuales[]=$id_post;
+		}
+	}
+}
+if($modo=='editar' && isset($_POST['responsables']) && is_array($_POST['responsables']))
+{
+	$ids_post=array();
+	foreach($_POST['responsables'] as $valor_post)
+	{
+		$valor_post=trim((string)$valor_post);
+		$id_post=0;
+		if(preg_match('/^id:(\\d+)$/', $valor_post, $m)) { $id_post=intval($m[1]); }
+		else if(ctype_digit($valor_post)) { $id_post=intval($valor_post); }
+		else if(function_exists('repo_nombre_a_id')) { $id_post=repo_nombre_a_id($valor_post); }
+		if($id_post>0 && (in_array($id_post, $responsables_ids_bd, true) || (function_exists('repo_responsable_autorizado_area') && repo_responsable_autorizado_area($id_post, $id_area_equipo))) && !in_array($id_post, $ids_post, true))
+		{
+			$ids_post[]=$id_post;
+		}
+	}
+	foreach($responsables_ids_bd as $id_previo)
+	{
+		if(!function_exists('repo_responsable_autorizado_area') || !repo_responsable_autorizado_area($id_previo, $id_area_equipo))
+		{
+			if(!in_array($id_previo, $ids_post, true)) { $ids_post[]=$id_previo; }
+		}
+	}
+	if(count($ids_post)>0) { $responsables_ids_actuales=$ids_post; }
+}
+if($modo=='nueva' && count($responsables_ids_actuales)===0 && count($equipo_responsables)>0)
+{
+	$id_sesion=isset($_SESSION['id_empleado']) ? intval($_SESSION['id_empleado']) : (isset($_SESSION['id']) ? intval($_SESSION['id']) : 0);
+	$asignado=($id_sesion>0 && function_exists('repo_responsable_autorizado_area') && repo_responsable_autorizado_area($id_sesion, $id_area_equipo));
+	if($asignado) { $responsables_ids_actuales[]=$id_sesion; }
+	if(!$asignado) { $responsables_ids_actuales[]=intval($equipo_responsables[0]['id']); }
+}
+// Mantener asignaciones históricas aunque el empleado ya no esté autorizado.
+foreach($responsables_ids_actuales as $id_act)
+{
+	$en_lista=false;
+	foreach($equipo_responsables as $persona) { if(intval($persona['id'])===intval($id_act)) { $en_lista=true; break; } }
+	if(!$en_lista && function_exists('repo_responsable_etiqueta_area'))
+	{
+		$etiqueta=repo_responsable_etiqueta_area($id_act, $id_area_equipo);
+		if($etiqueta!=='') { $equipo_responsables[]=array('id'=>intval($id_act), 'nombre'=>preg_replace('/\\s+-\\s+.+$/', '', $etiqueta), 'etiqueta'=>$etiqueta, 'historico'=>true); }
 	}
 }
 $cliente_id=isset($tarea['cliente_id']) ? intval($tarea['cliente_id']) : (isset($_GET['cliente_id']) ? intval($_GET['cliente_id']) : 0);
@@ -94,12 +157,12 @@ $msg_form=function_exists('tareas_mensaje_form_tomar') ? tareas_mensaje_form_tom
                                         <?php } ?>
                                         <?php } else { ?>
                                         <div id="caja_responsables">
-                                            <?php foreach($responsables_actuales as $i=>$elegido) { ?>
+                                            <?php foreach($responsables_ids_actuales as $i=>$elegido_id) { ?>
                                             <div class="fila-responsable" style="margin-bottom:6px;">
                                                 <select name="responsables[]" class="form-control sel-responsable" style="width:70%; display:inline-block;" <?php if($i==0) echo 'required'; ?>>
                                                     <option value="">Elegir responsable</option>
-                                                    <?php foreach($nombres_equipo as $nom) { ?>
-                                                    <option value="<?php echo texto_mostrar($nom); ?>" <?php if($nom==$elegido) echo 'selected'; ?>><?php echo texto_mostrar($nom); ?></option>
+                                                    <?php foreach($equipo_responsables as $persona) { ?>
+                                                    <option value="id:<?php echo intval($persona['id']); ?>" <?php if(intval($persona['id'])===intval($elegido_id)) echo 'selected'; ?>><?php echo texto_mostrar($persona['etiqueta']); ?></option>
                                                     <?php } ?>
                                                 </select>
                                                 <button type="button" class="btn btn-white btn-quitar-resp" onclick="quitarSelectResponsable(this)">Quitar</button>
@@ -171,7 +234,7 @@ $msg_form=function_exists('tareas_mensaje_form_tomar') ? tareas_mensaje_form_tom
                                         </select>
                                     </div>
                                 </div>
-                                <div class="form-group">
+                                <div class="form-group <?php if(!empty($error_fecha_inicio)) echo 'has-error'; ?>">
                                     <label class="col-md-3 control-label">Fecha de inicio</label>
                                     <div class="col-md-6">
                                         <?php
@@ -182,8 +245,14 @@ $msg_form=function_exists('tareas_mensaje_form_tomar') ? tareas_mensaje_form_tom
                                                 $min_fi = $fi_actual;
                                             }
                                         }
+										$fecha_inicio_valor=isset($tarea['fecha_inicio']) && $tarea['fecha_inicio']!='' ? $tarea['fecha_inicio'] : ($modo=='nueva' ? date('Y-m-d') : '');
+										if($modo=='nueva' && !empty($fecha_inicio_obligatoria) && isset($_POST['guardar']))
+										{
+										$fecha_inicio_valor=array_key_exists('fecha_inicio', $_POST) ? (string)$_POST['fecha_inicio'] : '';
+										}
                                         ?>
-                                        <input type="date" name="fecha_inicio" id="fecha_inicio" min="<?php echo $min_fi; ?>" value="<?php echo texto_mostrar(isset($tarea['fecha_inicio']) && $tarea['fecha_inicio']!='' ? $tarea['fecha_inicio'] : ($modo=='nueva' ? date('Y-m-d') : '')); ?>" class="form-control">
+                                        <input type="date" name="fecha_inicio" id="fecha_inicio" min="<?php echo $min_fi; ?>" value="<?php echo texto_mostrar($fecha_inicio_valor); ?>" class="form-control" <?php if(!empty($fecha_inicio_obligatoria)) echo 'required aria-required="true"'; ?> <?php if(!empty($error_fecha_inicio)) echo 'aria-invalid="true"'; ?>>
+                                        <?php if(!empty($error_fecha_inicio)) { ?><span class="help-block"><?php echo texto_mostrar($error_fecha_inicio); ?></span><?php } ?>
                                     </div>
                                 </div>
                                 <div class="form-group">

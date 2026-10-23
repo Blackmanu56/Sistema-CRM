@@ -81,23 +81,41 @@ function emp_validar_form($datos, $area='emprendedores')
     return $tipos[0];
 }
 
-function emp_responsables_ids($nombres)
+function emp_responsables_ids($nombres, $id_area=0, $id_tarea=0)
 {
     $ids=array();
+    $anteriores=($id_tarea>0 && function_exists('repo_tarea_responsable_ids')) ? repo_tarea_responsable_ids($id_tarea) : array();
     foreach ($nombres as $nombre) {
-        $encontrado=false;
-        foreach (acceso_personal_completo() as $persona) {
-            if ($persona['persona']===$nombre) { $ids[]=intval($persona['id']); $encontrado=true; break; }
+        $id=0;
+        if (function_exists('repo_nombre_a_id')) { $id=repo_nombre_a_id($nombre); }
+        if ($id<=0) {
+            foreach (acceso_personal_completo() as $persona) {
+                if ($persona['persona']===$nombre) { $id=intval($persona['id']); break; }
+            }
         }
-        if (!$encontrado) { throw new RuntimeException('Responsable inexistente.'); }
+        if ($id<=0) { throw new RuntimeException('Responsable inexistente.'); }
+        $historico=in_array($id, $anteriores, true);
+        if (!$historico && (!function_exists('repo_responsable_autorizado_area') || !repo_responsable_autorizado_area($id, $id_area))) {
+            throw new RuntimeException('El responsable seleccionado no está activo o no tiene autorización vigente para el área de la tarea.');
+        }
+        if (!in_array($id, $ids, true)) { $ids[]=$id; }
     }
+    foreach ($anteriores as $anterior) {
+        if (!function_exists('repo_responsable_autorizado_area') || !repo_responsable_autorizado_area($anterior, $id_area)) {
+            if (!in_array($anterior, $ids, true)) { $ids[]=$anterior; }
+        }
+    }
+    if (count($ids)===0) { throw new RuntimeException('Indicá al menos un responsable autorizado.'); }
     return array_values(array_unique($ids));
 }
 
 function emp_guardar_form($datos, $id=0, $area='emprendedores')
 {
+    if (!empty($GLOBALS['tareas_responsable_post_invalido'])) {
+        throw new RuntimeException('El responsable seleccionado no está activo o no tiene autorización vigente para el área de la tarea.');
+    }
     $tipo=emp_validar_form($datos, $area);
-    $ids=emp_responsables_ids($datos['responsables']);
+    $ids=emp_responsables_ids($datos['responsables'], intval($tipo['id_area']), intval($id));
     $cliente=intval($datos['cliente_id']);
     if ($cliente>0 && !emp_consulta('SELECT id_cliente FROM cliente WHERE id_cliente=?', 'i', array($cliente))) {
         throw new RuntimeException('Cliente inexistente.');

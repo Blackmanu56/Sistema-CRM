@@ -71,10 +71,11 @@ $detalle=null;
 $inscriptos=array();
 $tareas_evento=array();
 $puede_gestionar=false;
+$puede_editar=false;
 if($ver_id>0)
 {
 	$detalle=crm_evento_por_id($ver_id);
-	if($detalle && !actividad_puede_ver($detalle))
+	if($detalle && !actividad_puede_ver_en_area($detalle, $area_act))
 	{
 		$detalle=null;
 	}
@@ -84,6 +85,7 @@ if($ver_id>0)
 		$tareas_evento=function_exists('crm_evento_tareas') ? crm_evento_tareas($ver_id) : array();
 		$avances_info=function_exists('actividad_calcular_avances') ? actividad_calcular_avances($ver_id, $tareas_evento) : array('total_tareas'=>0, 'avance_general'=>null, 'areas'=>array(), 'tareas_calculadas'=>array());
 		$puede_gestionar=actividad_puede_gestionar($detalle);
+		$puede_editar=actividad_puede_editar($detalle);
 		$ver_seguimiento_completo=function_exists('actividad_puede_ver_seguimiento') ? actividad_puede_ver_seguimiento($detalle) : false;
 		$id_emp_sesion=function_exists('crm_id_empleado_sesion') ? crm_id_empleado_sesion() : 0;
 
@@ -209,7 +211,7 @@ $hoy=date('Y-m-d');
                 <div class="page-title" style="overflow:visible;">
                     <h3 style="max-width:70%;"><?php echo texto_mostrar($detalle['titulo']); ?></h3>
                     <div class="pull-right" style="white-space:nowrap;">
-                        <?php if($puede_gestionar) { ?>
+                        <?php if($puede_editar) { ?>
                         <a href="<?php echo tareas_link('nueva-actividad.php', array('id'=>intval($detalle['id_evento']))); ?>" class="btn btn-primary btn-small">Editar</a>
                         <?php } ?>
                         <?php if($crm_mapa_retorno_url!=='') { ?>
@@ -484,7 +486,7 @@ $hoy=date('Y-m-d');
                 <div class="row crm-actividades-layout">
                     <div class="col-md-8">
                         <?php if(count($lista)==0) { ?><div class="grid simple"><div class="grid-body"><p><?php echo $hay_filtro ? 'No hay actividades con esos filtros.' : 'Todavía no hay actividades cargadas.'; ?></p></div></div><?php } ?>
-                        <?php foreach($lista as $item) { $puede_item=actividad_puede_gestionar($item); $estado_item=actividad_estado_lista($item,$hoy); $etiquetas=array('proxima'=>'Próxima','realizada'=>'Realizada','pasada'=>'Pasada · sin registro de realización','cancelada'=>'Cancelada'); $clases_estado=array('proxima'=>'label-info','realizada'=>'label-success','pasada'=>'label-default','cancelada'=>'label-important'); ?>
+		<?php foreach($lista as $item) { $puede_item=actividad_puede_editar($item); $estado_item=actividad_estado_lista($item,$hoy); $etiquetas=array('proxima'=>'Próxima','realizada'=>'Realizada','pasada'=>'Pasada · sin registro de realización','cancelada'=>'Cancelada'); $clases_estado=array('proxima'=>'label-info','realizada'=>'label-success','pasada'=>'label-default','cancelada'=>'label-important'); ?>
                         <div class="grid simple"><div class="grid-title"><h4><a href="<?php echo htmlspecialchars($crm_actividad_url_lista(array('id'=>intval($item['id']))), ENT_QUOTES, 'UTF-8'); ?>"><?php echo texto_mostrar($item['titulo']); ?></a></h4><div class="tools"><span class="label <?php echo $clases_estado[$estado_item]; ?>"><?php echo texto_mostrar($etiquetas[$estado_item]); ?></span></div></div>
                             <div class="grid-body"><p><?php echo texto_mostrar(isset($item['descripcion'])?$item['descripcion']:''); ?></p>
                                 <div class="crm-actividad-card-meta">

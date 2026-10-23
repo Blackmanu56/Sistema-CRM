@@ -111,6 +111,11 @@ function rec_id_empleado_por_etiqueta($etiqueta)
 	{
 		return 0;
 	}
+	if(function_exists('repo_nombre_a_id'))
+	{
+		$id_directo=repo_nombre_a_id($etiqueta);
+		if($id_directo>0) { return $id_directo; }
+	}
 	foreach(acceso_personal_completo(true) as $p)
 	{
 		if($p['persona']==$etiqueta || $p['nombre']==$etiqueta)
@@ -377,18 +382,28 @@ function rec_tarea_guardar_una($tarea)
 	}
 	if($id>0)
 	{
+		$registrar_cierre_real=($estado_antes!=='' && $estado_antes!=='terminada' && $estado==='terminada');
+		$limpiar_cierre_real=($estado_antes==='terminada' && $estado==='en_proceso');
 		if($id_cliente>0)
 		{
+			$sql_actualizar="UPDATE tarea SET titulo=?, descripcion=?, id_area=?, id_tipo=?, prioridad=?, estado=?, fecha_inicio=?, fecha_cierre=?, avance=?, id_cliente=?, uid=?";
+			if($registrar_cierre_real) { $sql_actualizar.=', fecha_cierre_real=CURDATE()'; }
+			else if($limpiar_cierre_real) { $sql_actualizar.=', fecha_cierre_real=NULL'; }
+			$sql_actualizar.=' WHERE id_tarea=?';
 			acceso_ejecutar(
-				"UPDATE tarea SET titulo=?, descripcion=?, id_area=?, id_tipo=?, prioridad=?, estado=?, fecha_inicio=?, fecha_cierre=?, avance=?, id_cliente=?, uid=? WHERE id_tarea=?",
+				$sql_actualizar,
 				'ssiissssiisi',
 				array($titulo, $descripcion, $id_area, $id_tipo, $prioridad, $estado, $ini, $cie, $avance, $id_cliente, $uid, $id)
 			);
 		}
 		else
 		{
+			$sql_actualizar="UPDATE tarea SET titulo=?, descripcion=?, id_area=?, id_tipo=?, prioridad=?, estado=?, fecha_inicio=?, fecha_cierre=?, avance=?, id_cliente=NULL, uid=?";
+			if($registrar_cierre_real) { $sql_actualizar.=', fecha_cierre_real=CURDATE()'; }
+			else if($limpiar_cierre_real) { $sql_actualizar.=', fecha_cierre_real=NULL'; }
+			$sql_actualizar.=' WHERE id_tarea=?';
 			acceso_ejecutar(
-				"UPDATE tarea SET titulo=?, descripcion=?, id_area=?, id_tipo=?, prioridad=?, estado=?, fecha_inicio=?, fecha_cierre=?, avance=?, id_cliente=NULL, uid=? WHERE id_tarea=?",
+				$sql_actualizar,
 				'ssiissssisi',
 				array($titulo, $descripcion, $id_area, $id_tipo, $prioridad, $estado, $ini, $cie, $avance, $uid, $id)
 			);

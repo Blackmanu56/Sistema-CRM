@@ -577,6 +577,7 @@ function cliente_fila_pantalla($row)
 		'id_localidad'=>isset($row['id_localidad']) ? intval($row['id_localidad']) : 0,
 		'id_provincia'=>isset($row['id_provincia']) ? intval($row['id_provincia']) : 0,
 		'cuil_cuit'=>isset($row['cuil_cuit']) ? $row['cuil_cuit'] : '',
+		'dni'=>isset($row['dni']) ? $row['dni'] : '',
 		'area_afectada'=>isset($row['area_clave']) ? $row['area_clave'] : '',
 		'gender'=>cliente_genero_form(isset($row['genero']) ? $row['genero'] : ''),
 		'address'=>isset($row['direccion']) ? $row['direccion'] : '',
@@ -586,7 +587,7 @@ function cliente_fila_pantalla($row)
 
 function cliente_sql_base()
 {
-	return "SELECT c.id_cliente, c.nombre, c.correo, c.telefono, c.cuil_cuit, cp.genero, c.direccion, c.tipo_cliente, c.id_localidad,
+	return "SELECT c.id_cliente, c.nombre, c.correo, c.telefono, c.cuil_cuit, cp.dni, cp.genero, c.direccion, c.tipo_cliente, c.id_localidad,
 		a.clave AS area_clave, l.nombre AS localidad_nombre, l.id_provincia
 		FROM cliente c
 		LEFT JOIN cliente_persona cp ON cp.id_cliente=c.id_cliente
@@ -2541,6 +2542,31 @@ function tarea_texto_estado($tarea)
 	return 'No iniciada';
 }
 
+function tarea_estado_finalizada($tarea)
+{
+	$estado=isset($tarea['estado']) ? strtolower(trim((string)$tarea['estado'])) : '';
+	if($estado==='terminada')
+	{
+		return true;
+	}
+	return function_exists('tarea_texto_estado') && tarea_texto_estado($tarea)==='Terminada';
+}
+
+function tarea_padre_finalizada($tarea)
+{
+	$id_padre=isset($tarea['id_tarea_padre']) ? intval($tarea['id_tarea_padre']) : 0;
+	if($id_padre<=0)
+	{
+		return false;
+	}
+	if(!function_exists('acceso_consulta_una'))
+	{
+		return true;
+	}
+	$padre=acceso_consulta_una("SELECT estado FROM tarea WHERE id_tarea=? LIMIT 1", 'i', array($id_padre));
+	return !$padre || tarea_estado_finalizada($padre);
+}
+
 function tarea_coincide_estado($tarea, $estado)
 {
 	if($estado=='')
@@ -2665,35 +2691,87 @@ function tareas_avisos_registrar($responsables, $titulo, $id, $area, $tarea=arra
 		return;
 	}
 	$de=isset($_SESSION['tareas_persona']) ? $_SESSION['tareas_persona'] : acceso_nombre();
-	$todos=tareas_avisos_leer();
+	$id_tarea=intval($id);
+	$id_de=function_exists('crm_id_empleado_sesion') ? intval(crm_id_empleado_sesion()) : 0;
+	if($id_de<=0 && function_exists('acceso_id_empleado_por_persona'))
+	{
+		$id_de=intval(acceso_id_empleado_por_persona($de));
+	}
+	if($id_tarea<=0 || !acceso_tabla_existe('aviso') || !acceso_tabla_existe('tarea'))
+	{
+		return;
+	}
+	$area_real=acceso_consulta_una(
+		"SELECT a.clave AS area FROM tarea t INNER JOIN area a ON a.id_area=t.id_area WHERE t.id_tarea=? LIMIT 1",
+		'i',
+		array($id_tarea)
+	);
+	if(!$area_real || empty($area_real['area']))
+	{
+		return;
+	}
+	$registrados=array();
 	foreach($responsables as $nom)
 	{
 		$nom=trim($nom);
-		if($nom=='' || $nom==$de)
+		$id_para=0;
+		if(preg_match('/^id:(\\d+)$/', $nom, $match))
+		{
+			$id_para=intval($match[1]);
+		}
+		else if(function_exists('acceso_id_empleado_por_persona'))
+		{
+			$id_para=intval(acceso_id_empleado_por_persona($nom));
+		}
+		if($id_para<=0 || $id_para===$id_de || isset($registrados[$id_para]))
 		{
 			continue;
 		}
-		if(!isset($todos[$nom]) || !is_array($todos[$nom]))
+		$registrados[$id_para]=true;
+		$creado=false;
+		if($id_de>0 && function_exists('repo_avisos_crear'))
 		{
-			$todos[$nom]=array();
+			$creado=(bool)repo_avisos_crear($id_tarea, $id_de, $id_para);
 		}
-		$todos[$nom][]=array(
-			'id'=>uniqid('av', true),
-			'de'=>$de,
-			'titulo'=>$titulo,
-			'tarea_id'=>$id,
-			'area'=>$area,
-			'tarea'=>$tarea,
-			'cuando'=>date('d/m/Y H:i')
-		);
+		else
+		{
+			$pendiente=acceso_consulta_una(
+				"SELECT id_aviso FROM aviso WHERE id_tarea=? AND id_empleado_para=? AND confirmado=0 LIMIT 1",
+				'ii',
+				array($id_tarea, $id_para)
+			);
+			if($pendiente)
+			{
+				$creado=true;
+			}
+			else
+			{
+				$creado=acceso_insertar(
+					"INSERT INTO aviso (id_tarea, id_empleado_de, id_empleado_para, fecha_aviso, confirmado) VALUES (?, NULLIF(?,0), ?, NOW(), 0)",
+					'iii',
+					array($id_tarea, $id_de, $id_para)
+				)>0;
+			}
+		}
 	}
-	tareas_avisos_guardar($todos);
 }
 
 function tareas_avisos_mios()
 {
 	$yo=isset($_SESSION['tareas_persona']) ? $_SESSION['tareas_persona'] : '';
 	if($yo=='')
+	{
+		return array();
+	}
+	$todos=tareas_avisos_leer();
+	$avisos=isset($todos[$yo]) && is_array($todos[$yo]) ? $todos[$yo] : array();
+	return array_values(array_filter($avisos, function($aviso) { return empty($aviso['leido']); }));
+}
+
+function tareas_avisos_historial_mios()
+{
+	$yo=isset($_SESSION['tareas_persona']) ? $_SESSION['tareas_persona'] : '';
+	if($yo==='')
 	{
 		return array();
 	}
@@ -2713,16 +2791,21 @@ function tareas_aviso_marcar_leido($id)
 	{
 		return;
 	}
-	$queda=array();
-	foreach($todos[$yo] as $aviso)
+	$cambio=false;
+	foreach($todos[$yo] as &$aviso)
 	{
-		if(!isset($aviso['id']) || $aviso['id']!=$id)
+		if(isset($aviso['id']) && (string)$aviso['id']===(string)$id && empty($aviso['leido']))
 		{
-			$queda[]=$aviso;
+			$aviso['leido']=true;
+			$aviso['leido_en']=date('Y-m-d H:i:s');
+			$cambio=true;
 		}
 	}
-	$todos[$yo]=$queda;
-	tareas_avisos_guardar($todos);
+	unset($aviso);
+	if($cambio)
+	{
+		tareas_avisos_guardar($todos);
+	}
 }
 
 // Al tocar OK: se cierra el aviso. La tarea ya está en el listado.
@@ -2776,14 +2859,27 @@ function tareas_leer_lista_post($campo)
 
 function tareas_leer_responsables_post($area, $tarea_actual=null)
 {
-	if(acceso_es_empleado())
+	$id_area=acceso_id_por_clave('area', $area);
+	$puede_asignar_a_otros=acceso_es_super() || acceso_es_coord_general() || (function_exists('acceso_es_coord_de_area') && acceso_es_coord_de_area($area));
+	if(acceso_es_empleado() || !$puede_asignar_a_otros)
 	{
 		if(is_array($tarea_actual))
 		{
+			$id_actual=isset($tarea_actual['id_tarea']) ? intval($tarea_actual['id_tarea']) : (isset($tarea_actual['id']) ? intval($tarea_actual['id']) : 0);
+			if($id_actual>0 && function_exists('repo_tarea_responsable_ids'))
+			{
+				$ids_actuales=repo_tarea_responsable_ids($id_actual);
+				$tokens=array(); foreach($ids_actuales as $id_resp) { $tokens[]='id:'.intval($id_resp); }
+				if(count($tokens)>0) { return $tokens; }
+			}
 			return tarea_lista_responsables($tarea_actual);
 		}
-		$yo=isset($_SESSION['tareas_persona']) ? $_SESSION['tareas_persona'] : '';
-		return ($yo!='' ? array($yo) : array());
+		$id_yo=isset($_SESSION['id_empleado']) ? intval($_SESSION['id_empleado']) : (isset($_SESSION['id']) ? intval($_SESSION['id']) : 0);
+		$autorizado=$id_yo>0 && $id_area>0 && (function_exists('repo_responsable_autorizado_area') ? repo_responsable_autorizado_area($id_yo, $id_area) : (function_exists('crm_empleado_pertenece_a_area') && crm_empleado_pertenece_a_area($id_yo, $id_area)));
+		if($autorizado) { return array('id:'.$id_yo); }
+		$GLOBALS['tareas_responsable_post_invalido']=true;
+		if(function_exists('tareas_mensaje_form_set')) { tareas_mensaje_form_set('No podés asignar esta tarea a otra persona.'); }
+		return array();
 	}
 	$ok=acceso_nombres_equipo($area);
 	if(count($ok)===0 && !is_array($tarea_actual))
@@ -2793,18 +2889,69 @@ function tareas_leer_responsables_post($area, $tarea_actual=null)
 		tareas_mensaje_form_set('No se puede crear la tarea porque el área seleccionada no tiene personal asignado. Asigná personal al área o elegí otra área.');
 		return array();
 	}
-	$elegidos=tareas_leer_lista_post('responsables');
+	$elegidos=array();
+	$entrada=(isset($_POST['responsables']) && is_array($_POST['responsables'])) ? $_POST['responsables'] : array();
+	$id_tarea_actual=0;
+	if(is_array($tarea_actual)) { $id_tarea_actual=isset($tarea_actual['id_tarea']) ? intval($tarea_actual['id_tarea']) : (isset($tarea_actual['id']) ? intval($tarea_actual['id']) : 0); }
+	$actuales=($id_tarea_actual>0 && function_exists('repo_tarea_responsable_ids')) ? repo_tarea_responsable_ids($id_tarea_actual) : array();
+	foreach($entrada as $valor)
+	{
+		$valor=trim((string)$valor);
+		$id=0;
+		if(preg_match('/^id:(\\d+)$/', $valor, $m)) { $id=intval($m[1]); }
+		else if(ctype_digit($valor)) { $id=intval($valor); }
+		else if(function_exists('repo_nombre_a_id')) { $id=repo_nombre_a_id($valor); }
+		else { $id=acceso_id_empleado_por_persona($valor); }
+		if($id<=0) { continue; }
+		$autorizado=function_exists('repo_responsable_autorizado_area') ? repo_responsable_autorizado_area($id, $id_area) : (function_exists('crm_empleado_pertenece_a_area') && crm_empleado_pertenece_a_area($id, $id_area));
+		$historico=in_array($id, $actuales, true);
+		if(!$autorizado && !$historico)
+		{
+			$GLOBALS['tareas_responsable_post_invalido']=true;
+			if(function_exists('tareas_mensaje_form_set')) { tareas_mensaje_form_set('El responsable seleccionado no está activo o no tiene autorización vigente para el área de la tarea.'); }
+			continue;
+		}
+		$token='id:'.$id;
+		if(!in_array($token, $elegidos, true)) { $elegidos[]=$token; }
+	}
+	if(count($entrada)===0 && !isset($_POST['responsables']))
+	{
+		// Compatibilidad con formularios/áreas que todavía envían nombres.
+		foreach(tareas_leer_lista_post('responsables') as $valor)
+		{
+			$id=function_exists('repo_nombre_a_id') ? repo_nombre_a_id($valor) : acceso_id_empleado_por_persona($valor);
+			if($id>0) { $elegidos[]='id:'.$id; }
+		}
+	}
+	// Las asignaciones históricas sin autorización vigente se conservan aunque
+	// no se vuelvan a enviar desde el navegador; nunca se ofrecen como opciones nuevas.
+	foreach($actuales as $id_previo)
+	{
+		$prev_autorizado=function_exists('repo_responsable_autorizado_area') ? repo_responsable_autorizado_area($id_previo, $id_area) : (function_exists('crm_empleado_pertenece_a_area') && crm_empleado_pertenece_a_area($id_previo, $id_area));
+		if(!$prev_autorizado)
+		{
+			$token_previo='id:'.intval($id_previo);
+			if(!in_array($token_previo, $elegidos, true)) { $elegidos[]=$token_previo; }
+		}
+	}
+	if(count($elegidos)===0)
+	{
+		$GLOBALS['tareas_responsable_post_invalido']=true;
+		if(function_exists('tareas_mensaje_form_set')) { tareas_mensaje_form_set('Seleccioná al menos un responsable autorizado para el área de la tarea.'); }
+	}
 	$salida=array();
 	foreach($elegidos as $nom)
 	{
-		if(in_array($nom, $ok) || (is_array($tarea_actual) && in_array($nom, tarea_lista_responsables($tarea_actual))))
-		{
-			$salida[]=$nom;
-		}
+		$salida[]=$nom;
+	}
+	if(!empty($GLOBALS['tareas_responsable_post_invalido']))
+	{
+		return array();
 	}
 	if(count($salida)==0 && is_array($tarea_actual))
 	{
-		$resp_prev=tarea_lista_responsables($tarea_actual);
+		$resp_prev=array();
+		foreach($actuales as $id_prev) { $resp_prev[]='id:'.intval($id_prev); }
 		if(count($resp_prev)>0)
 		{
 			$salida=$resp_prev;
@@ -2910,7 +3057,15 @@ function acceso_equipos_por_area()
 	$salida=array();
 	foreach(array_keys(acceso_etiquetas_area_con_tareas()) as $area)
 	{
-		$salida[$area]=acceso_nombres_equipo($area);
+		$id_area=acceso_id_por_clave('area', $area);
+		if($id_area>0 && function_exists('repo_empleados_por_area'))
+		{
+			$salida[$area]=repo_empleados_por_area($id_area, true);
+		}
+		else
+		{
+			$salida[$area]=array();
+		}
 	}
 	return $salida;
 }
@@ -3060,6 +3215,18 @@ function tareas_actualizar_desde_form($id)
 	$id=intval($id);
 	$antes=function_exists('tarea_por_id') ? tarea_por_id($id) : null;
 	$motivo=isset($_POST['motivo_cambio']) ? trim($_POST['motivo_cambio']) : '';
+	if($antes && acceso_es_empleado())
+	{
+		$fecha_inicio_anterior=!empty($antes['fecha_inicio']) ? substr(trim((string)$antes['fecha_inicio']),0,10) : '';
+		$fecha_cierre_anterior=!empty($antes['fecha_cierre']) ? substr(trim((string)$antes['fecha_cierre']),0,10) : '';
+		$fecha_inicio_propuesta=isset($_POST['fecha_inicio']) ? substr(trim((string)$_POST['fecha_inicio']),0,10) : $fecha_inicio_anterior;
+		$fecha_cierre_propuesta=isset($_POST['fecha_cierre']) ? substr(trim((string)$_POST['fecha_cierre']),0,10) : $fecha_cierre_anterior;
+		if($fecha_inicio_propuesta!==$fecha_inicio_anterior || $fecha_cierre_propuesta!==$fecha_cierre_anterior)
+		{
+			$_SESSION['msgtarea']='No se modificaron las fechas directamente. Usá «Solicitar cambio de fecha» para enviarlas a aprobación.';
+			return false;
+		}
+	}
 	if(isset($_POST['fecha_cierre']) && trim($_POST['fecha_cierre'])!=='')
 	{
 		$fc_post=trim($_POST['fecha_cierre']);
@@ -3264,6 +3431,10 @@ function tarea_puede_editar($tarea)
 	{
 		return false;
 	}
+	if(tarea_estado_finalizada($tarea) || tarea_padre_finalizada($tarea))
+	{
+		return false;
+	}
 	$est=isset($tarea['estado']) ? strtolower(trim($tarea['estado'])) : '';
 	$txt=function_exists('tarea_texto_estado') ? tarea_texto_estado($tarea) : '';
 	if($est==='terminada' || $txt==='Terminada')
@@ -3296,6 +3467,10 @@ function tarea_puede_cambiar_estado($tarea)
 	{
 		return false;
 	}
+	if(tarea_estado_finalizada($tarea) || tarea_padre_finalizada($tarea))
+	{
+		return false;
+	}
 	$est=isset($tarea['estado']) ? strtolower(trim($tarea['estado'])) : '';
 	$txt=function_exists('tarea_texto_estado') ? tarea_texto_estado($tarea) : '';
 	if($est==='terminada' || $txt==='Terminada')
@@ -3313,10 +3488,73 @@ function tarea_puede_cambiar_estado($tarea)
 	return tarea_es_responsable($tarea);
 }
 
-// Reabrir tarea terminada: solo Superadmin, Coordinador General o Coordinador de su area.
+/**
+ * Detecta si una tarea (o su subtarea) está vinculada a una actividad organizada
+ * por un área distinta. Se falla de forma cerrada si no se puede comprobar el vínculo.
+ */
+function tarea_tiene_actividad_origen_de_otra_area($tarea)
+{
+	if(!is_array($tarea) || !isset($tarea['id_tarea']) || intval($tarea['id_tarea'])<=0)
+	{
+		return true;
+	}
+	if(!function_exists('acceso_tabla_existe') || !acceso_tabla_existe('evento'))
+	{
+		return true;
+	}
+	$id_tarea=intval($tarea['id_tarea']);
+	$ids=array($id_tarea);
+	if(isset($tarea['id_tarea_padre']) && intval($tarea['id_tarea_padre'])>0)
+	{
+		$ids[]=intval($tarea['id_tarea_padre']);
+	}
+	$ids=array_values(array_unique($ids));
+	$marcadores=implode(',',array_fill(0,count($ids),'?'));
+	$condiciones=array('ev.id_tarea_origen IN ('.$marcadores.')');
+	$valores=$ids;
+	$tipos=str_repeat('i',count($ids));
+	$join='';
+	if(acceso_tabla_existe('evento_tarea'))
+	{
+		$join=' LEFT JOIN evento_tarea et ON et.id_evento=ev.id_evento';
+		$condiciones[]='et.id_tarea IN ('.$marcadores.')';
+		$valores=array_merge($valores,$ids);
+		$tipos.=str_repeat('i',count($ids));
+	}
+	$origenes=acceso_consulta(
+		'SELECT DISTINCT ev.id_area FROM evento ev'.$join.' WHERE ('.implode(' OR ',$condiciones).')',
+		$tipos,
+		$valores
+	);
+	if(function_exists('acceso_ultimo_error') && acceso_ultimo_error()!=='')
+	{
+		return true;
+	}
+	$id_area_tarea=isset($tarea['id_area']) ? intval($tarea['id_area']) : 0;
+	if($id_area_tarea<=0 && !empty($tarea['area_clave']) && function_exists('acceso_id_por_clave'))
+	{
+		$id_area_tarea=intval(acceso_id_por_clave('area',$tarea['area_clave']));
+	}
+	foreach($origenes as $origen)
+	{
+		$id_area_origen=isset($origen['id_area']) ? intval($origen['id_area']) : 0;
+		if($id_area_tarea<=0 || $id_area_origen<=0 || $id_area_origen!==$id_area_tarea)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+// Reabrir tarea terminada: coordinación y Superadmin tienen alcance general.
+// Los coordinadores de área requieren plazo vigente y actividad del mismo ámbito.
 function tarea_puede_reabrir($tarea)
 {
 	if(!$tarea || (function_exists('tarea_esta_eliminada') && tarea_esta_eliminada($tarea)))
+	{
+		return false;
+	}
+	if(tarea_padre_finalizada($tarea))
 	{
 		return false;
 	}
@@ -3329,6 +3567,20 @@ function tarea_puede_reabrir($tarea)
 	if(acceso_es_super() || acceso_es_coord_general())
 	{
 		return true;
+	}
+	$fecha_limite=isset($tarea['fecha_cierre']) ? trim((string)$tarea['fecha_cierre']) : '';
+	if(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$fecha_limite))
+	{
+		return false;
+	}
+	$partes_fecha=explode('-',$fecha_limite);
+	if(!checkdate(intval($partes_fecha[1]),intval($partes_fecha[2]),intval($partes_fecha[0])) || $fecha_limite<date('Y-m-d'))
+	{
+		return false;
+	}
+	if(tarea_tiene_actividad_origen_de_otra_area($tarea))
+	{
+		return false;
 	}
 	$area_tarea=tarea_area_clave($tarea);
 	if($area_tarea==='')

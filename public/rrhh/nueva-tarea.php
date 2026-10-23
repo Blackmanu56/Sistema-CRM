@@ -10,9 +10,17 @@ $mensaje='';
 
 if(isset($_POST['guardar']))
 {
-	$area_alta=tareas_guardar_nueva_desde_form();
-	tareas_ir_despues_guardar_nueva($area_alta);
+	$area_alta=rrhh_tarea_fecha_inicio_alta_valida(isset($_POST['fecha_inicio']) ? $_POST['fecha_inicio'] : '')
+		? tareas_guardar_nueva_desde_form()
+		: false;
+	if($area_alta!==false && $area_alta!==null && $area_alta!=='')
+	{
+		tareas_ir_despues_guardar_nueva($area_alta);
+	}
 }
+
+$error_fecha_inicio=isset($GLOBALS['rrhh_tarea_error_fecha_inicio']) ? $GLOBALS['rrhh_tarea_error_fecha_inicio'] : '';
+$fecha_inicio_obligatoria=true;
 
 $tarea=isset($tarea) ? $tarea : array();
 $tarea=tareas_aplicar_carga_tipo($tarea);

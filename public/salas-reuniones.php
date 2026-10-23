@@ -229,7 +229,7 @@ $mes_actual=date('Y-m');
 <div class="page-content"><div class="clearfix"></div><div class="content">
   <ul class="breadcrumb"><li><p>ESTÁS AQUÍ</p></li><li><a href="#" class="active">Sala de reuniones</a></li></ul>
   <?php echo salas_reuniones_barra_modulos(); ?>
-  <div class="sala-page-title"><h3><i class="fa fa-calendar"></i> Sala de reuniones</h3><?php if(salas_reuniones_puede_crear()) { ?><button type="button" class="btn btn-primary" id="btnNuevoTurno"><i class="fa fa-plus"></i> Nuevo turno</button><?php } ?></div>
+  <div class="sala-page-title"><h3><i class="fa fa-calendar"></i> Sala de reuniones</h3><?php if(salas_reuniones_puede_crear()) { ?><button type="button" class="btn btn-primary" id="btnNuevoTurno"><i class="fa fa-plus"></i> Reservar sala</button><?php } ?></div>
   <?php if($mensaje!=='') { ?><div class="alert alert-danger"><?php echo salas_reuniones_h($mensaje); ?></div><?php } ?>
   <?php if($msg_sesion!=='') { ?><div class="alert alert-info"><?php echo salas_reuniones_h($msg_sesion); ?></div><?php } ?>
   <form method="get" class="sala-filter-card">

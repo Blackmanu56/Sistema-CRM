@@ -9,6 +9,7 @@ acceso_exigir_gestion('rrhh');
 
 $roles=acceso_roles_para_alta();
 $areas_operativas=acceso_etiquetas_area_asignables('empleado');
+$csrf_alta=function_exists('crm_tarea_extra_csrf_token') ? crm_tarea_extra_csrf_token() : '';
 $menu_activo='alta';
 $rol_sel=isset($_POST['rol']) ? $_POST['rol'] : 'empleado';
 if(!isset($roles[$rol_sel]))
@@ -18,13 +19,21 @@ if(!isset($roles[$rol_sel]))
 
 if(isset($_POST['alta']))
 {
-	$rol_post=isset($_POST['rol']) ? $_POST['rol'] : '';
-	$area_post='';
-	if($rol_post==='empleado' || $rol_post==='coordinador')
+	$csrf_post=isset($_POST['csrf_tarea_extra']) && is_string($_POST['csrf_tarea_extra']) ? $_POST['csrf_tarea_extra'] : '';
+	if(!function_exists('crm_tarea_extra_csrf_valido') || !crm_tarea_extra_csrf_valido($csrf_post))
 	{
-		$area_post=isset($_POST['area']) ? $_POST['area'] : '';
+		$msg='La sesión expiró o el formulario no es válido. Actualizá la página e intentá nuevamente.';
+		$_SESSION['msgrrhh']=$msg;
 	}
-	$msg=acceso_alta_empleado(array(
+	else
+	{
+		$rol_post=isset($_POST['rol']) ? $_POST['rol'] : '';
+		$area_post='';
+		if($rol_post==='empleado' || $rol_post==='coordinador')
+		{
+			$area_post=isset($_POST['area']) ? $_POST['area'] : '';
+		}
+		$msg=acceso_alta_empleado(array(
 		'nombres'=>isset($_POST['nombres']) ? $_POST['nombres'] : '',
 		'apellido'=>isset($_POST['apellido']) ? $_POST['apellido'] : '',
 		'cuil'=>isset($_POST['cuil']) ? $_POST['cuil'] : '',
@@ -43,15 +52,16 @@ if(isset($_POST['alta']))
 		'usuario'=>isset($_POST['usuario']) ? $_POST['usuario'] : '',
 		'area'=>$area_post,
 		'rol'=>$rol_post
-	));
-	if($msg=='')
-	{
-		$_SESSION['msgrrhh']='Colaborador dado de alta correctamente.';
-		echo "<script>window.location.href='empleados.php'</script>";
-		exit();
+		));
+		if($msg=='')
+		{
+			$_SESSION['msgrrhh']='Colaborador dado de alta correctamente.';
+			echo "<script>window.location.href='empleados.php'</script>";
+			exit();
+		}
+		$_SESSION['msgrrhh']=$msg;
+		$rol_sel=$rol_post;
 	}
-	$_SESSION['msgrrhh']=$msg;
-	$rol_sel=$rol_post;
 }
 $mostrar_area=($rol_sel==='empleado' || $rol_sel==='coordinador');
 ?>
@@ -137,6 +147,7 @@ function valid()
                         <div class="grid-title no-border"><h4>Datos del colaborador</h4></div>
                         <div class="grid-body no-border">
                         <form name="form1" method="post" action="" accept-charset="UTF-8" onSubmit="return valid();" class="rrhh-empleado-form">
+                                <input type="hidden" name="csrf_tarea_extra" value="<?php echo htmlspecialchars($csrf_alta, ENT_QUOTES, 'UTF-8'); ?>" />
                                 <?php if(isset($_SESSION['msgrrhh']) && $_SESSION['msgrrhh']!='') { ?>
                                 <div class="alert alert-info"><?php echo htmlspecialchars($_SESSION['msgrrhh']); $_SESSION['msgrrhh']=''; ?></div>
                                 <?php } ?>

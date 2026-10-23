@@ -26,6 +26,11 @@ $hijas=(!$eliminada && function_exists('crm_tarea_hijas')) ? crm_tarea_hijas($id
 $tiene_partes=(count($hijas)>0);
 $puede_desglosar=(!$eliminada && function_exists('crm_tarea_puede_desglosar') && crm_tarea_puede_desglosar($tarea));
 $sol_baja=(!$eliminada && function_exists('crm_tarea_solicitud_activa')) ? crm_tarea_solicitud_activa($id_tar) : null;
+$sol_fecha_pendiente=(!$eliminada && $fila_db && function_exists('crm_tarea_cambio_fecha_pendiente')) ? crm_tarea_cambio_fecha_pendiente($id_tar) : null;
+$sol_fecha_mia=(!$eliminada && $fila_db && function_exists('crm_tarea_cambio_fecha_mio')) ? crm_tarea_cambio_fecha_mio($id_tar) : null;
+$puede_pedir_fecha=(!$eliminada && $fila_db && function_exists('crm_tarea_puede_solicitar_cambio_fecha')) ? crm_tarea_puede_solicitar_cambio_fecha($fila_db) : false;
+$puede_resolver_fecha=($sol_fecha_pendiente && $fila_db && function_exists('crm_tarea_puede_resolver_cambio_fecha')) ? crm_tarea_puede_resolver_cambio_fecha($fila_db,$sol_fecha_pendiente) : false;
+$cambio_fecha_tabla_disponible=function_exists('acceso_tabla_existe') && acceso_tabla_existe('tarea_solicitud_cambio_fecha');
 $equipo=array();
 if($puede_desglosar && function_exists('crm_tarea_equipo_ids'))
 {
@@ -119,6 +124,64 @@ $pide_iniciar_al_avance=(!$eliminada && $yo_ses!='' && tarea_puede_cambiar_estad
                             <div class="progress-bar progress-bar-success" style="width:<?php echo intval($tarea['avance']); ?>%"></div>
                         </div>
                         <p>Progreso: <?php echo intval($tarea['avance']); ?><?php if($tiene_partes) { ?> % <span class="muted">(según las subtareas)</span><?php } else { ?> %<?php } ?></p>
+                        <?php } ?>
+
+                        <?php if(!$eliminada && ($sol_fecha_mia || $puede_pedir_fecha || $puede_resolver_fecha || (acceso_es_empleado() && tarea_es_responsable($tarea) && !$cambio_fecha_tabla_disponible))) { ?>
+                        <hr>
+                        <h5>Solicitud de cambio de fecha</h5>
+                        <?php if($sol_fecha_mia) {
+                            $estado_cambio=isset($sol_fecha_mia['estado']) ? $sol_fecha_mia['estado'] : '';
+                            $estado_cambio_txt=$estado_cambio==='pendiente' ? 'Pendiente de aprobación' : ($estado_cambio==='aprobada' ? 'Aprobada' : ($estado_cambio==='rechazada' ? 'Rechazada' : texto_mostrar($estado_cambio)));
+                        ?>
+                        <div class="alert <?php echo $estado_cambio==='rechazada' ? 'alert-warning' : 'alert-info'; ?>">
+                            <strong>Tu última solicitud:</strong> <?php echo texto_mostrar($estado_cambio_txt); ?>
+                            <br>Fechas propuestas: inicio <?php echo fecha_mostrar($sol_fecha_mia['fecha_inicio_propuesta']); ?> · vencimiento <?php echo fecha_mostrar($sol_fecha_mia['fecha_cierre_propuesta']); ?>
+                            <?php if(!empty($sol_fecha_mia['fecha_resolucion'])) { ?><br>Resuelta el <?php echo fecha_mostrar($sol_fecha_mia['fecha_resolucion']); ?><?php if(!empty($sol_fecha_mia['nombre_resuelve'])) { ?> por <?php echo texto_mostrar(trim($sol_fecha_mia['nombre_resuelve'])); ?><?php } ?><?php } ?>
+                            <?php if($estado_cambio==='rechazada' && !empty($sol_fecha_mia['motivo_resolucion'])) { ?><br>Motivo del rechazo: <?php echo texto_mostrar($sol_fecha_mia['motivo_resolucion']); ?><?php } ?>
+                        </div>
+                        <?php } ?>
+                        <?php if($sol_fecha_pendiente && $puede_resolver_fecha) { ?>
+                        <div style="margin:10px 0;padding:12px;background:#f7f9fc;border:1px solid #dce3ec;">
+                            <p><strong>Pedido pendiente de <?php echo texto_mostrar(isset($sol_fecha_pendiente['nombre_solicitante']) ? $sol_fecha_pendiente['nombre_solicitante'] : 'un colaborador'); ?></strong></p>
+                            <p class="muted" style="margin-bottom:6px;">Inicio: <?php echo fecha_mostrar($sol_fecha_pendiente['fecha_inicio_original']); ?> → <?php echo fecha_mostrar($sol_fecha_pendiente['fecha_inicio_propuesta']); ?><br>Vencimiento: <?php echo fecha_mostrar($sol_fecha_pendiente['fecha_cierre_original']); ?> → <?php echo fecha_mostrar($sol_fecha_pendiente['fecha_cierre_propuesta']); ?></p>
+                            <p><strong>Motivo:</strong> <?php echo texto_mostrar($sol_fecha_pendiente['motivo']); ?></p>
+                            <form method="post" action="<?php echo texto_mostrar($ver_url); ?>">
+                                <input type="hidden" name="id_tarea" value="<?php echo $id_tar; ?>">
+                                <input type="hidden" name="id_solicitud_cambio_fecha" value="<?php echo intval($sol_fecha_pendiente['id']); ?>">
+                                <input type="hidden" name="csrf_tarea_extra" value="<?php echo texto_mostrar($csrf_extra_tarea); ?>">
+                                <input type="hidden" name="decidir_cambio_fecha" value="1">
+                                <div class="form-group">
+                                    <label>Motivo del rechazo (obligatorio si rechazás)</label>
+                                    <textarea name="motivo_rechazo_cambio_fecha" class="form-control" rows="2" maxlength="5000"></textarea>
+                                </div>
+                                <button type="submit" name="decision_cambio_fecha" value="aprobar" class="btn btn-primary">Aprobar cambio</button>
+                                <button type="submit" name="decision_cambio_fecha" value="rechazar" class="btn btn-white">Rechazar solicitud</button>
+                            </form>
+                        </div>
+                        <?php } ?>
+                        <?php if($puede_pedir_fecha && !$sol_fecha_pendiente) { ?>
+                        <form method="post" action="<?php echo texto_mostrar($ver_url); ?>" style="max-width:720px;">
+                            <input type="hidden" name="id_tarea" value="<?php echo $id_tar; ?>">
+                            <input type="hidden" name="csrf_tarea_extra" value="<?php echo texto_mostrar($csrf_extra_tarea); ?>">
+                            <div class="row">
+                                <div class="col-md-6 form-group">
+                                    <label for="fecha_inicio_propuesta">Nueva fecha de inicio</label>
+                                    <input id="fecha_inicio_propuesta" type="date" name="fecha_inicio_propuesta" class="form-control" required value="<?php echo texto_mostrar(substr((string)$fila_db['fecha_inicio'],0,10)); ?>">
+                                </div>
+                                <div class="col-md-6 form-group">
+                                    <label for="fecha_cierre_propuesta">Nueva fecha de vencimiento</label>
+                                    <input id="fecha_cierre_propuesta" type="date" name="fecha_cierre_propuesta" class="form-control" required value="<?php echo texto_mostrar(substr((string)$fila_db['fecha_cierre'],0,10)); ?>">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="motivo_cambio_fecha">Motivo (obligatorio)</label>
+                                <textarea id="motivo_cambio_fecha" name="motivo_cambio_fecha" class="form-control" rows="3" maxlength="5000" required></textarea>
+                            </div>
+                            <button type="submit" name="solicitar_cambio_fecha" value="1" class="btn btn-white">Solicitar cambio de fecha</button>
+                        </form>
+                        <?php } else if(!$cambio_fecha_tabla_disponible && acceso_es_empleado() && tarea_es_responsable($tarea)) { ?>
+                        <div class="alert alert-warning">La solicitud de cambio de fecha requiere una actualización de la base de datos antes de estar disponible.</div>
+                        <?php } ?>
                         <?php } ?>
 
                         <?php if($eliminada) { ?>
@@ -462,6 +525,7 @@ $pide_iniciar_al_avance=(!$eliminada && $yo_ses!='' && tarea_puede_cambiar_estad
                         $puedo_gen=$es_final;
                         if($puedo_coord || $puedo_gen) { ?>
                         <form method="post" action="<?php echo texto_mostrar($ver_url); ?>" style="margin-top:8px;">
+                            <input type="hidden" name="csrf_tarea_extra" value="<?php echo texto_mostrar($csrf_extra_tarea); ?>">
                             <input type="hidden" name="id_solicitud_baja" value="<?php echo intval($sol_baja['id']); ?>">
                             <input type="hidden" name="id_tarea" value="<?php echo $id_tar; ?>">
                             <input type="hidden" name="baja_decidir" value="1">
@@ -485,6 +549,7 @@ $pide_iniciar_al_avance=(!$eliminada && $yo_ses!='' && tarea_puede_cambiar_estad
                         <div id="caja_eliminar_tarea" style="display:none; margin-top:10px; padding:12px; background:#fafafa; border:1px solid #e5e5e5;">
                             <p class="muted">Se elimina en el momento y se avisa a los responsables.</p>
                             <form method="post" action="<?php echo texto_mostrar($ver_url); ?>" onsubmit="return confirm('¿Eliminar esta tarea<?php echo $tiene_partes ? ' y sus subtareas' : ''; ?>? Esta acción no se puede deshacer.');">
+                                <input type="hidden" name="csrf_tarea_extra" value="<?php echo texto_mostrar($csrf_extra_tarea); ?>">
                                 <input type="hidden" name="id_tarea" value="<?php echo $id_tar; ?>">
                                 <div class="form-group">
                                     <label>Motivo</label>
@@ -515,9 +580,10 @@ $pide_iniciar_al_avance=(!$eliminada && $yo_ses!='' && tarea_puede_cambiar_estad
                         </div>
                         <div id="caja_eliminar_tarea" style="display:none; margin-top:10px; padding:12px; background:#fafafa; border:1px solid #e5e5e5;">
                             <p class="muted"><?php echo acceso_es_empleado()
-                        	? 'Pedís la eliminación a tu coordinador de área. Si acepta, pasa al coordinador general.'
+                         ? 'Pedís la eliminación a tu coordinador de área. Si la aprueba, se aplicará la baja. Coordinación General o Superadmin pueden intervenir según los permisos vigentes.'
                         	: 'El pedido va al coordinador general para el OK final.'; ?></p>
                             <form method="post" action="<?php echo texto_mostrar($ver_url); ?>" onsubmit="return confirm('¿Enviar el pedido de eliminación?');">
+                                <input type="hidden" name="csrf_tarea_extra" value="<?php echo texto_mostrar($csrf_extra_tarea); ?>">
                                 <input type="hidden" name="id_tarea" value="<?php echo $id_tar; ?>">
                                 <div class="form-group">
                                     <label>Motivo</label>

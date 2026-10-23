@@ -27,6 +27,32 @@ function tareas_tipos_de_area($area) { return $area=='rrhh' ? repo_tareas_tipos_
 function tareas_puede_cargar_tipo() { return true; }
 function tareas_fecha_cierre_obligatoria() { return true; }
 
+function rrhh_tarea_fecha_inicio_alta_valida($fecha)
+{
+	$fecha=trim((string)$fecha);
+	$error='';
+	if($fecha==='')
+	{
+		$error='La fecha de inicio es obligatoria.';
+	}
+	else if(!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $fecha, $partes) || !checkdate(intval($partes[2]), intval($partes[3]), intval($partes[1])))
+	{
+		$error='Ingresá una fecha de inicio válida.';
+	}
+	else if($fecha<date('Y-m-d'))
+	{
+		$error='La fecha de inicio no puede ser anterior a la fecha actual.';
+	}
+
+	if($error!=='')
+	{
+		$GLOBALS['rrhh_tarea_error_fecha_inicio']=$error;
+		if(function_exists('tareas_mensaje_form_set')) { tareas_mensaje_form_set($error); }
+		return false;
+	}
+	return true;
+}
+
 function tareas_aplicar_carga_tipo($tarea)
 {
 	if(!isset($_POST['cargar_tipo'])) { return $tarea; }
@@ -52,6 +78,8 @@ function rrhh_tipo_id($nombre)
 function tareas_datos_guardar_nueva($area)
 {
 	$area='rrhh';
+	$fecha_inicio=isset($_POST['fecha_inicio']) ? trim((string)$_POST['fecha_inicio']) : '';
+	if(!rrhh_tarea_fecha_inicio_alta_valida($fecha_inicio)) { return false; }
 	$responsables=tareas_leer_responsables_post($area);
 	$responsables_ids=array();
 	foreach($responsables as $nombre) { $id=repo_nombre_a_id($nombre); if($id>0) { $responsables_ids[]=$id; } }
@@ -60,10 +88,19 @@ function tareas_datos_guardar_nueva($area)
 	$tipo=isset($_POST['tipo']) ? $_POST['tipo'] : '';
 	$fecha_cierre=isset($_POST['fecha_cierre']) ? trim($_POST['fecha_cierre']) : '';
 	$id_tipo=rrhh_tipo_id($tipo);
-	if($id_tipo<=0 || $fecha_cierre=='') { return $area; }
-	$datos=array('titulo'=>isset($_POST['titulo']) ? trim($_POST['titulo']) : '', 'descripcion'=>isset($_POST['descripcion']) ? trim($_POST['descripcion']) : '', 'id_area'=>rrhh_id_area(), 'id_tipo'=>$id_tipo, 'prioridad'=>isset($_POST['prioridad']) ? $_POST['prioridad'] : 'Media', 'fecha_inicio'=>isset($_POST['fecha_inicio']) ? $_POST['fecha_inicio'] : date('Y-m-d'), 'fecha_cierre'=>$fecha_cierre, 'id_cliente'=>intval($cliente['id']));
+	if($id_tipo<=0 || $fecha_cierre=='')
+	{
+		tareas_mensaje_form_set($id_tipo<=0 ? 'Seleccioná un objetivo válido para la tarea.' : 'Indicá la fecha estimada de finalización.');
+		return false;
+	}
+	$datos=array('titulo'=>isset($_POST['titulo']) ? trim($_POST['titulo']) : '', 'descripcion'=>isset($_POST['descripcion']) ? trim($_POST['descripcion']) : '', 'id_area'=>rrhh_id_area(), 'id_tipo'=>$id_tipo, 'prioridad'=>isset($_POST['prioridad']) ? $_POST['prioridad'] : 'Media', 'fecha_inicio'=>$fecha_inicio, 'fecha_cierre'=>$fecha_cierre, 'id_cliente'=>intval($cliente['id']));
 	$id=repo_tarea_crear($datos, $responsables_ids, repo_empleado_logueado());
 	if($id>0 && function_exists('tareas_avisos_registrar')) { tareas_avisos_registrar($responsables, $datos['titulo'], $id, $area); }
+	if($id<=0)
+	{
+		if(!isset($_SESSION['msgtarea_form']) || $_SESSION['msgtarea_form']==='') { tareas_mensaje_form_set('No se pudo guardar la tarea. Revisá los datos e intentá de nuevo.'); }
+		return false;
+	}
 	return $area;
 }
 

@@ -9,12 +9,24 @@ function actividades_de_area($area='')
 		$area=acceso_area_pantalla();
 	}
 	$lista=array();
-	foreach(crm_eventos_de_area($area, true) as $ev)
+	$areas_consulta=array($area);
+	if($area==='general' && (acceso_es_super() || acceso_es_coord_general() || acceso_es_general()))
 	{
-		if(actividad_puede_ver($ev))
+		$areas_consulta=array_keys(acceso_etiquetas_area());
+	}
+	$eventos_por_id=array();
+	foreach($areas_consulta as $area_consulta)
+	{
+		foreach(crm_eventos_de_area($area_consulta, true) as $ev)
 		{
-			$lista[]=array(
+			$id_evento=intval(isset($ev['id_evento']) ? $ev['id_evento'] : 0);
+			if($id_evento<=0 || isset($eventos_por_id[$id_evento]) || !actividad_puede_ver_en_area($ev, $area_consulta, true))
+			{
+				continue;
+			}
+			$eventos_por_id[$id_evento]=array(
 				'id'=>intval($ev['id_evento']),
+				'id_evento'=>intval($ev['id_evento']),
 				'creado_en'=>isset($ev['creado_en']) ? trim((string)$ev['creado_en']) : '',
 				'area_nombre'=>isset($ev['area_nombre']) ? $ev['area_nombre'] : '',
 				'activo'=>isset($ev['activo']) ? intval($ev['activo']) : 1,
@@ -31,11 +43,13 @@ function actividades_de_area($area='')
 				'autoinscripcion'=>isset($ev['autoinscripcion']) ? intval($ev['autoinscripcion']) : 0,
 				'publico'=>isset($ev['publico']) ? $ev['publico'] : 'todos',
 				'id_empleado'=>isset($ev['id_empleado']) ? intval($ev['id_empleado']) : 0,
+				'id_empleado_creador'=>isset($ev['id_empleado_creador']) ? intval($ev['id_empleado_creador']) : 0,
 				'area_clave'=>isset($ev['area_clave']) ? $ev['area_clave'] : $area,
 				'n_inscriptos'=>isset($ev['n_inscriptos']) ? intval($ev['n_inscriptos']) : 0
 			);
 		}
 	}
+	$lista=array_values($eventos_por_id);
 	return $lista;
 }
 
@@ -98,6 +112,10 @@ function actividad_puede_crear($area_clave='')
 	{
 		$area_clave=function_exists('acceso_area_pantalla') ? acceso_area_pantalla() : '';
 	}
+	if(actividad_usuario_es_empleado_en_area($area_clave))
+	{
+		return true;
+	}
 	$area_usuario=function_exists('acceso_area') ? acceso_area() : '';
 	$rol_usuario=isset($_SESSION['rol_area']) ? $_SESSION['rol_area'] : '';
 
@@ -121,6 +139,58 @@ function actividad_puede_crear($area_clave='')
 	return false;
 }
 
+function actividad_usuario_es_empleado_en_area($area)
+{
+	$area=trim((string)$area);
+	if($area==='' || !function_exists('crm_id_empleado_sesion') || crm_id_empleado_sesion()<=0)
+	{
+		return false;
+	}
+	$roles_empleado=array('empleado','trabajador');
+	if(function_exists('acceso_area') && acceso_area()===$area)
+	{
+		$rol=isset($_SESSION['rol_area']) ? (string)$_SESSION['rol_area'] : (isset($_SESSION['tareas_rol']) ? (string)$_SESSION['tareas_rol'] : '');
+		if(in_array($rol,$roles_empleado,true)) { return true; }
+	}
+	foreach(function_exists('acceso_roles_adicionales_sesion') ? acceso_roles_adicionales_sesion() : array() as $extra)
+	{
+		if(isset($extra['area'],$extra['rol']) && $extra['area']===$area && in_array($extra['rol'],$roles_empleado,true))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+function actividad_usuario_puede_asignar_en_area($area)
+{
+	if(acceso_es_super() || acceso_es_coord_general() || acceso_es_general()) { return true; }
+	return function_exists('acceso_es_coord_de_area') && acceso_es_coord_de_area($area);
+}
+
+function actividad_responsable_autorizado_para_area($area, $id_empleado)
+{
+	$area=trim((string)$area);
+	$id_empleado=intval($id_empleado);
+	if($area==='' || $id_empleado<=0) { return false; }
+	if(actividad_usuario_puede_asignar_en_area($area))
+	{
+		if(acceso_es_super() || acceso_es_coord_general() || acceso_es_general())
+		{
+			return function_exists('acceso_empleado_por_id') && (bool)acceso_empleado_por_id($id_empleado);
+		}
+		$id_area=acceso_id_por_clave('area',$area);
+		return $id_area>0 && function_exists('repo_responsable_autorizado_area') && repo_responsable_autorizado_area($id_empleado,$id_area);
+	}
+	if(actividad_usuario_es_empleado_en_area($area))
+	{
+		$id_sesion=intval(crm_id_empleado_sesion());
+		$id_area=acceso_id_por_clave('area',$area);
+		return $id_empleado===$id_sesion && $id_area>0 && function_exists('repo_responsable_autorizado_area') && repo_responsable_autorizado_area($id_empleado,$id_area);
+	}
+	return false;
+}
+
 function actividades_guardar_nueva_desde_form()
 {
 	if(function_exists('crm_asegurar_evento_portal'))
@@ -133,13 +203,13 @@ function actividades_guardar_nueva_desde_form()
 		return array('area'=>$area, 'id'=>0, 'msg'=>'No podés crear actividades.');
 	}
 	$id_emp=isset($_POST['responsable_id']) ? intval($_POST['responsable_id']) : 0;
-	if($id_emp>0 && !acceso_empleado_por_id($id_emp))
-	{
-		$id_emp=0;
-	}
 	if($id_emp<=0)
 	{
 		$id_emp=crm_id_empleado_sesion();
+	}
+	if(!actividad_responsable_autorizado_para_area($area,$id_emp))
+	{
+		return array('area'=>$area, 'id'=>0, 'msg'=>'Solo podés asignar la actividad a una persona autorizada de tu área.');
 	}
 	$auto=(isset($_POST['autoinscripcion']) && $_POST['autoinscripcion']=='1') ? 1 : 0;
 	$org=actividades_organismo_desde_post();
@@ -202,8 +272,8 @@ function actividades_guardar_nueva_desde_form()
 	return array('area'=>$area, 'id'=>$id_evento, 'msg'=>$msg);
 }
 
-// Editar / gestionar asistencia: solo Coordinador de área (su área / rol adicional), Coordinación General o Superadmin.
-// Empleados comunes no pueden gestionar (ni aunque figuren como responsable).
+// Administración de actividades: autor desde el área organizadora, Coordinación General o Superadmin.
+// Ser responsable, coordinador de otra área o tener tareas vinculadas no concede administración.
 function actividad_puede_gestionar($ev)
 {
 	if(!$ev)
@@ -218,23 +288,56 @@ function actividad_puede_gestionar($ev)
 	{
 		return true;
 	}
-	$area_ev=isset($ev['area_clave']) ? $ev['area_clave'] : (isset($ev['area']) ? $ev['area'] : '');
-	if($area_ev==='')
+	$id_evento=intval(isset($ev['id_evento']) ? $ev['id_evento'] : (isset($ev['id']) ? $ev['id'] : 0));
+	if($id_evento<=0)
 	{
 		return false;
 	}
-	$area_usuario=function_exists('acceso_area') ? acceso_area() : '';
-	$rol_usuario=isset($_SESSION['rol_area']) ? $_SESSION['rol_area'] : '';
+	// Read the organizer and creator from the persisted event, never from URL or form context.
+	$real=acceso_consulta_una(
+		"SELECT ev.id_empleado_creador, ev.activo, a.clave AS area_clave
+		 FROM evento ev INNER JOIN area a ON a.id_area=ev.id_area
+		 WHERE ev.id_evento=? LIMIT 1",
+		'i',
+		array($id_evento)
+	);
+	if(!$real || intval($real['activo'])!==1)
+	{
+		return false;
+	}
+	$area_organizadora=isset($real['area_clave']) ? trim((string)$real['area_clave']) : '';
+	$area_activa=function_exists('acceso_area_activa') ? trim((string)acceso_area_activa()) : '';
+	$id_creador=intval(isset($real['id_empleado_creador']) ? $real['id_empleado_creador'] : 0);
+	$id_sesion=function_exists('crm_id_empleado_sesion') ? intval(crm_id_empleado_sesion()) : 0;
+	return $area_organizadora!==''
+		&& $area_activa===$area_organizadora
+		&& actividad_usuario_puede_area($area_organizadora)
+		&& $id_creador>0
+		&& $id_sesion>0
+		&& $id_creador===$id_sesion;
+}
 
-	if($rol_usuario==='coordinador' && $area_ev===$area_usuario)
+// Editing an activity is restricted to its creator or institution-wide admins.
+// The assigned responsible person is deliberately not treated as the creator.
+function actividad_puede_editar($ev)
+{
+	return actividad_puede_gestionar($ev);
+}
+
+function actividad_usuario_puede_area($area)
+{
+	$area=trim((string)$area);
+	if($area==='' || acceso_es_super() || acceso_es_coord_general() || acceso_es_general())
+	{
+		return $area!=='';
+	}
+	if(function_exists('acceso_area') && acceso_area()===$area)
 	{
 		return true;
 	}
-
-	$extras=function_exists('acceso_roles_adicionales_sesion') ? acceso_roles_adicionales_sesion() : array();
-	foreach($extras as $ext)
+	foreach(function_exists('acceso_roles_adicionales_sesion') ? acceso_roles_adicionales_sesion() : array() as $extra)
 	{
-		if(isset($ext['area']) && $ext['area']===$area_ev && isset($ext['rol']) && $ext['rol']==='coordinador')
+		if(isset($extra['area']) && $extra['area']===$area)
 		{
 			return true;
 		}
@@ -242,7 +345,75 @@ function actividad_puede_gestionar($ev)
 	return false;
 }
 
-// Eliminar: solo Coordinador de área (su área / rol adicional), Coordinación General o Superadmin.
+function actividad_area_vinculada($ev, $area)
+{
+	if(!$ev || trim((string)$area)==='')
+	{
+		return false;
+	}
+	$id_area=intval(isset($ev['id_area']) ? $ev['id_area'] : 0);
+	$id_evento=intval(isset($ev['id_evento']) ? $ev['id_evento'] : (isset($ev['id']) ? $ev['id'] : 0));
+	$id_area_consulta=function_exists('acceso_id_por_clave') ? intval(acceso_id_por_clave('area', $area)) : 0;
+	if($id_area_consulta<=0 || $id_evento<=0)
+	{
+		return false;
+	}
+	if($id_area===$id_area_consulta || (isset($ev['area_clave']) && $ev['area_clave']===$area))
+	{
+		return true;
+	}
+	$relacion=acceso_consulta_una(
+		"SELECT et.id FROM evento_tarea et
+		 INNER JOIN tarea t ON t.id_tarea=et.id_tarea
+		 WHERE et.id_evento=? AND t.id_area=? AND t.estado<>'cancelada' LIMIT 1",
+		'ii',
+		array($id_evento, $id_area_consulta)
+	);
+	return (bool)$relacion;
+}
+
+function actividad_puede_ver_en_area($ev, $area, $relacion_confirmada=false)
+{
+	if(!$ev || trim((string)$area)==='')
+	{
+		return false;
+	}
+	if(acceso_es_super() || acceso_es_coord_general() || acceso_es_general())
+	{
+		return true;
+	}
+	if(!actividad_usuario_puede_area($area))
+	{
+		return false;
+	}
+	return $relacion_confirmada || actividad_area_vinculada($ev, $area);
+}
+
+function actividad_puede_ver_en_areas_autorizadas($ev)
+{
+	if(!$ev)
+	{
+		return false;
+	}
+	if(acceso_es_super() || acceso_es_coord_general() || acceso_es_general())
+	{
+		return true;
+	}
+	$areas=array();
+	$area_principal=function_exists('acceso_area') ? acceso_area() : '';
+	if($area_principal!=='') { $areas[]=$area_principal; }
+	foreach(function_exists('acceso_roles_adicionales_sesion') ? acceso_roles_adicionales_sesion() : array() as $extra)
+	{
+		if(isset($extra['area']) && trim((string)$extra['area'])!=='') { $areas[]=$extra['area']; }
+	}
+	foreach(array_unique($areas) as $area)
+	{
+		if(actividad_puede_ver_en_area($ev, $area)) { return true; }
+	}
+	return false;
+}
+
+// Eliminar utiliza la misma autorización central que edición y asistencia.
 function actividad_puede_eliminar($ev)
 {
 	return actividad_puede_gestionar($ev);
@@ -458,7 +629,7 @@ function actividades_actualizar_desde_form($id_evento)
 		crm_asegurar_evento_portal();
 	}
 	$ev=crm_evento_por_id($id_evento);
-	if(!actividad_puede_gestionar($ev))
+	if(!actividad_puede_editar($ev))
 	{
 		return 'No podés editar esta actividad.';
 	}
@@ -468,9 +639,18 @@ function actividades_actualizar_desde_form($id_evento)
 		return 'El título es obligatorio.';
 	}
 	$id_emp=isset($_POST['responsable_id']) ? intval($_POST['responsable_id']) : intval($ev['id_empleado']);
-	if($id_emp>0 && !acceso_empleado_por_id($id_emp))
+	$id_emp_actual=intval(isset($ev['id_empleado']) ? $ev['id_empleado'] : 0);
+	if($id_emp!==$id_emp_actual)
 	{
-		$id_emp=intval($ev['id_empleado']);
+		$puede_asignar=actividad_usuario_puede_asignar_en_area(isset($ev['area_clave']) ? $ev['area_clave'] : '');
+		if($id_emp<=0)
+		{
+			if(!$puede_asignar) { return 'No tenés permiso para cambiar el responsable de esta actividad.'; }
+		}
+		else if(!actividad_responsable_autorizado_para_area(isset($ev['area_clave']) ? $ev['area_clave'] : '',$id_emp))
+		{
+			return 'El responsable seleccionado no está autorizado para el área organizadora de la actividad.';
+		}
 	}
 	$tipo=isset($_POST['tipo_actividad']) ? trim($_POST['tipo_actividad']) : $ev['tipo'];
 	$fecha=isset($_POST['fecha']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_POST['fecha']) ? $_POST['fecha'] : $ev['fecha'];
@@ -632,7 +812,7 @@ function actividades_eliminar($id_evento)
 	$ev=crm_evento_por_id($id_evento);
 	if(!actividad_puede_eliminar($ev))
 	{
-		return 'Solo un coordinador (del área o general) o Sistemas/superadmin puede eliminar actividades.';
+		return 'No tenés permiso para eliminar esta actividad desde el área activa.';
 	}
 	$confirm=isset($_POST['confirm_eliminar']) ? trim((string)$_POST['confirm_eliminar']) : '';
 	if(mb_strtoupper($confirm, 'UTF-8')!=='ELIMINAR')
@@ -847,7 +1027,7 @@ function actividades_responsables_por_area()
 			FROM empleado_rol_adicional x
 			INNER JOIN empleado e ON e.id_empleado=x.id_empleado
 			INNER JOIN area a ON a.id_area=x.id_area
-			WHERE x.fecha_hasta IS NULL AND e.activo=1 AND x.id_area IS NOT NULL
+			WHERE x.fecha_desde<=CURDATE() AND x.fecha_hasta IS NULL AND e.activo=1 AND x.id_area IS NOT NULL
 			ORDER BY a.clave, e.apellido, e.nombres"
 		);
 		foreach($rows as $r)
@@ -899,6 +1079,16 @@ function actividades_generar_tareas_desde_post($id_evento, $modo='edicion')
 	{
 		return $res;
 	}
+	$evento=crm_evento_por_id($id_evento);
+	$area_evento=is_array($evento) && isset($evento['area_clave']) ? trim((string)$evento['area_clave']) : '';
+	if($area_evento==='')
+	{
+		$res['fallo']++;
+		$res['detalle'][]='No se pudieron crear tareas porque no se pudo verificar el área de la actividad.';
+		return $res;
+	}
+	$acceso_global=acceso_es_super() || acceso_es_coord_general() || acceso_es_general();
+	$puede_asignar_otros=$acceso_global || actividad_usuario_puede_asignar_en_area($area_evento);
 	$areas_ok=array_keys(acceso_etiquetas_area_con_tareas());
 	$n_fila_t=0;
 	foreach($_POST['tarea_titulo'] as $i=>$titulo_t)
@@ -919,6 +1109,12 @@ function actividades_generar_tareas_desde_post($id_evento, $modo='edicion')
 			$res['detalle'][]='Área inválida para “'.$titulo_t.'”.';
 			continue;
 		}
+		if(!$acceso_global && $area_t!==$area_evento)
+		{
+			$res['fallo']++;
+			$res['detalle'][]='No podés generar “'.$titulo_t.'” fuera del área organizadora de la actividad.';
+			continue;
+		}
 		$id_area=acceso_id_por_clave('area', $area_t);
 		$id_tipo=actividades_tipo_tarea_de_area($id_area);
 		if($id_area<=0 || $id_tipo<=0)
@@ -935,9 +1131,22 @@ function actividades_generar_tareas_desde_post($id_evento, $modo='edicion')
 			$res['detalle'][]='No se creó “'.$titulo_t.'”: el área '.$area_t.' no tiene colaboradores asignados.';
 			continue;
 		}
-		if($id_resp_t>0 && function_exists('crm_empleado_pertenece_a_area') && !crm_empleado_pertenece_a_area($id_resp_t, $id_area))
+		if(!$puede_asignar_otros)
 		{
-			$id_resp_t=0;
+			$id_sesion=crm_id_empleado_sesion();
+			if($id_resp_t>0 && $id_resp_t!==$id_sesion)
+			{
+				$res['fallo']++;
+				$res['detalle'][]='Solo podés asignar “'.$titulo_t.'” a tu propio usuario.';
+				continue;
+			}
+			$id_resp_t=$id_sesion;
+		}
+		if($id_resp_t>0 && (!function_exists('repo_responsable_autorizado_area') || !repo_responsable_autorizado_area($id_resp_t, $id_area)))
+		{
+			$res['fallo']++;
+			$res['detalle'][]='El responsable seleccionado no está autorizado para el área de “'.$titulo_t.'”.';
+			continue;
 		}
 		$id_tar=crm_evento_generar_tarea($id_evento, mb_substr($titulo_t, 0, 200), $id_area, $id_tipo, $id_resp_t);
 		if($id_tar>0)

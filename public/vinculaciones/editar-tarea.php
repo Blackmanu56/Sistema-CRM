@@ -12,7 +12,15 @@ $tarea=tarea_por_id($id);
 
 if($tarea==null || !tarea_puede_editar($tarea))
 {
-	header("Location: ".tareas_link('tareas.php'));
+	if($tarea && (tarea_estado_finalizada($tarea) || tarea_padre_finalizada($tarea)) && tarea_puede_ver($tarea))
+	{
+		$_SESSION['msgtarea']='No se puede modificar una tarea finalizada. Un coordinador autorizado debe reabrirla primero.';
+		header("Location: ".tareas_link('ver-tarea.php', array('id'=>$id)));
+	}
+	else
+	{
+		header("Location: ".tareas_link('tareas.php'));
+	}
 	exit();
 }
 

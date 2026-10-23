@@ -7,7 +7,7 @@ $ev_edit=null;
 if($id_editar>0)
 {
 	$ev_edit=crm_evento_por_id($id_editar);
-	if(!$ev_edit || intval($ev_edit['activo'])!==1 || !actividad_puede_gestionar($ev_edit))
+	if(!$ev_edit || intval($ev_edit['activo'])!==1 || !actividad_puede_editar($ev_edit))
 	{
 		header("Location: ".tareas_link('actividades.php'));
 		exit();
@@ -69,6 +69,31 @@ $elige_area=(!$ev_edit && $area_act=='general' && acceso_es_general());
 $titulo_pag=$ev_edit ? 'Editar actividad' : 'Nueva actividad';
 $areas_alta=acceso_etiquetas_area_con_tareas();
 $responsables=actividades_responsables_por_area();
+$acceso_global_actividades=acceso_es_super() || acceso_es_coord_general() || acceso_es_general();
+if(!$acceso_global_actividades)
+{
+	$areas_alta=isset($areas_alta[$area_act]) ? array($area_act=>$areas_alta[$area_act]) : array();
+	$lista_area=isset($responsables[$area_act]) ? $responsables[$area_act] : array();
+	$lista_filtrada=array();
+	foreach($lista_area as $responsable_area)
+	{
+		if(actividad_responsable_autorizado_para_area($area_act,intval($responsable_area['id'])))
+		{
+			$lista_filtrada[]=$responsable_area;
+		}
+	}
+	$id_responsable_actual=$ev_edit ? intval(isset($ev_edit['id_empleado']) ? $ev_edit['id_empleado'] : 0) : 0;
+	$actual_en_lista=false;
+	foreach($lista_filtrada as $responsable_area)
+	{
+		if(intval($responsable_area['id'])===$id_responsable_actual) { $actual_en_lista=true; break; }
+	}
+	if($id_responsable_actual>0 && !$actual_en_lista)
+	{
+		$lista_filtrada[]=array('id'=>$id_responsable_actual,'nombre'=>trim((string)(isset($ev_edit['responsable']) ? $ev_edit['responsable'] : 'Responsable actual')));
+	}
+	$responsables=$area_act!=='' ? array($area_act=>$lista_filtrada) : array();
+}
 $organismos_catalogo=function_exists('actividades_organismos_catalogo') ? actividades_organismos_catalogo() : array();
 $localidades_misiones=acceso_consulta(
 	"SELECT l.id_localidad, l.nombre

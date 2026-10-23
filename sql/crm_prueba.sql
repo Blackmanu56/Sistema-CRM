@@ -294,8 +294,10 @@ CREATE TABLE tarea_inicio (
 CREATE TABLE tarea_enlace (
   id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   id_tarea     INT UNSIGNED NOT NULL,
+  id_tarea_comentario INT UNSIGNED NULL DEFAULT NULL,
   url          VARCHAR(500) NOT NULL,
   fecha_carga  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_tarea_enlace_comentario (id_tarea_comentario),
   CONSTRAINT fk_tenl_tarea FOREIGN KEY (id_tarea) REFERENCES tarea(id_tarea)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

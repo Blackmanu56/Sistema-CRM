@@ -2,6 +2,7 @@
 // Tareas de Recepción. Listado y guardado salen de la base, no de arreglos en sesión.
 
 require_once __DIR__.'/tareas-base.php';
+require_once dirname(__DIR__, 2).'/includes/tareas_repositorio.php';
 
 // Quien entro: el admin ve todo; el coordinador ve las del equipo; el empleado, solo las suyas.
 function tareas_iniciar_contexto()
@@ -116,6 +117,7 @@ function tareas_aplicar_carga_tipo($tarea)
 function tareas_datos_guardar_nueva($area)
 {
 	$responsables=tareas_leer_responsables_post($area);
+	if(!empty($GLOBALS['tareas_responsable_post_invalido']) || count($responsables)===0) { return false; }
 	$responsable=isset($responsables[0]) ? $responsables[0] : '';
 	$cliente=tareas_leer_cliente_post();
 	$tipo=isset($_POST['tipo']) ? $_POST['tipo'] : '';
@@ -152,6 +154,7 @@ function tareas_datos_actualizar($id)
 	}
 	$area=acceso_area_pantalla();
 	$responsables=tareas_leer_responsables_post($area, $item);
+	if(!empty($GLOBALS['tareas_responsable_post_invalido']) || count($responsables)===0) { return false; }
 	$cliente=tareas_leer_cliente_post();
 	$tipo=isset($_POST['tipo']) ? $_POST['tipo'] : (isset($item['tipo']) ? $item['tipo'] : '');
 	$item['titulo']=isset($_POST['titulo']) ? $_POST['titulo'] : $item['titulo'];

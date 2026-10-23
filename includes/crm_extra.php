@@ -569,9 +569,10 @@ function crm_avisos_atencion_crear($id_atencion, $id_area)
 		{
 			continue;
 		}
-		// Si el creador es el único del área, igual recibe el aviso (bandeja).
-		// Si hay más gente, no se auto-avisa a sí mismo.
-		if($id_para==$de && count($destinatarios)>1)
+		// Evitar autoavisos al personal común, pero no omitir al coordinador
+		// destinatario: también debe enterarse si él mismo registró el envío.
+		$es_coordinador_destino=isset($emp['rol_clave']) && $emp['rol_clave']==='coordinador';
+		if($id_para==$de && count($destinatarios)>1 && !$es_coordinador_destino)
 		{
 			continue;
 		}
@@ -599,6 +600,76 @@ function crm_avisos_atencion_crear($id_atencion, $id_area)
 				"INSERT INTO aviso_atencion (id_atencion, id_empleado_de, id_empleado_para) VALUES (?,NULL,?)",
 				'ii',
 				array($id_atencion, $id_para)
+			);
+		}
+	}
+}
+
+/**
+ * Recupera avisos faltantes para el coordinador ante derivaciones pendientes
+ * creadas antes de que se lo incluyera como destinatario.
+ */
+function crm_avisos_derivaciones_coord_pendientes($id_empleado, $clave_area)
+{
+	$id_empleado=intval($id_empleado);
+	$clave_area=strtolower(trim((string)$clave_area));
+	if($id_empleado<=0 || $clave_area==='' || !acceso_tabla_existe('aviso_atencion') || !acceso_tabla_existe('atencion'))
+	{
+		return;
+	}
+	$id_area=acceso_id_por_clave('area', $clave_area);
+	if($id_area<=0)
+	{
+		return;
+	}
+	$es_coordinador=false;
+	foreach(crm_empleados_de_area_id($id_area) as $empleado_area)
+	{
+		if(intval($empleado_area['id_empleado'])===$id_empleado && isset($empleado_area['rol_clave']) && $empleado_area['rol_clave']==='coordinador')
+		{
+			$es_coordinador=true;
+			break;
+		}
+	}
+	if(!$es_coordinador)
+	{
+		return;
+	}
+	$pendientes=acceso_consulta(
+		"SELECT at.id_atencion, at.id_empleado_origen
+		FROM atencion at
+		WHERE at.id_area=? AND at.estado='pendiente'
+			AND (at.id_area_origen IS NOT NULL OR at.id_atencion_origen IS NOT NULL)
+			AND NOT EXISTS (
+				SELECT 1 FROM aviso_atencion av
+				WHERE av.id_atencion=at.id_atencion AND av.id_empleado_para=?
+			)
+		ORDER BY at.id_atencion DESC",
+		'ii',
+		array($id_area, $id_empleado)
+	);
+	foreach($pendientes as $pendiente)
+	{
+		$id_atencion=intval($pendiente['id_atencion']);
+		$id_de=isset($pendiente['id_empleado_origen']) ? intval($pendiente['id_empleado_origen']) : 0;
+		if($id_atencion<=0)
+		{
+			continue;
+		}
+		if($id_de>0)
+		{
+			acceso_insertar(
+				"INSERT INTO aviso_atencion (id_atencion, id_empleado_de, id_empleado_para) VALUES (?,?,?)",
+				'iii',
+				array($id_atencion, $id_de, $id_empleado)
+			);
+		}
+		else
+		{
+			acceso_insertar(
+				"INSERT INTO aviso_atencion (id_atencion, id_empleado_de, id_empleado_para) VALUES (?,NULL,?)",
+				'ii',
+				array($id_atencion, $id_empleado)
 			);
 		}
 	}
@@ -751,8 +822,10 @@ function crm_atencion_abrir($datos)
 			}
 		}
 	}
+	$tipo_solicitado=isset($datos['tipo_ingreso']) ? $datos['tipo_ingreso'] : '';
+	$es_walkin_recepcion=($area==='recepcion' && ($tipo_solicitado==='sin_turno' || !empty($datos['espontanea']) || (isset($datos['modalidad']) && $datos['modalidad']==='atencion_espontanea')));
 	$es_ahora=crm_turno_es_ahora($fecha_turno);
-	if($es_ahora)
+	if($es_ahora && !$es_walkin_recepcion)
 	{
 		$ya_abierta=acceso_consulta_una(
 			"SELECT id_atencion FROM atencion WHERE id_cliente=? AND id_area=? AND estado IN ('abierta','en_atencion') AND DATE(COALESCE(fecha_turno, fecha))=CURDATE() ORDER BY id_atencion DESC LIMIT 1",
@@ -778,6 +851,51 @@ function crm_atencion_abrir($datos)
 		$canal='presencial';
 	}
 	$detalle=isset($datos['detalle']) ? trim($datos['detalle']) : '';
+	$tipo_ingreso=isset($datos['tipo_ingreso']) ? $datos['tipo_ingreso'] : '';
+	if(!in_array($tipo_ingreso, array('turno','sin_turno'), true))
+	{
+		$tipo_ingreso=(!empty($datos['espontanea']) || (isset($datos['modalidad']) && $datos['modalidad']==='atencion_espontanea')) ? 'sin_turno' : 'turno';
+	}
+	if($tipo_ingreso==='sin_turno' && $area==='recepcion')
+	{
+		$id_recepcion=acceso_id_por_clave('area', 'recepcion');
+		if($id_recepcion>0)
+		{
+			if(function_exists('crm_columna_existe') && crm_columna_existe('atencion', 'tipo_ingreso'))
+			{
+				$condicion_walkin="tipo_ingreso='sin_turno'";
+				if(acceso_tabla_existe('atencion_seguimiento'))
+				{
+					$condicion_walkin.=" OR EXISTS (SELECT 1 FROM atencion_seguimiento sx WHERE sx.id_atencion=atencion.id_atencion AND sx.accion='alta_sin_turno')";
+				}
+				$ya_registrada=acceso_consulta_una(
+					"SELECT atencion.id_atencion FROM atencion WHERE id_cliente=? AND id_area=? AND (".$condicion_walkin.") AND estado IN ('abierta','en_atencion','derivada') AND DATE(COALESCE(fecha_turno,fecha))=CURDATE() ORDER BY id_atencion DESC LIMIT 1",
+					'ii',
+					array($id_cliente, $id_recepcion)
+				);
+			}
+			else if(acceso_tabla_existe('atencion_seguimiento'))
+			{
+				$ya_registrada=acceso_consulta_una(
+					"SELECT at.id_atencion FROM atencion at WHERE at.id_cliente=? AND at.id_area=? AND at.estado IN ('abierta','en_atencion','derivada') AND DATE(COALESCE(at.fecha_turno,at.fecha))=CURDATE() AND EXISTS (SELECT 1 FROM atencion_seguimiento sx WHERE sx.id_atencion=at.id_atencion AND sx.accion='alta_sin_turno') ORDER BY at.id_atencion DESC LIMIT 1",
+					'ii',
+					array($id_cliente, $id_recepcion)
+				);
+			}
+			else
+			{
+				$ya_registrada=acceso_consulta_una(
+					"SELECT id_atencion FROM atencion WHERE id_cliente=? AND id_area=? AND estado IN ('abierta','en_atencion','derivada') AND DATE(COALESCE(fecha_turno,fecha))=CURDATE() ORDER BY id_atencion DESC LIMIT 1",
+					'ii',
+					array($id_cliente, $id_recepcion)
+				);
+			}
+			if($ya_registrada && isset($ya_registrada['id_atencion']))
+			{
+				return intval($ya_registrada['id_atencion']);
+			}
+		}
+	}
 	$origen=isset($datos['id_origen']) ? intval($datos['id_origen']) : 0;
 	$estado_ini=isset($datos['estado']) ? $datos['estado'] : 'abierta';
 	$ok_est=array('pendiente','abierta','en_atencion','cerrada','derivada','cancelada');
@@ -790,7 +908,24 @@ function crm_atencion_abrir($datos)
 	{
 		$id_empleado=crm_id_empleado_sesion();
 	}
-	if($origen>0)
+	$tipo_ingreso_disponible=function_exists('crm_columna_existe') && crm_columna_existe('atencion', 'tipo_ingreso');
+	if($tipo_ingreso_disponible && $origen>0)
+	{
+		$id=acceso_insertar(
+			"INSERT INTO atencion (id_cliente, id_area, id_empleado, motivo, canal, detalle, estado, id_atencion_origen, fecha_turno, tipo_ingreso) VALUES (?,?,?,?,?,?,?,?,?,?)",
+			'iiissssiss',
+			array($id_cliente, $id_area, $id_empleado > 0 ? $id_empleado : null, $motivo, $canal, $detalle, $estado_ini, $origen, $fecha_turno, $tipo_ingreso)
+		);
+	}
+	else if($tipo_ingreso_disponible)
+	{
+		$id=acceso_insertar(
+			"INSERT INTO atencion (id_cliente, id_area, id_empleado, motivo, canal, detalle, estado, fecha_turno, tipo_ingreso) VALUES (?,?,?,?,?,?,?,?,?)",
+			'iiissssss',
+			array($id_cliente, $id_area, $id_empleado > 0 ? $id_empleado : null, $motivo, $canal, $detalle, $estado_ini, $fecha_turno, $tipo_ingreso)
+		);
+	}
+	else if($origen>0)
 	{
 		$id=acceso_insertar(
 			"INSERT INTO atencion (id_cliente, id_area, id_empleado, motivo, canal, detalle, estado, id_atencion_origen, fecha_turno) VALUES (?,?,?,?,?,?,?,?,?)",
@@ -815,8 +950,8 @@ function crm_atencion_abrir($datos)
 	// Registrar evento inicial en atencion_seguimiento
 	if(function_exists('crm_atencion_seguimiento_agregar'))
 	{
-		$es_turno = ($fecha_turno != '' && !crm_turno_es_ahora($fecha_turno));
-		$accion_ini = $es_turno ? 'alta_turno' : 'alta_atencion';
+		$es_turno = ($tipo_ingreso==='turno' && $fecha_turno != '' && !crm_turno_es_ahora($fecha_turno));
+		$accion_ini = ($tipo_ingreso==='sin_turno' && $area==='recepcion') ? 'alta_sin_turno' : ($es_turno ? 'alta_turno' : 'alta_atencion');
 		$obs_ini = $es_turno
 			? 'Turno programado para ' . (function_exists('crm_turno_fecha_texto') ? crm_turno_fecha_texto($fecha_turno) : $fecha_turno) . ($detalle != '' ? ' · ' . $detalle : '')
 			: 'Atención directa iniciada' . ($detalle != '' ? ' · ' . $detalle : '');
@@ -1190,14 +1325,40 @@ function crm_atencion_derivar($id_atencion, $area_destino, $detalle='', &$id_nue
 	$canal=isset($at['canal']) ? $at['canal'] : 'presencial';
 	$id_emp=crm_id_empleado_sesion();
 	$id_area_orig=intval($at['id_area']);
+	$tipo_ingreso=isset($at['tipo_ingreso']) && in_array($at['tipo_ingreso'], array('turno','sin_turno'), true) ? $at['tipo_ingreso'] : null;
+	$tipo_ingreso_disponible=function_exists('crm_columna_existe') && crm_columna_existe('atencion', 'tipo_ingreso');
+	$es_visita_sin_turno=($tipo_ingreso==='sin_turno' && isset($at['area_clave']) && $at['area_clave']==='recepcion');
+	if(!$es_visita_sin_turno && isset($at['area_clave']) && $at['area_clave']==='recepcion' && function_exists('crm_atencion_seguimiento_historial'))
+	{
+		foreach(crm_atencion_seguimiento_historial($id) as $evento_origen)
+		{
+			if(isset($evento_origen['accion']) && $evento_origen['accion']==='alta_sin_turno')
+			{
+				$es_visita_sin_turno=true;
+				break;
+			}
+		}
+	}
 
 	// Primero el turno nuevo (si falla, el original sigue activo).
-	$nuevo=acceso_insertar(
+	if($tipo_ingreso_disponible)
+	{
+		$nuevo=acceso_insertar(
+			"INSERT INTO atencion (id_cliente, id_area, id_area_origen, id_empleado_origen, motivo, canal, detalle, estado, id_atencion_origen, fecha_turno, fecha_derivacion, tipo_ingreso)
+			 VALUES (?,?,?,?,?,?,?,?,?,?,NOW(),?)",
+			'iiiissssiss',
+			array(intval($at['id_cliente']), $id_dest, $id_area_orig, $id_emp > 0 ? $id_emp : null, $motivo, $canal, $txt_nuevo, $estado_nuevo, $id, $fecha_nueva, $tipo_ingreso)
+		);
+	}
+	else
+	{
+		$nuevo=acceso_insertar(
 		"INSERT INTO atencion (id_cliente, id_area, id_area_origen, id_empleado_origen, motivo, canal, detalle, estado, id_atencion_origen, fecha_turno, fecha_derivacion)
 		 VALUES (?,?,?,?,?,?,?,?,?,?,NOW())",
 		'iiiissssis',
 		array(intval($at['id_cliente']), $id_dest, $id_area_orig, $id_emp > 0 ? $id_emp : null, $motivo, $canal, $txt_nuevo, $estado_nuevo, $id, $fecha_nueva)
-	);
+		);
+	}
 	if($nuevo<=0)
 	{
 		return 'No se pudo crear el turno en el área destino.';
@@ -1244,7 +1405,7 @@ function crm_atencion_derivar($id_atencion, $area_destino, $detalle='', &$id_nue
 		$id_emp,
 		$at['estado'],
 		'pendiente',
-		'derivacion_creada',
+		$es_visita_sin_turno ? 'derivacion_sin_turno' : 'derivacion_creada',
 		$txt_nuevo
 	);
 
@@ -1497,6 +1658,140 @@ function crm_atencion_derivada_siguiente($id_atencion)
 	);
 }
 
+/** Devuelve el área operativa seleccionada y autorizada para el usuario actual. */
+function crm_notificacion_area_activa()
+{
+	$area=function_exists('acceso_area_activa') ? acceso_area_activa() : acceso_area();
+	$area=strtolower(trim((string)$area));
+	if($area==='') { return ''; }
+	$etiquetas=function_exists('acceso_etiquetas_area') ? acceso_etiquetas_area() : array();
+	if(!isset($etiquetas[$area])) { return ''; }
+	if(function_exists('acceso_es_super') && acceso_es_super()) { return $area; }
+	if(function_exists('acceso_es_coord_general') && acceso_es_coord_general()) { return $area; }
+	if(function_exists('acceso_es_presidencia') && acceso_es_presidencia() && $area==='presidencia') { return $area; }
+	return function_exists('acceso_puede') && acceso_puede($area) ? $area : '';
+}
+
+/** Áreas reales relacionadas con un aviso, sin confiar en el área principal del usuario. */
+function crm_notificacion_areas_registro($tipo, $id_tarea=0, $url='')
+{
+	$tipo=strtolower(trim((string)$tipo));
+	$id_tarea=intval($id_tarea);
+	$areas=array();
+	if($tipo==='empresa_seguimiento') { return array('empresas'); }
+	if($tipo==='dominio' || (strpos((string)$url, 'dominios.php')!==false)) { return array('sistemas'); }
+	if($id_tarea>0 && acceso_tabla_existe('tarea'))
+	{
+		$fila=acceso_consulta_una("SELECT a.clave AS area FROM tarea t INNER JOIN area a ON a.id_area=t.id_area WHERE t.id_tarea=? LIMIT 1", 'i', array($id_tarea));
+		if($fila && !empty($fila['area'])) { return array(strtolower(trim($fila['area']))); }
+	}
+	if($tipo==='actividad')
+	{
+		$partes=parse_url((string)$url);
+		$parametros=array();
+		if(isset($partes['query'])) { parse_str($partes['query'], $parametros); }
+		$id_evento=isset($parametros['id']) ? intval($parametros['id']) : 0;
+		if($id_evento>0 && acceso_tabla_existe('evento'))
+		{
+			$ev=acceso_consulta_una("SELECT a.clave AS area FROM evento e LEFT JOIN area a ON a.id_area=e.id_area WHERE e.id_evento=? LIMIT 1", 'i', array($id_evento));
+			if($ev && !empty($ev['area'])) { $areas[]=strtolower(trim($ev['area'])); }
+			if(acceso_tabla_existe('evento_tarea') && acceso_tabla_existe('tarea'))
+			{
+				$relaciones=acceso_consulta("SELECT DISTINCT a.clave AS area FROM evento_tarea et INNER JOIN tarea t ON t.id_tarea=et.id_tarea INNER JOIN area a ON a.id_area=t.id_area WHERE et.id_evento=? AND t.estado<>'cancelada'", 'i', array($id_evento));
+				foreach($relaciones as $rel) { if(!empty($rel['area'])) { $areas[]=strtolower(trim($rel['area'])); } }
+			}
+			return array_values(array_unique(array_filter($areas)));
+		}
+	}
+	$etiquetas=function_exists('acceso_etiquetas_area') ? acceso_etiquetas_area() : array();
+	foreach(array_keys($etiquetas) as $clave)
+	{
+		if(preg_match('#(?:^|/)(?:public/)?'.preg_quote($clave, '#').'/#i', (string)$url))
+		{
+			return array(strtolower($clave));
+		}
+	}
+	if($tipo==='informe') { return array('presidencia'); }
+	return array();
+}
+
+function crm_notificacion_corresponde_area($tipo, $id_tarea=0, $url='')
+{
+	$area=crm_notificacion_area_activa();
+	if($area==='') { return false; }
+	return in_array($area, crm_notificacion_areas_registro($tipo, $id_tarea, $url), true);
+}
+
+function crm_notificacion_tarea_aviso_en_area($id_aviso)
+{
+	$id_aviso=(string)$id_aviso;
+	$yo=crm_id_empleado_sesion();
+	if($yo<=0 || $id_aviso==='') { return false; }
+	if(ctype_digit($id_aviso) && acceso_tabla_existe('aviso'))
+	{
+		$fila=acceso_consulta_una("SELECT t.id_tarea, a.clave AS area FROM aviso av INNER JOIN tarea t ON t.id_tarea=av.id_tarea INNER JOIN area a ON a.id_area=t.id_area WHERE av.id_aviso=? AND av.id_empleado_para=? LIMIT 1", 'ii', array(intval($id_aviso), $yo));
+		if($fila) { return crm_notificacion_corresponde_area('tarea', intval($fila['id_tarea'])); }
+	}
+	if(function_exists('tareas_avisos_historial_mios'))
+	{
+		foreach(tareas_avisos_historial_mios() as $av)
+		{
+			if(isset($av['id']) && (string)$av['id']===$id_aviso)
+			{
+				$id_tarea=isset($av['tarea_id']) ? intval($av['tarea_id']) : 0;
+				return crm_notificacion_corresponde_area('tarea', $id_tarea, isset($av['area']) ? $av['area'].'/' : '');
+			}
+		}
+	}
+	return false;
+}
+
+function crm_notificacion_token_en_area($token, $id_emp=0)
+{
+	$token=trim((string)$token);
+	$id_emp=$id_emp>0 ? intval($id_emp) : crm_id_empleado_sesion();
+	if($token==='' || $id_emp<=0) { return false; }
+	if(preg_match('/^(turno|tarea|crm)_(\d+)$/', $token, $m))
+	{
+		$id=intval($m[2]);
+		if($m[1]==='turno')
+		{
+			$f=acceso_consulta_una("SELECT at.id_atencion, a.clave AS area FROM aviso_atencion av INNER JOIN atencion at ON at.id_atencion=av.id_atencion INNER JOIN area a ON a.id_area=at.id_area WHERE av.id_aviso=? AND av.id_empleado_para=? LIMIT 1", 'ii', array($id, $id_emp));
+			return $f && crm_notificacion_corresponde_area('turno', 0, isset($f['area']) ? $f['area'].'/' : '');
+		}
+		if($m[1]==='crm')
+		{
+			$f=acceso_consulta_una("SELECT id_tarea, tipo, url FROM crm_aviso WHERE id=? AND id_empleado_para=? LIMIT 1", 'ii', array($id, $id_emp));
+			return $f && crm_notificacion_corresponde_area($f['tipo'], intval($f['id_tarea']), $f['url']);
+		}
+		$f=acceso_consulta_una("SELECT t.id_tarea FROM aviso av INNER JOIN tarea t ON t.id_tarea=av.id_tarea WHERE av.id_aviso=? AND av.id_empleado_para=? LIMIT 1", 'ii', array($id, $id_emp));
+		return $f && crm_notificacion_corresponde_area('tarea', intval($f['id_tarea']));
+	}
+	if(strpos($token, 'tarea_')===0)
+	{
+		return crm_notificacion_tarea_aviso_en_area(substr($token, 6));
+	}
+	if(preg_match('/^(turno|tarea|actividad)_ent_(\d+)$/', $token, $m))
+	{
+		$id=intval($m[2]);
+		if($m[1]==='turno')
+		{
+			$f=acceso_consulta_una("SELECT a.clave AS area FROM aviso_atencion av INNER JOIN atencion at ON at.id_atencion=av.id_atencion INNER JOIN area a ON a.id_area=at.id_area WHERE at.id_atencion=? AND av.id_empleado_para=? LIMIT 1", 'ii', array($id, $id_emp));
+			return $f && crm_notificacion_corresponde_area('turno', 0, $f['area'].'/');
+		}
+		if($m[1]==='tarea')
+		{
+			$f=acceso_consulta_una("SELECT t.id_tarea FROM aviso av INNER JOIN tarea t ON t.id_tarea=av.id_tarea WHERE av.id_tarea=? AND av.id_empleado_para=? LIMIT 1", 'ii', array($id, $id_emp));
+			if(!$f) { $f=acceso_consulta_una("SELECT id_tarea FROM crm_aviso WHERE id_tarea=? AND id_empleado_para=? LIMIT 1", 'ii', array($id, $id_emp)); }
+			return $f && crm_notificacion_corresponde_area('tarea', intval($f['id_tarea']));
+		}
+		$f=acceso_consulta_una("SELECT url FROM crm_aviso WHERE id_empleado_para=? AND tipo='actividad' AND url LIKE ? LIMIT 1", 'is', array($id_emp, '%actividades.php?id='.$id.'%'));
+		if(!$f) { return false; }
+		return crm_notificacion_corresponde_area('actividad', 0, 'actividades.php?id='.$id);
+	}
+	return false;
+}
+
 function crm_avisos_atencion_mios()
 {
 	crm_asegurar_turno_campos();
@@ -1506,37 +1801,39 @@ function crm_avisos_atencion_mios()
 		return array();
 	}
 
-	// Auto-confirmar avisos de atenciones que ya no están abiertas (en_atencion, cerrada, cancelada, derivada)
+	$area=crm_notificacion_area_activa();
+	if($area==='') { return array(); }
+	// Auto-confirmar únicamente avisos del área seleccionada.
 	if(acceso_tabla_existe('atencion'))
 	{
 		acceso_ejecutar(
 			"UPDATE aviso_atencion av
 			INNER JOIN atencion at ON at.id_atencion=av.id_atencion
+			INNER JOIN area a ON a.id_area=at.id_area
 			SET av.confirmado=1
-			WHERE av.id_empleado_para=? AND av.confirmado=0 AND at.estado IN ('en_atencion','cerrada','cancelada','derivada')",
-			'i',
-			array($id)
+			WHERE av.id_empleado_para=? AND av.confirmado=0 AND a.clave=? AND at.estado IN ('en_atencion','cerrada','cancelada','derivada')",
+			'is',
+			array($id, $area)
 		);
 	}
-
-	$area=acceso_area();
-	$sql="SELECT MIN(av.id_aviso) AS id_aviso, av.id_atencion, c.nombre AS cliente_nombre, a.nombre AS area_nombre, a.clave AS area_clave, at.motivo, at.id_cliente,
+	crm_avisos_derivaciones_coord_pendientes($id, $area);
+	$sql="SELECT MIN(av.id_aviso) AS id_aviso, av.id_atencion, c.nombre AS cliente_nombre, a.nombre AS area_nombre, a.clave AS area_clave,
+			MAX(ao.nombre) AS area_origen_nombre, at.id_area_origen, at.id_atencion_origen, at.estado, at.motivo, at.id_cliente,
 			COALESCE(at.fecha_turno, at.fecha) AS fecha_turno,
 			MAX(av.fecha_aviso) AS fecha_aviso
 		FROM aviso_atencion av
 		INNER JOIN atencion at ON at.id_atencion=av.id_atencion
 		INNER JOIN cliente c ON c.id_cliente=at.id_cliente
 		INNER JOIN area a ON a.id_area=at.id_area
-		WHERE av.id_empleado_para=? AND av.confirmado=0 AND at.estado = 'abierta'";
+		LEFT JOIN area ao ON ao.id_area=at.id_area_origen
+		WHERE av.id_empleado_para=? AND av.confirmado=0
+			AND (at.estado='abierta' OR (at.estado='pendiente' AND (at.id_area_origen IS NOT NULL OR at.id_atencion_origen IS NOT NULL)))";
 	$types='i';
 	$vals=array($id);
-	if($area!='' && $area!='recepcion' && $area!='sistemas' && $area!='general' && !acceso_es_super())
-	{
-		$sql.=" AND a.clave=?";
-		$types.='s';
-		$vals[]=$area;
-	}
-	$sql.=" GROUP BY av.id_atencion, c.nombre, a.nombre, a.clave, at.motivo, at.id_cliente, COALESCE(at.fecha_turno, at.fecha) ORDER BY MIN(av.fecha_aviso) DESC";
+	$sql.=" AND a.clave=?";
+	$types.='s';
+	$vals[]=$area;
+	$sql.=" GROUP BY av.id_atencion, c.nombre, a.nombre, a.clave, at.id_area_origen, at.id_atencion_origen, at.estado, at.motivo, at.id_cliente, COALESCE(at.fecha_turno, at.fecha) ORDER BY MIN(av.fecha_aviso) DESC";
 	return acceso_consulta($sql, $types, $vals);
 }
 
@@ -1548,7 +1845,8 @@ function crm_aviso_atencion_ok($id_aviso)
 	{
 		return;
 	}
-	$av=acceso_consulta_una("SELECT id_atencion FROM aviso_atencion WHERE id_aviso=? AND id_empleado_para=? LIMIT 1", 'ii', array($id, $yo));
+	$av=acceso_consulta_una("SELECT at.id_atencion, a.clave AS area FROM aviso_atencion av INNER JOIN atencion at ON at.id_atencion=av.id_atencion INNER JOIN area a ON a.id_area=at.id_area WHERE av.id_aviso=? AND av.id_empleado_para=? LIMIT 1", 'ii', array($id, $yo));
+	if(!$av || !crm_notificacion_corresponde_area('turno', 0, $av['area'].'/')) { return; }
 	if($av && isset($av['id_atencion']))
 	{
 		acceso_ejecutar("UPDATE aviso_atencion SET confirmado=1 WHERE id_atencion=? AND id_empleado_para=? AND confirmado=0", 'ii', array(intval($av['id_atencion']), $yo));
@@ -2033,7 +2331,6 @@ function crm_eventos_de_area($area_clave, $incluir_inactivos=false)
 	{
 		return array();
 	}
-	$id_emp=function_exists('crm_id_empleado_sesion') ? crm_id_empleado_sesion() : 0;
 	$condicion_activo=$incluir_inactivos ? 'ev.activo IN (0,1)' : 'ev.activo=1';
 	return acceso_consulta(
 		"SELECT DISTINCT ev.*, a.clave AS area_clave, a.nombre AS area_nombre, c.nombre AS cliente_nombre,
@@ -2045,17 +2342,15 @@ function crm_eventos_de_area($area_clave, $incluir_inactivos=false)
 		LEFT JOIN cliente c ON c.id_cliente=ev.id_cliente
 		LEFT JOIN empleado e ON e.id_empleado=ev.id_empleado
 		LEFT JOIN evento_tarea et ON et.id_evento=ev.id_evento
-		LEFT JOIN tarea t ON t.id_tarea=et.id_tarea
-		LEFT JOIN tarea_responsable tr ON tr.id_tarea=t.id_tarea
+		LEFT JOIN tarea t ON t.id_tarea=et.id_tarea AND t.estado<>'cancelada'
 		WHERE ".$condicion_activo."
 		  AND (
 		      ev.id_area=?
 		      OR t.id_area=?
-		      OR (? > 0 AND (ev.id_empleado=? OR tr.id_empleado=?))
 		  )
 		ORDER BY ev.fecha DESC, ev.id_evento DESC",
-		'iiiii',
-		array($id_area, $id_area, $id_emp, $id_emp, $id_emp)
+		'ii',
+		array($id_area, $id_area)
 	);
 }
 
@@ -2093,6 +2388,18 @@ function crm_evento_guardar($datos)
 	if($publico==='persona')
 	{
 		$publico='emprendedor';
+	}
+	$registrar_creador=function_exists('crm_columna_existe') && crm_columna_existe('evento', 'id_empleado_creador');
+	$id_creador=function_exists('crm_id_empleado_sesion') ? intval(crm_id_empleado_sesion()) : 0;
+	if($id_creador<0) { $id_creador=0; }
+	if($registrar_creador)
+	{
+		return acceso_insertar(
+			"INSERT INTO evento (titulo, descripcion, tipo, fecha, id_area, id_cliente, id_localidad, id_empleado, id_empleado_creador, asistencia, resultado, autoinscripcion, publico)
+			VALUES (?,?,?,?,?,NULLIF(?,0),NULLIF(?,0),NULLIF(?,0),NULLIF(?,0),?,?,?,?)",
+			'ssssiiiiissis',
+			array($titulo, $desc, $tipo, $fecha, $id_area, $id_cli, $id_localidad, $id_emp, $id_creador, $asis, $res, $auto, $publico)
+		);
 	}
 	return acceso_insertar(
 		"INSERT INTO evento (titulo, descripcion, tipo, fecha, id_area, id_cliente, id_localidad, id_empleado, asistencia, resultado, autoinscripcion, publico)
@@ -3210,7 +3517,8 @@ function crm_programas_de_cliente($id_cliente)
 function crm_avisos_tarea_bd_mios()
 {
 	$yo=crm_id_empleado_sesion();
-	if($yo<=0 || !acceso_tabla_existe('aviso'))
+	$area=crm_notificacion_area_activa();
+	if($yo<=0 || $area==='' || !acceso_tabla_existe('aviso'))
 	{
 		return array();
 	}
@@ -3221,10 +3529,10 @@ function crm_avisos_tarea_bd_mios()
 		INNER JOIN tarea t ON t.id_tarea=av.id_tarea
 		INNER JOIN area a ON a.id_area=t.id_area
 		LEFT JOIN empleado ed ON ed.id_empleado=av.id_empleado_de
-		WHERE av.id_empleado_para=? AND av.confirmado=0
+		WHERE av.id_empleado_para=? AND av.confirmado=0 AND a.clave=?
 		ORDER BY av.fecha_aviso DESC",
-		'i',
-		array($yo)
+		'is',
+		array($yo, $area)
 	);
 	$salida=array();
 	foreach($rows as $row)
@@ -3269,6 +3577,34 @@ function crm_avisos_tarea_bd_mios()
 		);
 	}
 	return $salida;
+}
+
+/** Avoid rendering a legacy JSON assignment beside its matching database notice. */
+function crm_notificacion_legacy_tarea_duplicada($aviso, $id_empleado)
+{
+	$id_empleado=intval($id_empleado);
+	$id_tarea=isset($aviso['tarea_id']) ? intval($aviso['tarea_id']) : 0;
+	$area=isset($aviso['area']) ? strtolower(trim((string)$aviso['area'])) : '';
+	$de=isset($aviso['de']) ? trim((string)$aviso['de']) : '';
+	$cuando=isset($aviso['cuando']) ? trim((string)$aviso['cuando']) : '';
+	if($id_empleado<=0 || $id_tarea<=0 || $area==='' || $de==='' || !preg_match('/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/', $cuando)
+		|| !acceso_tabla_existe('aviso'))
+	{
+		return false;
+	}
+	$fila=acceso_consulta_una(
+		"SELECT av.id_aviso FROM aviso av
+		INNER JOIN tarea t ON t.id_tarea=av.id_tarea
+		INNER JOIN area a ON a.id_area=t.id_area
+		LEFT JOIN empleado ed ON ed.id_empleado=av.id_empleado_de
+		WHERE av.id_empleado_para=? AND av.id_tarea=? AND a.clave=?
+		AND DATE_FORMAT(av.fecha_aviso, '%d/%m/%Y %H:%i')=?
+		AND TRIM(CONCAT(IFNULL(ed.nombres,''),' ',IFNULL(ed.apellido,'')))=?
+		LIMIT 1",
+		'iisss',
+		array($id_empleado, $id_tarea, $area, $cuando, $de)
+	);
+	return (bool)$fila;
 }
 
 function crm_notificaciones_vistas_ruta()
@@ -3349,6 +3685,27 @@ function crm_notificacion_es_vista($token_o_tipo, $id=0, $id_emp=0, $entidad_id=
 	{
 		$token=$tok.'_'.$id;
 	}
+	$db_token=preg_match('/^(turno|tarea|crm)_\d+$/', $token)===1;
+	if($db_token)
+	{
+		if(!crm_notificacion_token_en_area($token, $id_emp)) { return false; }
+		if(preg_match('/^turno_(\d+)$/', $token, $m) && acceso_tabla_existe('aviso_atencion'))
+		{
+			$f=acceso_consulta_una('SELECT confirmado FROM aviso_atencion WHERE id_aviso=? AND id_empleado_para=? LIMIT 1', 'ii', array(intval($m[1]), $id_emp));
+			return $f && intval($f['confirmado'])===1;
+		}
+		if(preg_match('/^tarea_(\d+)$/', $token, $m) && acceso_tabla_existe('aviso'))
+		{
+			$f=acceso_consulta_una('SELECT confirmado FROM aviso WHERE id_aviso=? AND id_empleado_para=? LIMIT 1', 'ii', array(intval($m[1]), $id_emp));
+			return $f && intval($f['confirmado'])===1;
+		}
+		if(preg_match('/^crm_(\d+)$/', $token, $m) && acceso_tabla_existe('crm_aviso'))
+		{
+			$f=acceso_consulta_una('SELECT confirmado FROM crm_aviso WHERE id=? AND id_empleado_para=? LIMIT 1', 'ii', array(intval($m[1]), $id_emp));
+			return $f && intval($f['confirmado'])===1;
+		}
+		return false;
+	}
 	if(isset($vistas[$token]))
 	{
 		return true;
@@ -3362,6 +3719,63 @@ function crm_notificacion_es_vista($token_o_tipo, $id=0, $id_emp=0, $entidad_id=
 		}
 	}
 	return false;
+}
+
+/** Persists legacy JSON read markers into the canonical per-recipient database state. */
+function crm_notificaciones_reconciliar_vistas_legacy($id_emp=0)
+{
+	$id_emp=$id_emp>0 ? intval($id_emp) : crm_id_empleado_sesion();
+	if($id_emp<=0) { return; }
+	$key=(string)$id_emp;
+	$legacy=crm_notificaciones_vistas_leer_disco();
+	$disk=isset($legacy[$key]) && is_array($legacy[$key]) ? $legacy[$key] : array();
+	$session=(isset($_SESSION['crm_notif_vistas'][$key]) && is_array($_SESSION['crm_notif_vistas'][$key])) ? $_SESSION['crm_notif_vistas'][$key] : array();
+	$tokens=array_unique(array_merge(array_keys($disk), array_keys($session)));
+	foreach($tokens as $token)
+	{
+		if(!crm_notificacion_token_en_area($token, $id_emp)) { continue; }
+		if(preg_match('/^turno_(\d+)$/', $token, $m) && acceso_tabla_existe('aviso_atencion'))
+		{
+			acceso_ejecutar('UPDATE aviso_atencion SET confirmado=1 WHERE id_aviso=? AND id_empleado_para=? AND confirmado=0', 'ii', array(intval($m[1]), $id_emp));
+		}
+		else if(preg_match('/^tarea_(\d+)$/', $token, $m) && acceso_tabla_existe('aviso'))
+		{
+			acceso_ejecutar('UPDATE aviso SET confirmado=1 WHERE id_aviso=? AND id_empleado_para=? AND confirmado=0', 'ii', array(intval($m[1]), $id_emp));
+		}
+		else if(preg_match('/^crm_(\d+)$/', $token, $m) && acceso_tabla_existe('crm_aviso'))
+		{
+			acceso_ejecutar('UPDATE crm_aviso SET confirmado=1 WHERE id=? AND id_empleado_para=? AND confirmado=0', 'ii', array(intval($m[1]), $id_emp));
+		}
+		else if(preg_match('/^turno_ent_(\d+)$/', $token, $m) && acceso_tabla_existe('aviso_atencion'))
+		{
+			$area=crm_notificacion_area_activa();
+			acceso_ejecutar('UPDATE aviso_atencion av INNER JOIN atencion at ON at.id_atencion=av.id_atencion INNER JOIN area a ON a.id_area=at.id_area SET av.confirmado=1 WHERE av.id_atencion=? AND av.id_empleado_para=? AND av.confirmado=0 AND a.clave=?', 'iis', array(intval($m[1]), $id_emp, $area));
+		}
+		else if(preg_match('/^tarea_ent_(\d+)$/', $token, $m))
+		{
+			$area=crm_notificacion_area_activa();
+			if(acceso_tabla_existe('aviso'))
+			{
+				acceso_ejecutar('UPDATE aviso av INNER JOIN tarea t ON t.id_tarea=av.id_tarea INNER JOIN area a ON a.id_area=t.id_area SET av.confirmado=1 WHERE av.id_tarea=? AND av.id_empleado_para=? AND av.confirmado=0 AND a.clave=?', 'iis', array(intval($m[1]), $id_emp, $area));
+			}
+			if(acceso_tabla_existe('crm_aviso'))
+			{
+				acceso_ejecutar('UPDATE crm_aviso av INNER JOIN tarea t ON t.id_tarea=av.id_tarea INNER JOIN area a ON a.id_area=t.id_area SET av.confirmado=1 WHERE av.id_tarea=? AND av.id_empleado_para=? AND av.confirmado=0 AND a.clave=?', 'iis', array(intval($m[1]), $id_emp, $area));
+			}
+		}
+		else if(preg_match('/^actividad_ent_(\d+)$/', $token, $m) && acceso_tabla_existe('crm_aviso'))
+		{
+			$id_evento=intval($m[1]);
+			$rows=acceso_consulta("SELECT id, id_tarea, tipo, url FROM crm_aviso WHERE id_empleado_para=? AND tipo='actividad' AND url LIKE ? AND confirmado=0", 'is', array($id_emp, '%actividades.php?id='.$id_evento.'%'));
+			foreach($rows as $row)
+			{
+				if(crm_notificacion_corresponde_area($row['tipo'], intval($row['id_tarea']), $row['url']))
+				{
+					acceso_ejecutar('UPDATE crm_aviso SET confirmado=1 WHERE id=? AND id_empleado_para=? AND confirmado=0', 'ii', array(intval($row['id']), $id_emp));
+				}
+			}
+		}
+	}
 }
 
 function crm_notificacion_marcar_vista($token, $id_emp=0)
@@ -3379,6 +3793,33 @@ function crm_notificacion_marcar_vista($token, $id_emp=0)
 	if($id_emp<=0)
 	{
 		return;
+	}
+	if(!crm_notificacion_token_en_area($token, $id_emp)) { return; }
+	// Persist reads in the notification's recipient row, not only in session/JSON.
+	if(preg_match('/^turno_(\d+)$/', $token, $m) && acceso_tabla_existe('aviso_atencion'))
+	{
+		$fila=acceso_consulta_una('SELECT id_atencion FROM aviso_atencion WHERE id_aviso=? AND id_empleado_para=? LIMIT 1', 'ii', array(intval($m[1]), $id_emp));
+		if($fila && isset($fila['id_atencion']))
+		{
+			$area=crm_notificacion_area_activa();
+			acceso_ejecutar('UPDATE aviso_atencion av INNER JOIN atencion at ON at.id_atencion=av.id_atencion INNER JOIN area a ON a.id_area=at.id_area SET av.confirmado=1 WHERE av.id_atencion=? AND av.id_empleado_para=? AND av.confirmado=0 AND a.clave=?', 'iis', array(intval($fila['id_atencion']), $id_emp, $area));
+		}
+		return;
+	}
+	if(preg_match('/^tarea_(\d+)$/', $token, $m) && acceso_tabla_existe('aviso'))
+	{
+		acceso_ejecutar('UPDATE aviso SET confirmado=1 WHERE id_aviso=? AND id_empleado_para=? AND confirmado=0', 'ii', array(intval($m[1]), $id_emp));
+		return;
+	}
+	if(preg_match('/^crm_(\d+)$/', $token, $m) && acceso_tabla_existe('crm_aviso'))
+	{
+		acceso_ejecutar('UPDATE crm_aviso SET confirmado=1 WHERE id=? AND id_empleado_para=? AND confirmado=0', 'ii', array(intval($m[1]), $id_emp));
+		return;
+	}
+	// Legacy file-backed task notices are already scoped to the current user.
+	if(strpos($token, 'tarea_')===0 && function_exists('tareas_aviso_marcar_leido'))
+	{
+		tareas_aviso_marcar_leido(substr($token, 6));
 	}
 	$key_emp=(string)$id_emp;
 	$vistas=crm_notificaciones_vistas_cargar($id_emp);
@@ -3561,7 +4002,8 @@ function crm_notificacion_url_abrir($url_base, $token_vista, $id_tarea=0)
 		return '';
 	}
 	$sep=(strpos($url, '?')!==false) ? '&' : '?';
-	return $url.$sep.'notif_vista='.urlencode($token_vista);
+	$csrf=function_exists('crm_tarea_extra_csrf_token') ? crm_tarea_extra_csrf_token() : '';
+	return $url.$sep.'notif_vista='.urlencode($token_vista).'&notif_csrf='.urlencode($csrf);
 }
 
 function crm_notificaciones_mias()
@@ -3573,6 +4015,7 @@ function crm_notificaciones_mias()
 	}
 	$salida=array();
 	$yo=crm_id_empleado_sesion();
+	if($yo>0) { crm_notificaciones_reconciliar_vistas_legacy($yo); }
 
 	if(function_exists('crm_avisos_atencion_mios'))
 	{
@@ -3583,6 +4026,9 @@ function crm_notificaciones_mias()
 			$motivo=isset($av['motivo']) ? crm_motivo_texto($av['motivo']) : '';
 			$id_aviso=intval($av['id_aviso']);
 			$id_atencion=intval($av['id_atencion']);
+			$es_derivacion=isset($av['estado']) && $av['estado']==='pendiente'
+				&& (!empty($av['id_area_origen']) || !empty($av['id_atencion_origen']));
+			$area_origen=isset($av['area_origen_nombre']) ? trim((string)$av['area_origen_nombre']) : '';
 			$ruta_area=(defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__)).'/public/'.$area.'/atencion.php';
 			if(!is_file($ruta_area))
 			{
@@ -3590,28 +4036,32 @@ function crm_notificaciones_mias()
 			}
 			$url=url_crm($area.'/atencion.php?id='.$id_atencion);
 			$vista=crm_notificacion_es_vista('turno', $id_aviso, $yo, $id_atencion);
+			$titulo=$es_derivacion
+				? 'Nueva derivación recibida desde '.($area_origen!=='' ? $area_origen : 'otra área')
+				: 'Nueva atención · '.$av['cliente_nombre'];
+			$detalle=$es_derivacion
+				? 'Cliente: '.$av['cliente_nombre'].($motivo!='' ? ' · '.$motivo : '')
+				: trim(($cuando!='' ? $cuando : 'Sin fecha').($motivo!='' ? ' · '.$motivo : '').(isset($av['area_nombre']) && $av['area_nombre']!='' ? ' · '.$av['area_nombre'] : ''));
 
 			$salida[]=array(
 				'tipo'=>'turno',
 				'id'=>$id_aviso,
 				'id_entidad'=>$id_atencion,
-				'titulo'=>'Nueva atención · '.$av['cliente_nombre'],
-				'detalle'=>trim(($cuando!='' ? $cuando : 'Sin fecha').($motivo!='' ? ' · '.$motivo : '').(isset($av['area_nombre']) && $av['area_nombre']!='' ? ' · '.$av['area_nombre'] : '')),
+				'titulo'=>$titulo,
+				'detalle'=>$detalle,
 				'url'=>$url,
 				'url_abrir'=>crm_notificacion_url_abrir($url, 'turno_'.$id_aviso),
 				'campo'=>'cerrar_aviso_atencion',
-				'etiqueta'=>'Turno',
+				'etiqueta'=>$es_derivacion ? 'Derivación' : 'Turno',
 				'vista'=>$vista,
 				'fecha'=>isset($av['fecha_aviso']) && $av['fecha_aviso']!='' ? $av['fecha_aviso'] : (isset($av['fecha_turno']) ? $av['fecha_turno'] : date('Y-m-d H:i:s'))
 			);
 		}
 	}
-	$ya_tarea=array();
 	foreach(crm_avisos_tarea_bd_mios() as $av)
 	{
 		$tid=isset($av['tarea_id']) ? intval($av['tarea_id']) : 0;
 		$id_aviso=isset($av['id']) ? intval($av['id']) : 0;
-		$ya_tarea[$tid]=1;
 		$area=isset($av['area']) ? $av['area'] : acceso_area();
 		$de=isset($av['de']) ? trim($av['de']) : '';
 		$url=url_crm($area.'/ver-tarea.php?id='.$tid);
@@ -3636,14 +4086,16 @@ function crm_notificaciones_mias()
 		foreach(tareas_avisos_mios() as $av)
 		{
 			$tid=isset($av['tarea_id']) ? intval($av['tarea_id']) : 0;
-			if($tid>0 && isset($ya_tarea[$tid]))
+			$area_aviso=isset($av['area']) ? strtolower(trim((string)$av['area'])) : '';
+			if(!crm_notificacion_corresponde_area('tarea', $tid, $area_aviso!=='' ? $area_aviso.'/' : '')) { continue; }
+			if(crm_notificacion_legacy_tarea_duplicada($av, $yo))
 			{
 				continue;
 			}
 			$url=function_exists('tareas_aviso_url') ? tareas_aviso_url($av) : url_crm(acceso_area().'/ver-tarea.php?id='.$tid);
 			$de=isset($av['de']) ? trim($av['de']) : '';
 			$id_av=isset($av['id']) ? $av['id'] : '';
-			$vista=crm_notificacion_es_vista('tarea', $id_av, $yo, $tid);
+			$vista=!empty($av['leido']);
 
 			$salida[]=array(
 				'tipo'=>'tarea',
@@ -3707,7 +4159,7 @@ function crm_notificaciones_contar()
 function crm_aviso_tarea_ok($id)
 {
 	$id_txt=trim((string)$id);
-	if($id_txt==='')
+	if($id_txt==='' || !crm_notificacion_tarea_aviso_en_area($id_txt))
 	{
 		return;
 	}
@@ -3730,6 +4182,7 @@ function crm_aviso_tarea_marcar_leido_por_tarea($id_tarea, $id_empleado = 0)
 	global $con;
 	$id = intval($id_tarea);
 	if($id <= 0) { return; }
+	if(!crm_notificacion_corresponde_area('tarea', $id)) { return; }
 	if($id_empleado <= 0 && function_exists('crm_id_empleado_sesion'))
 	{
 		$id_empleado = crm_id_empleado_sesion();
@@ -3739,22 +4192,14 @@ function crm_aviso_tarea_marcar_leido_por_tarea($id_tarea, $id_empleado = 0)
 	{
 		if($emp > 0)
 		{
-			@mysqli_query($con, "UPDATE aviso SET confirmado=1 WHERE id_tarea=$id AND (id_empleado_para=$emp OR id_empleado_para=0)");
-		}
-		else
-		{
-			@mysqli_query($con, "UPDATE aviso SET confirmado=1 WHERE id_tarea=$id");
+			@mysqli_query($con, "UPDATE aviso SET confirmado=1 WHERE id_tarea=$id AND id_empleado_para=$emp AND confirmado=0");
 		}
 		$chk_crm = @mysqli_query($con, "SHOW TABLES LIKE 'crm_aviso'");
 		if($chk_crm && @mysqli_num_rows($chk_crm) > 0)
 		{
 			if($emp > 0)
 			{
-				@mysqli_query($con, "UPDATE crm_aviso SET confirmado=1 WHERE id_tarea=$id AND (id_empleado_para=$emp OR id_empleado_para=0)");
-			}
-			else
-			{
-				@mysqli_query($con, "UPDATE crm_aviso SET confirmado=1 WHERE id_tarea=$id");
+				@mysqli_query($con, "UPDATE crm_aviso SET confirmado=1 WHERE id_tarea=$id AND id_empleado_para=$emp AND confirmado=0");
 			}
 		}
 	}
@@ -3762,39 +4207,25 @@ function crm_aviso_tarea_marcar_leido_por_tarea($id_tarea, $id_empleado = 0)
 	{
 		if($emp > 0)
 		{
-			acceso_ejecutar("UPDATE aviso SET confirmado=1 WHERE id_tarea=? AND (id_empleado_para=? OR id_empleado_para=0)", 'ii', array($id, $emp));
-		}
-		else
-		{
-			acceso_ejecutar("UPDATE aviso SET confirmado=1 WHERE id_tarea=?", 'i', array($id));
+			acceso_ejecutar("UPDATE aviso SET confirmado=1 WHERE id_tarea=? AND id_empleado_para=? AND confirmado=0", 'ii', array($id, $emp));
+			if(acceso_tabla_existe('crm_aviso'))
+			{
+				acceso_ejecutar("UPDATE crm_aviso SET confirmado=1 WHERE id_tarea=? AND id_empleado_para=? AND confirmado=0", 'ii', array($id, $emp));
+			}
 		}
 	}
 	if(function_exists('tareas_avisos_leer') && function_exists('tareas_avisos_guardar'))
 	{
-		$todos = tareas_avisos_leer();
-		$cambio = false;
-		if(is_array($todos))
+		$persona=isset($_SESSION['tareas_persona']) ? $_SESSION['tareas_persona'] : '';
+		if($persona!=='' && function_exists('tareas_avisos_mios') && function_exists('tareas_aviso_marcar_leido'))
 		{
-			foreach($todos as $persona => $lista)
+			foreach(tareas_avisos_mios() as $aviso)
 			{
-				if(!is_array($lista)) { continue; }
-				$nueva = array();
-				foreach($lista as $av)
+				if(isset($aviso['tarea_id']) && intval($aviso['tarea_id'])===$id
+					&& crm_notificacion_corresponde_area('tarea', $id, isset($aviso['area']) ? $aviso['area'].'/' : ''))
 				{
-					if(isset($av['tarea_id']) && intval($av['tarea_id']) === $id)
-					{
-						$cambio = true;
-					}
-					else
-					{
-						$nueva[] = $av;
-					}
+					tareas_aviso_marcar_leido(isset($aviso['id']) ? $aviso['id'] : '');
 				}
-				$todos[$persona] = $nueva;
-			}
-			if($cambio)
-			{
-				tareas_avisos_guardar($todos);
 			}
 		}
 	}
@@ -3803,44 +4234,64 @@ function crm_aviso_tarea_marcar_leido_por_tarea($id_tarea, $id_empleado = 0)
 function crm_notificaciones_marcar_todas()
 {
 	$yo=crm_id_empleado_sesion();
-	if($yo<=0)
+	$area=crm_notificacion_area_activa();
+	if($yo<=0 || $area==='')
 	{
 		return;
 	}
+	crm_notificaciones_reconciliar_vistas_legacy($yo);
 	if(acceso_tabla_existe('aviso_atencion'))
 	{
-		acceso_ejecutar("UPDATE aviso_atencion SET confirmado=1 WHERE id_empleado_para=? AND confirmado=0", 'i', array($yo));
+		acceso_ejecutar('UPDATE aviso_atencion av INNER JOIN atencion at ON at.id_atencion=av.id_atencion INNER JOIN area a ON a.id_area=at.id_area SET av.confirmado=1 WHERE av.id_empleado_para=? AND av.confirmado=0 AND a.clave=?', 'is', array($yo, $area));
 	}
 	if(acceso_tabla_existe('aviso'))
 	{
-		acceso_ejecutar("UPDATE aviso SET confirmado=1 WHERE id_empleado_para=? AND confirmado=0", 'i', array($yo));
+		acceso_ejecutar('UPDATE aviso av INNER JOIN tarea t ON t.id_tarea=av.id_tarea INNER JOIN area a ON a.id_area=t.id_area SET av.confirmado=1 WHERE av.id_empleado_para=? AND av.confirmado=0 AND a.clave=?', 'is', array($yo, $area));
 	}
 	if(acceso_tabla_existe('crm_aviso'))
 	{
-		acceso_ejecutar("UPDATE crm_aviso SET confirmado=1 WHERE id_empleado_para=? AND confirmado=0", 'i', array($yo));
-	}
-	// Avisos viejos en JSON de sesión: vaciar bandeja del usuario actual.
-	if(function_exists('tareas_avisos_leer') && function_exists('tareas_avisos_guardar'))
-	{
-		$yo_nom=isset($_SESSION['tareas_persona']) ? trim($_SESSION['tareas_persona']) : '';
-		if($yo_nom=='' && function_exists('acceso_nombre'))
+		$ids=array();
+		$rows=acceso_consulta('SELECT id, id_tarea, tipo, url FROM crm_aviso WHERE id_empleado_para=? AND confirmado=0', 'i', array($yo));
+		foreach($rows as $row)
 		{
-			$yo_nom=trim(acceso_nombre());
+			if(crm_notificacion_corresponde_area($row['tipo'], intval($row['id_tarea']), $row['url'])) { $ids[]=intval($row['id']); }
 		}
-		if($yo_nom!='')
+		if(count($ids)>0)
 		{
-			$todos=tareas_avisos_leer();
-			if(!is_array($todos))
+			acceso_ejecutar('UPDATE crm_aviso SET confirmado=1 WHERE id_empleado_para=? AND confirmado=0 AND id IN ('.implode(',', $ids).')', 'i', array($yo));
+		}
+	}
+	// Older file-backed task notices have no DB row; acknowledge only the current
+	// employee's entries for the selected area through the existing handler.
+	if(function_exists('tareas_avisos_mios') && function_exists('tareas_aviso_marcar_leido'))
+	{
+		foreach(tareas_avisos_mios() as $av)
+		{
+			$id_tarea=isset($av['tarea_id']) ? intval($av['tarea_id']) : 0;
+			$area_aviso=isset($av['area']) ? strtolower(trim((string)$av['area'])) : '';
+			if($id_tarea>0 && crm_notificacion_corresponde_area('tarea', $id_tarea, $area_aviso!=='' ? $area_aviso.'/' : ''))
 			{
-				$todos=array();
+				tareas_aviso_marcar_leido(isset($av['id']) ? $av['id'] : '');
 			}
-			$todos[$yo_nom]=array();
-			tareas_avisos_guardar($todos);
 		}
 	}
-	if(function_exists('crm_notificacion_vistas_limpiar'))
+}
+
+function crm_notificacion_vistas_quitar($token, $id_emp=0)
+{
+	$id_emp=$id_emp>0 ? intval($id_emp) : crm_id_empleado_sesion();
+	$token=trim((string)$token);
+	if($id_emp<=0 || $token==='' || !crm_notificacion_token_en_area($token, $id_emp)) { return; }
+	$key=(string)$id_emp;
+	$vistas=crm_notificaciones_vistas_cargar($id_emp);
+	if(!isset($vistas[$token])) { return; }
+	unset($vistas[$token]);
+	$_SESSION['crm_notif_vistas'][$key]=$vistas;
+	$disco=crm_notificaciones_vistas_leer_disco();
+	if(isset($disco[$key][$token]))
 	{
-		crm_notificacion_vistas_limpiar($yo);
+		unset($disco[$key][$token]);
+		crm_notificaciones_vistas_guardar_disco($disco);
 	}
 }
 
@@ -3874,12 +4325,22 @@ function crm_notificaciones_procesar()
 	{
 		return;
 	}
-	if(isset($_GET['notif_vista']) && trim($_GET['notif_vista'])!=='')
+	if(isset($_GET['notif_vista']) && trim($_GET['notif_vista'])!==''
+		&& function_exists('crm_tarea_extra_csrf_valido')
+		&& crm_tarea_extra_csrf_valido(isset($_GET['notif_csrf']) ? $_GET['notif_csrf'] : ''))
 	{
 		if(function_exists('crm_notificacion_marcar_vista'))
 		{
 			crm_notificacion_marcar_vista($_GET['notif_vista']);
 		}
+	}
+	$acciones_post=array('cerrar_aviso_atencion','cerrar_aviso','cerrar_crm_aviso','notif_marcar_todas');
+	$hay_accion_post=false;
+	foreach($acciones_post as $accion_post) { if(isset($_POST[$accion_post])) { $hay_accion_post=true; break; } }
+	if($hay_accion_post && (!function_exists('crm_tarea_extra_csrf_valido') || !crm_tarea_extra_csrf_valido(isset($_POST['csrf_tarea_extra']) ? $_POST['csrf_tarea_extra'] : '')))
+	{
+		http_response_code(403);
+		exit('La sesión del formulario venció. Volvé a cargar la página e intentá de nuevo.');
 	}
 	$hubo=false;
 	if(isset($_POST['cerrar_aviso_atencion']))
@@ -3925,27 +4386,31 @@ function crm_notificaciones_procesar()
 function crm_notificaciones_historial($limite=150)
 {
 	$yo=crm_id_empleado_sesion();
+	$area_activa=crm_notificacion_area_activa();
 	$salida=array();
-	if($yo<=0)
+	if($yo<=0 || $area_activa==='')
 	{
 		return $salida;
 	}
+	crm_notificaciones_reconciliar_vistas_legacy($yo);
 	if(acceso_tabla_existe('crm_aviso'))
 	{
 		foreach(acceso_consulta(
 			"SELECT id, id_tarea, tipo, titulo, detalle, url, confirmado, fecha FROM crm_aviso
-			WHERE id_empleado_para=? ORDER BY fecha DESC LIMIT ".intval($limite),
+			WHERE id_empleado_para=? ORDER BY fecha DESC",
 			'i',
 			array($yo)
 		) as $r)
 		{
 			$id_tar=isset($r['id_tarea']) ? intval($r['id_tarea']) : 0;
+			if(!crm_notificacion_corresponde_area($r['tipo'], $id_tar, $r['url'])) { continue; }
 			$url_res=crm_notificacion_resolver_url_accesible($r['url'], $id_tar);
 			$salida[]=array(
 				'etiqueta'=>crm_aviso_etiqueta_tipo($r['tipo']),
 				'titulo'=>$r['titulo'],
 				'detalle'=>(string)$r['detalle'],
 				'url'=>$url_res,
+				'url_abrir'=>crm_notificacion_url_abrir($url_res, 'crm_'.intval($r['id']), $id_tar),
 				'leida'=>intval($r['confirmado'])==1,
 				'fecha'=>$r['fecha']
 			);
@@ -3954,15 +4419,15 @@ function crm_notificaciones_historial($limite=150)
 	if(acceso_tabla_existe('aviso'))
 	{
 		foreach(acceso_consulta(
-			"SELECT av.confirmado, av.fecha_aviso, t.titulo, t.id_tarea, a.clave AS area,
+			"SELECT av.id_aviso, av.confirmado, av.fecha_aviso, t.titulo, t.id_tarea, a.clave AS area,
 				CONCAT(IFNULL(ed.nombres,''),' ',IFNULL(ed.apellido,'')) AS de
 			FROM aviso av
 			INNER JOIN tarea t ON t.id_tarea=av.id_tarea
 			INNER JOIN area a ON a.id_area=t.id_area
 			LEFT JOIN empleado ed ON ed.id_empleado=av.id_empleado_de
-			WHERE av.id_empleado_para=? ORDER BY av.fecha_aviso DESC LIMIT ".intval($limite),
-			'i',
-			array($yo)
+			WHERE av.id_empleado_para=? AND a.clave=? ORDER BY av.fecha_aviso DESC",
+			'is',
+			array($yo, $area_activa)
 		) as $r)
 		{
 			$de=trim($r['de']);
@@ -3971,23 +4436,49 @@ function crm_notificaciones_historial($limite=150)
 				'titulo'=>$r['titulo'],
 				'detalle'=>$de!='' ? $de.' te asignó esta tarea.' : 'Tarea asignada.',
 				'url'=>url_crm($r['area'].'/ver-tarea.php?id='.intval($r['id_tarea'])),
+				'url_abrir'=>crm_notificacion_url_abrir(url_crm($r['area'].'/ver-tarea.php?id='.intval($r['id_tarea'])), 'tarea_'.intval($r['id_aviso']), intval($r['id_tarea'])),
 				'leida'=>intval($r['confirmado'])==1,
 				'fecha'=>$r['fecha_aviso']
+			);
+		}
+	}
+	if(function_exists('tareas_avisos_historial_mios'))
+	{
+		foreach(tareas_avisos_historial_mios() as $av)
+		{
+			$id_tarea=isset($av['tarea_id']) ? intval($av['tarea_id']) : 0;
+			$area_aviso=isset($av['area']) ? strtolower(trim((string)$av['area'])) : '';
+			if($id_tarea<=0 || !crm_notificacion_corresponde_area('tarea', $id_tarea, $area_aviso!=='' ? $area_aviso.'/' : '')) { continue; }
+			if(crm_notificacion_legacy_tarea_duplicada($av, $yo)) { continue; }
+			$url=function_exists('tareas_aviso_url') ? tareas_aviso_url($av) : url_crm($area_aviso.'/ver-tarea.php?id='.$id_tarea);
+			$cuando=isset($av['cuando']) ? trim((string)$av['cuando']) : '';
+			$fecha_obj=$cuando!=='' ? DateTime::createFromFormat('d/m/Y H:i', $cuando) : false;
+			$fecha=$fecha_obj ? $fecha_obj->format('Y-m-d H:i:s') : date('Y-m-d H:i:s');
+			$de=isset($av['de']) ? trim((string)$av['de']) : '';
+			$token=isset($av['id']) ? (string)$av['id'] : '';
+			$salida[]=array(
+				'etiqueta'=>'Tarea',
+				'titulo'=>isset($av['titulo']) ? $av['titulo'] : 'Tarea',
+				'detalle'=>$de!=='' ? $de.' te dejó una tarea nueva.' : 'Tenés una tarea nueva asignada.',
+				'url'=>$url,
+				'url_abrir'=>crm_notificacion_url_abrir($url, 'tarea_'.$token, $id_tarea),
+				'leida'=>!empty($av['leido']),
+				'fecha'=>$fecha
 			);
 		}
 	}
 	if(acceso_tabla_existe('aviso_atencion'))
 	{
 		foreach(acceso_consulta(
-			"SELECT av.confirmado, av.fecha_aviso, at.id_atencion, at.estado, c.nombre AS cliente_nombre, a.clave AS area_clave, a.nombre AS area_nombre,
+			"SELECT av.id_aviso, av.confirmado, av.fecha_aviso, at.id_atencion, at.estado, c.nombre AS cliente_nombre, a.clave AS area_clave, a.nombre AS area_nombre,
 				COALESCE(at.fecha_turno, at.fecha) AS fecha_turno
 			FROM aviso_atencion av
 			INNER JOIN atencion at ON at.id_atencion=av.id_atencion
 			INNER JOIN cliente c ON c.id_cliente=at.id_cliente
 			INNER JOIN area a ON a.id_area=at.id_area
-			WHERE av.id_empleado_para=? ORDER BY av.fecha_aviso DESC LIMIT ".intval($limite),
-			'i',
-			array($yo)
+			WHERE av.id_empleado_para=? AND a.clave=? ORDER BY av.fecha_aviso DESC",
+			'is',
+			array($yo, $area_activa)
 		) as $r)
 		{
 			$salida[]=array(
@@ -3995,13 +4486,14 @@ function crm_notificaciones_historial($limite=150)
 				'titulo'=>'Turno · '.$r['cliente_nombre'],
 				'detalle'=>crm_turno_fecha_texto($r['fecha_turno']).' · '.$r['area_nombre'].' · '.crm_estado_texto($r['estado']),
 				'url'=>url_crm($r['area_clave'].'/atencion.php?id='.intval($r['id_atencion'])),
+				'url_abrir'=>crm_notificacion_url_abrir(url_crm($r['area_clave'].'/atencion.php?id='.intval($r['id_atencion'])), 'turno_'.intval($r['id_aviso'])),
 				'leida'=>intval($r['confirmado'])==1,
 				'fecha'=>$r['fecha_aviso']
 			);
 		}
 	}
 	usort($salida, function($a, $b) { return strcmp((string)$b['fecha'], (string)$a['fecha']); });
-	return array_slice($salida, 0, $limite);
+	return array_slice($salida, 0, max(1, intval($limite)));
 }
 
 function crm_objetivo_guardar_multi($nombre, $areas_claves)

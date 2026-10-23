@@ -87,6 +87,177 @@ function crm_aviso_enviar($id_para, $titulo, $detalle, $url='', $id_tarea=0, $ti
 	return @mysqli_query($con, $sql) ? true : false;
 }
 
+/** Create due business-follow-up notices through the existing CRM inbox. */
+function crm_empresa_seguimiento_notificaciones_generar()
+{
+	if(!acceso_tabla_existe('crm_aviso') || !acceso_tabla_existe('empresa_seguimiento'))
+	{
+		return;
+	}
+	$area=acceso_consulta_una("SELECT id_area FROM area WHERE clave='empresas' AND activo=1 AND puede_clientes=1 LIMIT 1");
+	if(!$area || intval($area['id_area'])<=0)
+	{
+		return;
+	}
+	$id_area_empresas=intval($area['id_area']);
+	$condicion_rol_adicional=acceso_tabla_existe('empleado_rol_adicional')
+		? " OR EXISTS (
+			SELECT 1 FROM empleado_rol_adicional x
+			INNER JOIN rol rx ON rx.id_rol=x.id_rol
+			INNER JOIN area ax ON ax.id_area=x.id_area
+			WHERE x.id_empleado=e.id_empleado AND x.id_area=? AND x.fecha_hasta IS NULL
+			AND rx.clave='coordinador' AND ax.clave='empresas' AND ax.activo=1
+		)"
+		: '';
+	$parametros_destinatarios=array($id_area_empresas);
+	$tipos_destinatarios='i';
+	if($condicion_rol_adicional!=='')
+	{
+		$parametros_destinatarios[]=$id_area_empresas;
+		$tipos_destinatarios.='i';
+	}
+	$destinatarios=acceso_consulta(
+		"SELECT DISTINCT e.id_empleado
+		 FROM empleado e INNER JOIN rol r ON r.id_rol=e.id_rol
+		 WHERE e.activo=1 AND ((e.id_area=? AND r.clave='coordinador')".$condicion_rol_adicional.")",
+		$tipos_destinatarios,
+		$parametros_destinatarios
+	);
+	if(!$destinatarios)
+	{
+		return;
+	}
+	$seguimientos=acceso_consulta(
+		"SELECT s.id_seguimiento, s.id_cliente, s.tipo_seguimiento, s.fecha_prevista, s.motivo, c.nombre AS empresa_nombre
+		 FROM empresa_seguimiento s
+		 INNER JOIN cliente c ON c.id_cliente=s.id_cliente AND c.tipo_cliente='empresa'
+		 WHERE s.estado='pendiente' AND s.fecha_realizacion IS NULL AND s.fecha_prevista<=?
+		 ORDER BY s.fecha_prevista ASC, s.id_seguimiento ASC",
+		's',
+		array(date('Y-m-d'))
+	);
+	foreach($destinatarios as $destinatario)
+	{
+		$id_para=intval($destinatario['id_empleado']);
+		if($id_para<=0) { continue; }
+		foreach($seguimientos as $seguimiento)
+		{
+			$id_seguimiento=intval($seguimiento['id_seguimiento']);
+			$id_cliente=intval($seguimiento['id_cliente']);
+			$fecha_prevista=(string)$seguimiento['fecha_prevista'];
+			$url=url_crm('empresas/seguimientos.php?seguimiento_id='.$id_seguimiento.'&fecha_prevista='.rawurlencode($fecha_prevista));
+			$lock_name='crm_emp_seg_'.$id_para.'_'.$id_seguimiento;
+			$lock=acceso_consulta_una('SELECT GET_LOCK(?,2) AS adquirido', 's', array($lock_name));
+			if(!$lock || intval($lock['adquirido'])!==1) { continue; }
+			$es_manual=$seguimiento['tipo_seguimiento']==='manual';
+			$hito=$es_manual ? 'Manual' : ($seguimiento['tipo_seguimiento']==='3_meses' ? '3 meses' : '6 meses');
+			$nombre_empresa=trim((string)$seguimiento['empresa_nombre']);
+			$motivo=trim((string)$seguimiento['motivo']);
+			$fecha_formateada=date('d/m/Y', strtotime($fecha_prevista));
+			if($fecha_prevista===date('Y-m-d'))
+			{
+				$titulo=$es_manual ? 'Hoy corresponde realizar el seguimiento manual de '.$nombre_empresa : 'Hoy corresponde realizar el seguimiento de '.$hito.' de '.$nombre_empresa;
+				$detalle='Fecha prevista: '.$fecha_formateada.($es_manual && $motivo!=='' ? ' · Motivo: '.$motivo : '');
+			}
+			else
+			{
+				$titulo='Seguimiento empresarial vencido';
+				$detalle='Pendiente desde '.$fecha_formateada.' · '.$nombre_empresa.' · '.($es_manual ? 'Seguimiento manual' : 'Hito de '.$hito).($es_manual && $motivo!=='' ? ' · Motivo: '.$motivo : '');
+			}
+			$posibles_existentes=acceso_consulta(
+				"SELECT id, url FROM crm_aviso
+				 WHERE id_empleado_para=? AND tipo='empresa_seguimiento'
+				 AND url LIKE CONCAT('%seguimiento_id=',?,'%')",
+				'ii',
+				array($id_para, $id_seguimiento)
+			);
+			$existente=null;
+			foreach($posibles_existentes as $aviso_existente)
+			{
+				$partes_url_existente=parse_url(isset($aviso_existente['url']) ? (string)$aviso_existente['url'] : '');
+				$parametros_url_existente=array();
+				if(isset($partes_url_existente['query'])) { parse_str($partes_url_existente['query'], $parametros_url_existente); }
+				if(isset($parametros_url_existente['seguimiento_id'], $parametros_url_existente['fecha_prevista'])
+					&& intval($parametros_url_existente['seguimiento_id'])===$id_seguimiento
+					&& (string)$parametros_url_existente['fecha_prevista']===$fecha_prevista)
+				{
+					$existente=$aviso_existente;
+					break;
+				}
+			}
+			if($existente)
+			{
+				// Actualiza destino y texto sin cambiar leído/no leído ni crear otro aviso.
+				acceso_ejecutar(
+					"UPDATE crm_aviso SET titulo=?, detalle=?, url=? WHERE id=? AND id_empleado_para=?",
+					'sssii',
+					array($titulo, $detalle, $url, intval($existente['id']), $id_para)
+				);
+			}
+			else
+			{
+				acceso_insertar(
+					"INSERT INTO crm_aviso (id_empleado_para, id_empleado_de, id_tarea, tipo, titulo, detalle, url) VALUES (?,NULL,NULL,?,?,?,?)",
+					'issss',
+					array($id_para, 'empresa_seguimiento', $titulo, $detalle, $url)
+				);
+			}
+			acceso_consulta_una('SELECT RELEASE_LOCK(?) AS liberado', 's', array($lock_name));
+		}
+	}
+}
+
+function crm_empresa_seguimiento_notificacion_autorizada($id_empleado, $id_seguimiento, $fecha_prevista_notificada)
+{
+	$id_empleado=intval($id_empleado);
+	$id_seguimiento=intval($id_seguimiento);
+	$fecha_prevista_notificada=trim((string)$fecha_prevista_notificada);
+	if($id_empleado<=0 || $id_seguimiento<=0
+		|| !preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha_prevista_notificada)
+		|| !isset($_SESSION['rol_area']) || $_SESSION['rol_area']!=='coordinador'
+		|| !function_exists('crm_es_staff') || !crm_es_staff()
+		|| !function_exists('acceso_puede_clientes_de_area') || !acceso_puede_clientes_de_area('empresas'))
+	{
+		return false;
+	}
+	$condicion_rol_adicional=acceso_tabla_existe('empleado_rol_adicional')
+		? " OR EXISTS (
+			SELECT 1 FROM empleado_rol_adicional x
+			INNER JOIN rol rx ON rx.id_rol=x.id_rol
+			INNER JOIN area ax ON ax.id_area=x.id_area
+			WHERE x.id_empleado=e.id_empleado AND x.fecha_hasta IS NULL
+			AND rx.clave='coordinador' AND ax.clave='empresas' AND ax.activo=1
+		)"
+		: '';
+	if(!acceso_consulta_una(
+		"SELECT e.id_empleado FROM empleado e
+		 LEFT JOIN rol r ON r.id_rol=e.id_rol
+		 LEFT JOIN area a ON a.id_area=e.id_area
+		 WHERE e.id_empleado=? AND e.activo=1
+		 AND ((r.clave='coordinador' AND a.clave='empresas' AND a.activo=1)".$condicion_rol_adicional.")
+		 LIMIT 1",
+		'i',
+		array($id_empleado)
+	))
+	{
+		return false;
+	}
+	$fila=acceso_consulta_una(
+		"SELECT s.id_cliente, s.estado, s.fecha_prevista, s.fecha_realizacion
+		 FROM empresa_seguimiento s
+		 INNER JOIN cliente c ON c.id_cliente=s.id_cliente AND c.tipo_cliente='empresa'
+		 WHERE s.id_seguimiento=? LIMIT 1",
+		'i',
+		array($id_seguimiento)
+	);
+	if(!$fila || $fila['estado']!=='pendiente' || !empty($fila['fecha_realizacion'])
+		|| $fila['fecha_prevista']!==$fecha_prevista_notificada || $fila['fecha_prevista']>date('Y-m-d'))
+	{
+		return false;
+	}
+	return function_exists('crm_cliente_puede_ver') && crm_cliente_puede_ver(intval($fila['id_cliente']), 'empresas');
+}
+
 function crm_aviso_etiqueta_tipo($tipo)
 {
 	$map=array(
@@ -95,6 +266,7 @@ function crm_aviso_etiqueta_tipo($tipo)
 		'vencimiento'=>'Vencida',
 		'baja'=>'Eliminar',
 		'actividad'=>'Actividad',
+		'empresa_seguimiento'=>'Seguimiento',
 		'dominio'=>'Dominio',
 		'tarea'=>'Tarea',
 		'info'=>'Aviso'
@@ -106,14 +278,16 @@ function crm_aviso_etiqueta_tipo($tipo)
 function crm_avisos_extra_mios()
 {
 	$yo=crm_id_empleado_sesion();
-	if($yo<=0 || !acceso_tabla_existe('crm_aviso'))
+	$area_activa=function_exists('crm_notificacion_area_activa') ? crm_notificacion_area_activa() : '';
+	if($yo<=0 || $area_activa==='' || !acceso_tabla_existe('crm_aviso'))
 	{
 		return array();
 	}
+	crm_empresa_seguimiento_notificaciones_generar();
 	$rows=acceso_consulta(
 		"SELECT id, id_tarea, tipo, titulo, detalle, url, fecha FROM crm_aviso
 		WHERE id_empleado_para=? AND confirmado=0
-		ORDER BY fecha DESC LIMIT 40",
+		ORDER BY fecha DESC",
 		'i',
 		array($yo)
 	);
@@ -121,6 +295,13 @@ function crm_avisos_extra_mios()
 	$dominios_notificacion_vistos=array();
 	foreach($rows as $r)
 	{
+		$url_original=isset($r['url']) ? (string)$r['url'] : '';
+		$tipo_av=isset($r['tipo']) ? trim($r['tipo']) : 'info';
+		if(function_exists('crm_notificacion_corresponde_area')
+			&& !crm_notificacion_corresponde_area($tipo_av, intval($r['id_tarea']), $url_original))
+		{
+			continue;
+		}
 		$url=isset($r['url']) && $r['url']!='' ? $r['url'] : '';
 		if($url!='')
 		{
@@ -140,7 +321,26 @@ function crm_avisos_extra_mios()
 			$url=crm_notificacion_resolver_url_accesible($url, intval($r['id_tarea']));
 		}
 		$id_entidad=intval($r['id_tarea']);
-		$tipo_av=isset($r['tipo']) ? trim($r['tipo']) : 'info';
+		$accion_etiqueta='';
+		if($tipo_av==='empresa_seguimiento')
+		{
+			$id_seguimiento=0;
+			$fecha_prevista_notificada='';
+			$partes_seguimiento=parse_url(isset($r['url']) ? (string)$r['url'] : '');
+			if(isset($partes_seguimiento['query']))
+			{
+				parse_str($partes_seguimiento['query'], $parametros_seguimiento);
+				$id_seguimiento=isset($parametros_seguimiento['seguimiento_id']) ? intval($parametros_seguimiento['seguimiento_id']) : 0;
+				$fecha_prevista_notificada=isset($parametros_seguimiento['fecha_prevista']) ? (string)$parametros_seguimiento['fecha_prevista'] : '';
+			}
+			if(!crm_empresa_seguimiento_notificacion_autorizada($yo, $id_seguimiento, $fecha_prevista_notificada))
+			{
+				acceso_ejecutar('UPDATE crm_aviso SET confirmado=1 WHERE id=? AND id_empleado_para=?', 'ii', array(intval($r['id']), $yo));
+				continue;
+			}
+			$id_entidad=$id_seguimiento;
+			$accion_etiqueta='Ver seguimiento';
+		}
 		$es_aviso_dominio=($tipo_av==='dominio');
 		if(!$es_aviso_dominio && isset($r['titulo']) && preg_match('/^Dominio (?:vencido|próximo a vencer)\s*[·-]/u', $r['titulo']))
 		{
@@ -268,7 +468,7 @@ function crm_avisos_extra_mios()
 			$area=acceso_area_pantalla();
 			$url=url_crm($area.'/ver-tarea.php?id='.intval($r['id_tarea']));
 		}
-		$salida[]=array(
+		$aviso=array(
 			'tipo'=>'crm',
 			'id'=>intval($r['id']),
 			'id_entidad'=>$id_entidad,
@@ -280,6 +480,8 @@ function crm_avisos_extra_mios()
 			'etiqueta'=>crm_aviso_etiqueta_tipo(isset($r['tipo']) ? $r['tipo'] : ''),
 			'fecha'=>isset($r['fecha']) ? $r['fecha'] : ''
 		);
+		if($accion_etiqueta!=='') { $aviso['accion_etiqueta']=$accion_etiqueta; }
+		$salida[]=$aviso;
 	}
 	return $salida;
 }
@@ -289,6 +491,12 @@ function crm_aviso_extra_ok($id)
 	$id=intval($id);
 	$yo=crm_id_empleado_sesion();
 	if($id<=0 || $yo<=0 || !acceso_tabla_existe('crm_aviso'))
+	{
+		return;
+	}
+	$fila=acceso_consulta_una("SELECT id_tarea, tipo, url FROM crm_aviso WHERE id=? AND id_empleado_para=? LIMIT 1", 'ii', array($id, $yo));
+	if(!$fila || !function_exists('crm_notificacion_corresponde_area')
+		|| !crm_notificacion_corresponde_area($fila['tipo'], intval($fila['id_tarea']), $fila['url']))
 	{
 		return;
 	}
@@ -327,6 +535,59 @@ function crm_tarea_fila($id_tarea)
 	);
 }
 
+/**
+ * Permite validar solicitudes de baja con la relación de responsables cargada
+ * desde tarea_responsable, sin ampliar la visibilidad por área.
+ */
+function crm_tarea_baja_fila_autorizada($id_tarea)
+{
+	$id=intval($id_tarea);
+	if($id<=0)
+	{
+		return null;
+	}
+	if(!function_exists('repo_tarea_por_id'))
+	{
+		$repositorio=__DIR__.'/tareas_repositorio.php';
+		if(!is_file($repositorio))
+		{
+			return null;
+		}
+		require_once $repositorio;
+	}
+	if(!function_exists('repo_tarea_por_id'))
+	{
+		return null;
+	}
+	$tarea=repo_tarea_por_id($id);
+	if(!$tarea || !function_exists('tarea_puede_ver') || !tarea_puede_ver($tarea))
+	{
+		return null;
+	}
+	return $tarea;
+}
+
+/** Los empleados deben figurar como asignados en la relación vigente de la tarea. */
+function crm_tarea_baja_empleado_asignado($id_tarea)
+{
+	if(!acceso_es_empleado())
+	{
+		return true;
+	}
+	$id_tarea=intval($id_tarea);
+	$id_empleado=crm_id_empleado_sesion();
+	if($id_tarea<=0 || $id_empleado<=0 || !acceso_tabla_existe('tarea_responsable'))
+	{
+		return false;
+	}
+	$fila=acceso_consulta_una(
+		"SELECT id_tarea FROM tarea_responsable WHERE id_tarea=? AND id_empleado=? LIMIT 1",
+		'ii',
+		array($id_tarea,$id_empleado)
+	);
+	return $fila!==null;
+}
+
 function crm_tarea_hijas($id_padre)
 {
 	$id=intval($id_padre);
@@ -361,7 +622,7 @@ function crm_tarea_puede_desglosar($tarea)
 		return false;
 	}
 	$fila=crm_tarea_fila($id);
-	if(!$fila || $fila['estado']=='cancelada' || $fila['estado']=='terminada')
+	if(!$fila || $fila['estado']=='cancelada' || (function_exists('tarea_estado_finalizada') && tarea_estado_finalizada($fila)))
 	{
 		return false;
 	}
@@ -397,7 +658,7 @@ function crm_tarea_crear_subtarea($id_padre, $titulo, $id_empleado_resp, $fecha_
 	$titulo=trim($titulo);
 	$id_emp=intval($id_empleado_resp);
 	$padre=crm_tarea_fila($id_padre);
-	if(!$padre || $padre['estado']=='cancelada' || $padre['estado']=='terminada')
+	if(!$padre || $padre['estado']=='cancelada' || (function_exists('tarea_estado_finalizada') && tarea_estado_finalizada($padre)))
 	{
 		return 'Esa tarea no admite subtareas nuevas porque se encuentra finalizada o eliminada.';
 	}
@@ -754,30 +1015,6 @@ function crm_tarea_notificar_edicion($id_tarea, $antes, $despues, $motivo='')
 		{
 			tareas_avisos_registrar($nuevos, $titulo, $id, $area, $despues);
 		}
-		foreach($nuevos as $nom)
-		{
-			if($yo_nom!='' && $nom===$yo_nom)
-			{
-				continue;
-			}
-			$id_para=crm_tarea_id_empleado_por_nombre($nom);
-			if($id_para<=0)
-			{
-				continue;
-			}
-			if(function_exists('repo_avisos_crear') && $de>0)
-			{
-				repo_avisos_crear($id, $de, $id_para);
-			}
-			crm_aviso_enviar(
-				$id_para,
-				'Te asignaron una tarea',
-				'Te sumaron como responsable de “'.$titulo.'”.',
-				$url,
-				$id,
-				'cambio'
-			);
-		}
 	}
 
 	// 2) Otros cambios (fecha, título, etc.): avisar a responsables que siguen
@@ -876,8 +1113,251 @@ function crm_tarea_solicitud_activa($id_tarea)
 	);
 }
 
+/**
+ * Devuelve el pedido de cambio de fechas pendiente de una tarea.
+ * La tabla se agrega mediante una migración explícita; nunca se crea en el request.
+ */
+function crm_tarea_cambio_fecha_pendiente($id_tarea)
+{
+	if(!acceso_tabla_existe('tarea_solicitud_cambio_fecha')) { return null; }
+	return acceso_consulta_una(
+		"SELECT s.*, CONCAT(IFNULL(e.nombres,''),' ',IFNULL(e.apellido,'')) AS nombre_solicitante
+		FROM tarea_solicitud_cambio_fecha s LEFT JOIN empleado e ON e.id_empleado=s.id_solicita
+		WHERE s.id_tarea=? AND s.estado='pendiente' ORDER BY s.id DESC LIMIT 1",
+		'i', array(intval($id_tarea))
+	);
+}
+
+/** Devuelve el último pedido de cambio de fechas del usuario actual para la tarea. */
+function crm_tarea_cambio_fecha_mio($id_tarea)
+{
+	$yo=crm_id_empleado_sesion();
+	if($yo<=0 || !acceso_tabla_existe('tarea_solicitud_cambio_fecha')) { return null; }
+	return acceso_consulta_una(
+		"SELECT s.*, CONCAT(IFNULL(e.nombres,''),' ',IFNULL(e.apellido,'')) AS nombre_resuelve
+		FROM tarea_solicitud_cambio_fecha s LEFT JOIN empleado e ON e.id_empleado=s.id_resuelve
+		WHERE s.id_tarea=? AND s.id_solicita=? ORDER BY s.id DESC LIMIT 1",
+		'ii', array(intval($id_tarea), $yo)
+	);
+}
+
+function crm_tarea_fecha_iso_valida($fecha)
+{
+	$fecha=trim((string)$fecha);
+	if(!preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $fecha)) { return false; }
+	$partes=explode('-', $fecha);
+	return checkdate(intval($partes[1]), intval($partes[2]), intval($partes[0]));
+}
+
+/** Valida el rango sin rechazar una fecha pasada que permanece sin cambios. */
+function crm_tarea_cambio_fecha_validar_propuesta($inicio, $cierre, $inicio_original, $cierre_original)
+{
+	$inicio=trim((string)$inicio);
+	$cierre=trim((string)$cierre);
+	$inicio_original=trim((string)$inicio_original);
+	$cierre_original=trim((string)$cierre_original);
+	if(!crm_tarea_fecha_iso_valida($inicio) || !crm_tarea_fecha_iso_valida($cierre))
+	{
+		return 'Ingresá fechas válidas para inicio y vencimiento.';
+	}
+	if($cierre<$inicio) { return 'La fecha de vencimiento no puede ser anterior a la fecha de inicio.'; }
+	$hoy=date('Y-m-d');
+	if($inicio!==$inicio_original && $inicio<$hoy)
+	{
+		return 'La nueva fecha de inicio no puede ser anterior a la fecha actual.';
+	}
+	if($cierre!==$cierre_original && $cierre<$hoy)
+	{
+		return 'La nueva fecha de vencimiento no puede ser anterior a la fecha actual.';
+	}
+	return '';
+}
+
+/** Solo un empleado asignado a la tarea puede pedir el cambio de fechas. */
+function crm_tarea_puede_solicitar_cambio_fecha($tarea)
+{
+	if(!is_array($tarea) || !acceso_es_empleado() || !function_exists('tarea_puede_ver') || !tarea_puede_ver($tarea)
+		|| !function_exists('tarea_es_responsable') || !tarea_es_responsable($tarea)
+		|| (function_exists('tarea_esta_eliminada') && tarea_esta_eliminada($tarea)))
+	{
+		return false;
+	}
+	return acceso_tabla_existe('tarea_solicitud_cambio_fecha');
+}
+
+function crm_tarea_puede_resolver_cambio_fecha($tarea, $solicitud)
+{
+	if(!is_array($tarea) || !is_array($solicitud) || $solicitud['estado']!=='pendiente'
+		|| intval($solicitud['id_solicita'])===crm_id_empleado_sesion()
+		|| !function_exists('tarea_puede_ver') || !tarea_puede_ver($tarea))
+	{
+		return false;
+	}
+	if(acceso_es_super() || acceso_es_coord_general()) { return true; }
+	$area=isset($tarea['area_clave']) ? trim((string)$tarea['area_clave']) : '';
+	return $area!=='' && function_exists('acceso_es_coord_de_area') && acceso_es_coord_de_area($area);
+}
+
+function crm_tarea_solicitar_cambio_fecha($id_tarea, $fecha_inicio, $fecha_cierre, $motivo)
+{
+	global $con;
+	$id=intval($id_tarea);
+	$yo=crm_id_empleado_sesion();
+	$fecha_inicio=trim((string)$fecha_inicio);
+	$fecha_cierre=trim((string)$fecha_cierre);
+	$motivo=trim((string)$motivo);
+	if($id<=0 || $yo<=0) { return 'No se pudo identificar la tarea o la sesión.'; }
+	if(!acceso_tabla_existe('tarea_solicitud_cambio_fecha')) { return 'El flujo todavía no está habilitado: falta aplicar la migración de solicitudes de cambio de fecha.'; }
+	if(!$con || !@mysqli_begin_transaction($con)) { return 'No se pudo iniciar la solicitud.'; }
+	$bloqueo=acceso_consulta_una("SELECT id_tarea FROM tarea WHERE id_tarea=? FOR UPDATE", 'i', array($id));
+	$fila=$bloqueo ? crm_tarea_fila($id) : null;
+	if(!$fila || !crm_tarea_puede_solicitar_cambio_fecha($fila))
+	{
+		@mysqli_rollback($con);
+		return 'Solo podés solicitar cambios para una tarea asignada a vos y autorizada para tu consulta.';
+	}
+	$inicio_actual=substr((string)$fila['fecha_inicio'], 0, 10);
+	$cierre_actual=substr((string)$fila['fecha_cierre'], 0, 10);
+	if($fecha_inicio===$inicio_actual && $fecha_cierre===$cierre_actual)
+	{
+		@mysqli_rollback($con);
+		return 'Modificá al menos una de las fechas para enviar la solicitud.';
+	}
+	if($motivo==='')
+	{
+		@mysqli_rollback($con);
+		return 'El motivo es obligatorio.';
+	}
+	if(strlen($motivo)>5000)
+	{
+		@mysqli_rollback($con);
+		return 'El motivo no puede superar los 5000 caracteres.';
+	}
+	$validacion=crm_tarea_cambio_fecha_validar_propuesta($fecha_inicio,$fecha_cierre,$inicio_actual,$cierre_actual);
+	if($validacion!=='')
+	{
+		@mysqli_rollback($con);
+		return $validacion;
+	}
+	if(crm_tarea_cambio_fecha_pendiente($id))
+	{
+		@mysqli_rollback($con);
+		return 'Ya existe una solicitud de cambio de fecha pendiente para esta tarea.';
+	}
+	$sol_activa=crm_tarea_solicitud_activa($id);
+	if($sol_activa)
+	{
+		@mysqli_rollback($con);
+		return 'La tarea tiene otro pedido pendiente. Esperá a que se resuelva antes de solicitar un cambio de fecha.';
+	}
+	$id_solicitud=acceso_insertar(
+		"INSERT INTO tarea_solicitud_cambio_fecha (id_tarea,id_solicita,fecha_inicio_original,fecha_cierre_original,fecha_inicio_propuesta,fecha_cierre_propuesta,motivo,estado) VALUES (?,?,?,?,?,?,?,'pendiente')",
+		'iisssss', array($id,$yo,$inicio_actual,$cierre_actual,$fecha_inicio,$fecha_cierre,$motivo)
+	);
+	if($id_solicitud<=0 || !@mysqli_commit($con))
+	{
+		@mysqli_rollback($con);
+		return 'No se pudo registrar la solicitud.';
+	}
+	$url=url_crm($fila['area_clave'].'/ver-tarea.php?id='.$id);
+	$coord=crm_empleado_coord_area(intval($fila['id_area']));
+	if($coord && intval($coord['id_empleado'])!==$yo)
+	{
+		crm_aviso_enviar(intval($coord['id_empleado']), 'Solicitud de cambio de fecha', 'Solicitan cambiar las fechas de “'.$fila['titulo'].'”. Motivo: '.$motivo, $url, $id, 'cambio');
+	}
+	else
+	{
+		$general=crm_id_coord_general_empleado();
+		if($general>0 && $general!==$yo)
+		{
+			crm_aviso_enviar($general, 'Solicitud de cambio de fecha', 'Solicitan cambiar las fechas de “'.$fila['titulo'].'”. Motivo: '.$motivo, $url, $id, 'cambio');
+		}
+	}
+	return '';
+}
+
+function crm_tarea_cambio_fecha_decidir($id_solicitud, $id_tarea_contexto, $aprobar, $motivo_rechazo='')
+{
+	global $con;
+	$id_s=intval($id_solicitud);
+	$id_contexto=intval($id_tarea_contexto);
+	$yo=crm_id_empleado_sesion();
+	$motivo_rechazo=trim((string)$motivo_rechazo);
+	$sol_inicial=($id_s>0 && acceso_tabla_existe('tarea_solicitud_cambio_fecha'))
+		? acceso_consulta_una("SELECT id_tarea FROM tarea_solicitud_cambio_fecha WHERE id=? LIMIT 1", 'i', array($id_s)) : null;
+	if(!$sol_inicial || $yo<=0 || intval($sol_inicial['id_tarea'])!==$id_contexto)
+	{
+		return 'Solicitud no encontrada para esta tarea.';
+	}
+	if(!$con || !@mysqli_begin_transaction($con)) { return 'No se pudo iniciar la revisión.'; }
+	$bloqueo=acceso_consulta_una("SELECT id_tarea FROM tarea WHERE id_tarea=? FOR UPDATE", 'i', array($id_contexto));
+	$sol=$bloqueo ? acceso_consulta_una("SELECT * FROM tarea_solicitud_cambio_fecha WHERE id=? FOR UPDATE", 'i', array($id_s)) : null;
+	$fila=$sol ? crm_tarea_fila($id_contexto) : null;
+	if(!$sol || !$fila || $sol['estado']!=='pendiente')
+	{
+		@mysqli_rollback($con);
+		return 'La solicitud ya fue resuelta o la tarea no está disponible.';
+	}
+	if(!crm_tarea_puede_resolver_cambio_fecha($fila,$sol))
+	{
+		@mysqli_rollback($con);
+		return intval($sol['id_solicita'])===$yo ? 'No podés aprobar ni rechazar tu propia solicitud.' : 'No tenés autorización para resolver solicitudes de esta área.';
+	}
+	if(!$aprobar && $motivo_rechazo==='')
+	{
+		@mysqli_rollback($con);
+		return 'Indicá el motivo del rechazo.';
+	}
+	if(strlen($motivo_rechazo)>5000)
+	{
+		@mysqli_rollback($con);
+		return 'El motivo de rechazo no puede superar los 5000 caracteres.';
+	}
+	$url=url_crm($fila['area_clave'].'/ver-tarea.php?id='.$id_contexto);
+	if($aprobar)
+	{
+		$actual_inicio=substr((string)$fila['fecha_inicio'],0,10);
+		$actual_cierre=substr((string)$fila['fecha_cierre'],0,10);
+		if($actual_inicio!==substr((string)$sol['fecha_inicio_original'],0,10) || $actual_cierre!==substr((string)$sol['fecha_cierre_original'],0,10))
+		{
+			@mysqli_rollback($con);
+			return 'Las fechas de la tarea cambiaron desde que se envió el pedido. Revisá el estado actual antes de resolverlo.';
+		}
+		$validacion=crm_tarea_cambio_fecha_validar_propuesta(
+			$sol['fecha_inicio_propuesta'],$sol['fecha_cierre_propuesta'],
+			$sol['fecha_inicio_original'],$sol['fecha_cierre_original']
+		);
+		if($validacion!=='')
+		{
+			@mysqli_rollback($con);
+			return $validacion!=='' ? $validacion : 'Las fechas propuestas no son válidas.';
+		}
+		$ok=acceso_ejecutar(
+			"UPDATE tarea SET fecha_inicio=?, fecha_cierre=? WHERE id_tarea=? AND fecha_inicio=? AND fecha_cierre=?",
+			'ssiss', array($sol['fecha_inicio_propuesta'],$sol['fecha_cierre_propuesta'],$id_contexto,$sol['fecha_inicio_original'],$sol['fecha_cierre_original'])
+		);
+		$ok=$ok && acceso_ejecutar("UPDATE tarea_solicitud_cambio_fecha SET estado='aprobada', id_resuelve=?, motivo_resolucion=NULL, fecha_resolucion=NOW() WHERE id=? AND estado='pendiente'", 'ii', array($yo,$id_s));
+		if(!$ok || !@mysqli_commit($con))
+		{
+			@mysqli_rollback($con);
+			return 'No se pudo aprobar la solicitud ni actualizar las fechas.';
+		}
+		crm_aviso_enviar(intval($sol['id_solicita']), 'Cambio de fecha aprobado', 'Se actualizaron las fechas de “'.$fila['titulo'].'”.', $url, $id_contexto, 'cambio');
+		return '';
+	}
+	$ok=acceso_ejecutar("UPDATE tarea_solicitud_cambio_fecha SET estado='rechazada', id_resuelve=?, motivo_resolucion=?, fecha_resolucion=NOW() WHERE id=? AND estado='pendiente'", 'isi', array($yo,$motivo_rechazo,$id_s));
+	if(!$ok || !@mysqli_commit($con))
+	{
+		@mysqli_rollback($con);
+		return 'No se pudo rechazar la solicitud.';
+	}
+	crm_aviso_enviar(intval($sol['id_solicita']), 'Cambio de fecha rechazado', '“'.$fila['titulo'].'” conserva sus fechas originales. Motivo: '.$motivo_rechazo, $url, $id_contexto, 'cambio');
+	return '';
+}
+
 function crm_tarea_solicitar_baja($id_tarea, $motivo)
 {
+	global $con;
 	crm_tareas_flujo_asegurar();
 	$id=intval($id_tarea);
 	$motivo=trim($motivo);
@@ -887,9 +1367,16 @@ function crm_tarea_solicitar_baja($id_tarea, $motivo)
 	{
 		return 'Esa tarea no se puede eliminar.';
 	}
-	if(!function_exists('tarea_puede_ver') || !tarea_puede_ver($fila))
+	if(function_exists('tarea_padre_finalizada') && tarea_padre_finalizada($fila))
 	{
-		return 'No tenés permisos para solicitar la eliminación de esta tarea.';
+		return 'No se puede eliminar una subtarea mientras su tarea principal esté finalizada. Primero debe reabrirla un coordinador autorizado.';
+	}
+	$permiso_inicial=crm_tarea_baja_fila_autorizada($id);
+	if(!$permiso_inicial || !crm_tarea_baja_empleado_asignado($id))
+	{
+		return acceso_es_empleado()
+			? 'Solo podés solicitar la eliminación de una tarea asignada a vos y visible en el área activa.'
+			: 'No tenés permisos para solicitar la eliminación de esta tarea.';
 	}
 	if($motivo==='')
 	{
@@ -899,16 +1386,44 @@ function crm_tarea_solicitar_baja($id_tarea, $motivo)
 	{
 		return 'Sesión inválida.';
 	}
+	if(!$con || !@mysqli_begin_transaction($con))
+	{
+		return 'No se pudo iniciar el pedido de eliminación.';
+	}
+	$bloqueo=acceso_consulta_una("SELECT id_tarea FROM tarea WHERE id_tarea=? FOR UPDATE", 'i', array($id));
+	if(!$bloqueo)
+	{
+		@mysqli_rollback($con);
+		return 'Esa tarea ya no está disponible para solicitar su eliminación.';
+	}
+	$fila=crm_tarea_fila($id);
+	$permiso_bloqueado=crm_tarea_baja_fila_autorizada($id);
+	$padre_finalizado=($fila && function_exists('tarea_padre_finalizada') && tarea_padre_finalizada($fila));
+	if(!$fila || $fila['estado']==='cancelada' || $padre_finalizado || !$permiso_bloqueado || !crm_tarea_baja_empleado_asignado($id))
+	{
+		@mysqli_rollback($con);
+		return $padre_finalizado
+			? 'No se puede solicitar la eliminación de una subtarea mientras su tarea principal esté finalizada.'
+			: (acceso_es_empleado()
+				? 'Solo podés solicitar la eliminación de una tarea asignada a vos y visible en el área activa.'
+				: 'No tenés permisos para solicitar la eliminación de esta tarea.');
+	}
 	if(crm_tarea_solicitud_activa($id))
 	{
+		@mysqli_rollback($con);
 		return 'Ya hay un pedido de eliminación en curso.';
 	}
 	$est=acceso_es_empleado() ? 'pendiente_coord' : 'pendiente_general';
-	acceso_insertar(
+	$id_solicitud=acceso_insertar(
 		"INSERT INTO tarea_solicitud_baja (id_tarea, id_solicita, motivo, estado) VALUES (?,?,?,?)",
 		'iiss',
 		array($id, $yo, $motivo, $est)
 	);
+	if($id_solicitud<=0 || !@mysqli_commit($con))
+	{
+		@mysqli_rollback($con);
+		return 'No se pudo registrar el pedido de eliminación.';
+	}
 	$url=url_crm($fila['area_clave'].'/ver-tarea.php?id='.$id);
 	if($est=='pendiente_coord')
 	{
@@ -931,87 +1446,148 @@ function crm_tarea_solicitar_baja($id_tarea, $motivo)
 
 function crm_tarea_baja_decidir($id_solicitud, $aceptar, $nota='')
 {
+	global $con;
 	crm_tareas_flujo_asegurar();
 	$id_s=intval($id_solicitud);
 	$yo=crm_id_empleado_sesion();
 	$nota=trim($nota);
-	$sol=acceso_consulta_una("SELECT * FROM tarea_solicitud_baja WHERE id=? LIMIT 1", 'i', array($id_s));
-	if(!$sol)
+	$sol_inicial=acceso_consulta_una("SELECT id_tarea FROM tarea_solicitud_baja WHERE id=? LIMIT 1", 'i', array($id_s));
+	if($id_s<=0 || !$sol_inicial || $yo<=0)
 	{
 		return 'Pedido no encontrado.';
 	}
-	$fila=crm_tarea_fila(intval($sol['id_tarea']));
-	if(!$fila)
+	if(!$con || !@mysqli_begin_transaction($con))
 	{
+		return 'No se pudo iniciar la revisión del pedido.';
+	}
+	$bloqueo=acceso_consulta_una("SELECT id_tarea FROM tarea WHERE id_tarea=? FOR UPDATE", 'i', array(intval($sol_inicial['id_tarea'])));
+	if(!$bloqueo)
+	{
+		@mysqli_rollback($con);
 		return 'La tarea ya no existe.';
 	}
-	$url=url_crm($fila['area_clave'].'/ver-tarea.php?id='.intval($fila['id_tarea']));
-
-	$es_final=(acceso_es_coord_general() || acceso_es_super());
-	if($sol['estado']=='pendiente_coord' && $es_final && $aceptar)
+	$sol=acceso_consulta_una("SELECT * FROM tarea_solicitud_baja WHERE id=? FOR UPDATE", 'i', array($id_s));
+	if(!$sol || intval($sol['id_tarea'])!==intval($sol_inicial['id_tarea']))
 	{
-		// El coordinador general no necesita pasar por el paso del área.
-		$sol['estado']='pendiente_general';
+		@mysqli_rollback($con);
+		return 'Pedido no encontrado.';
 	}
-	if($sol['estado']=='pendiente_coord')
+	$fila=crm_tarea_fila(intval($sol['id_tarea']));
+	if(!$fila || $fila['estado']==='cancelada')
+	{
+		@mysqli_rollback($con);
+		return 'La tarea ya no está disponible para resolver este pedido.';
+	}
+	if($aceptar && function_exists('tarea_padre_finalizada') && tarea_padre_finalizada($fila))
+	{
+		@mysqli_rollback($con);
+		return 'No se puede eliminar una subtarea mientras su tarea principal esté finalizada. Primero debe reabrirla un coordinador autorizado.';
+	}
+	if(intval($sol['id_solicita'])===$yo)
+	{
+		@mysqli_rollback($con);
+		return 'No podés aprobar ni rechazar tu propio pedido.';
+	}
+	$es_final=(acceso_es_coord_general() || acceso_es_super());
+	$estado=$sol['estado'];
+	if(!in_array($estado,array('pendiente_coord','pendiente_general'),true))
+	{
+		@mysqli_rollback($con);
+		return 'Ese pedido ya fue resuelto.';
+	}
+	if($estado==='pendiente_coord')
 	{
 		$area_tarea=isset($fila['area_clave']) ? $fila['area_clave'] : '';
-		if((!function_exists('acceso_es_coord_de_area') || !acceso_es_coord_de_area($area_tarea)) && !$es_final)
+		if(!$es_final && (!function_exists('acceso_es_coord_de_area') || !acceso_es_coord_de_area($area_tarea)))
 		{
-			return 'Solo el coordinador de área puede resolver esto.';
+			@mysqli_rollback($con);
+			return 'Solo el coordinador autorizado del área puede resolver esto.';
 		}
 		if(!$aceptar)
 		{
-			acceso_ejecutar(
-				"UPDATE tarea_solicitud_baja SET estado='rechazada', id_revisa_coord=?, nota_coord=?, fecha_resolucion=NOW() WHERE id=?",
-				'isi',
-				array($yo, $nota!='' ? $nota : 'Rechazado', $id_s)
-			);
-			crm_aviso_enviar(intval($sol['id_solicita']), 'No se eliminó la tarea', '“'.$fila['titulo'].'” sigue activa. '.($nota!='' ? $nota : ''), $url, intval($fila['id_tarea']), 'baja');
+			if($es_final)
+			{
+				$ok=acceso_ejecutar(
+					"UPDATE tarea_solicitud_baja SET estado='rechazada', id_revisa_general=?, nota_general=?, fecha_resolucion=NOW() WHERE id=? AND estado='pendiente_coord'",
+					'isi',
+					array($yo, $nota!=='' ? $nota : 'Rechazado', $id_s)
+				);
+			}
+			else
+			{
+				$ok=acceso_ejecutar(
+					"UPDATE tarea_solicitud_baja SET estado='rechazada', id_revisa_coord=?, nota_coord=?, fecha_resolucion=NOW() WHERE id=? AND estado='pendiente_coord'",
+					'isi',
+					array($yo, $nota!=='' ? $nota : 'Rechazado', $id_s)
+				);
+			}
+			if(!$ok || !@mysqli_commit($con))
+			{
+				@mysqli_rollback($con);
+				return 'No se pudo guardar la decisión.';
+			}
+			$url=url_crm($fila['area_clave'].'/ver-tarea.php?id='.intval($fila['id_tarea']));
+			crm_aviso_enviar(intval($sol['id_solicita']), 'No se eliminó la tarea', '“'.$fila['titulo'].'” sigue activa. '.($nota!=='' ? $nota : ''), $url, intval($fila['id_tarea']), 'baja');
 			return '';
 		}
-		acceso_ejecutar(
-			"UPDATE tarea_solicitud_baja SET estado='pendiente_general', id_revisa_coord=?, nota_coord=? WHERE id=?",
-			'isi',
-			array($yo, $nota!='' ? $nota : 'OK del área', $id_s)
-		);
-		$gen=crm_id_coord_general_empleado();
-		$det='El área aceptó eliminar “'.$fila['titulo'].'”. Falta tu OK.';
-		if($gen>0)
+		if($es_final)
 		{
-			crm_aviso_enviar($gen, 'Falta tu OK para eliminar', $det, $url, intval($fila['id_tarea']), 'baja');
+			$estado='pendiente_general';
 		}
-		return '';
+		else
+		{
+			$ok=acceso_ejecutar(
+				"UPDATE tarea_solicitud_baja SET estado='aceptada', id_revisa_coord=?, nota_coord=?, fecha_resolucion=NOW() WHERE id=? AND estado='pendiente_coord'",
+				'isi',
+				array($yo, $nota!=='' ? $nota : 'Aprobado por coordinación de área', $id_s)
+			);
+			$ok=$ok && acceso_ejecutar("UPDATE tarea SET estado='cancelada', avance=0 WHERE id_tarea=?", 'i', array(intval($fila['id_tarea'])));
+			$ok=$ok && acceso_ejecutar("UPDATE tarea SET estado='cancelada', avance=0 WHERE id_tarea_padre=?", 'i', array(intval($fila['id_tarea'])));
+			if(!$ok || !@mysqli_commit($con))
+			{
+				@mysqli_rollback($con);
+				return 'No se pudo aprobar el pedido de eliminación.';
+			}
+			$url=url_crm($fila['area_clave'].'/ver-tarea.php?id='.intval($fila['id_tarea']));
+			crm_aviso_enviar(intval($sol['id_solicita']), 'Listo: tarea eliminada', '“'.$fila['titulo'].'” quedó eliminada.', $url, intval($fila['id_tarea']), 'baja');
+			return '';
+		}
 	}
-
-	if($sol['estado']=='pendiente_general')
+	if($estado!=='pendiente_general' || !$es_final)
 	{
-		if(!$es_final)
-		{
-			return 'Solo el coordinador general puede dar el OK final.';
-		}
-		if(!$aceptar)
-		{
-			acceso_ejecutar(
-				"UPDATE tarea_solicitud_baja SET estado='rechazada', id_revisa_general=?, nota_general=?, fecha_resolucion=NOW() WHERE id=?",
-				'isi',
-				array($yo, $nota!='' ? $nota : 'Rechazado', $id_s)
-			);
-			crm_aviso_enviar(intval($sol['id_solicita']), 'No se eliminó la tarea', '“'.$fila['titulo'].'” sigue activa.', $url, intval($fila['id_tarea']), 'baja');
-			return '';
-		}
-		acceso_ejecutar(
-			"UPDATE tarea_solicitud_baja SET estado='aceptada', id_revisa_general=?, nota_general=?, fecha_resolucion=NOW() WHERE id=?",
+		@mysqli_rollback($con);
+		return 'Solo Coordinación General o Superadmin puede dar el OK final.';
+	}
+	$url=url_crm($fila['area_clave'].'/ver-tarea.php?id='.intval($fila['id_tarea']));
+	if(!$aceptar)
+	{
+		$ok=acceso_ejecutar(
+			"UPDATE tarea_solicitud_baja SET estado='rechazada', id_revisa_general=?, nota_general=?, fecha_resolucion=NOW() WHERE id=? AND estado IN ('pendiente_general','pendiente_coord')",
 			'isi',
-			array($yo, $nota!='' ? $nota : 'Eliminada', $id_s)
+			array($yo, $nota!=='' ? $nota : 'Rechazado', $id_s)
 		);
-		acceso_ejecutar("UPDATE tarea SET estado='cancelada', avance=0 WHERE id_tarea=?", 'i', array(intval($fila['id_tarea'])));
-		acceso_ejecutar("UPDATE tarea SET estado='cancelada', avance=0 WHERE id_tarea_padre=?", 'i', array(intval($fila['id_tarea'])));
-		$msg='“'.$fila['titulo'].'” quedó eliminada.';
-		crm_aviso_enviar(intval($sol['id_solicita']), 'Listo: tarea eliminada', $msg, $url, intval($fila['id_tarea']), 'baja');
+		if(!$ok || !@mysqli_commit($con))
+		{
+			@mysqli_rollback($con);
+			return 'No se pudo guardar la decisión.';
+		}
+		crm_aviso_enviar(intval($sol['id_solicita']), 'No se eliminó la tarea', '“'.$fila['titulo'].'” sigue activa. '.($nota!=='' ? $nota : ''), $url, intval($fila['id_tarea']), 'baja');
 		return '';
 	}
-	return 'Ese pedido ya fue resuelto.';
+	$ok=acceso_ejecutar(
+		"UPDATE tarea_solicitud_baja SET estado='aceptada', id_revisa_general=?, nota_general=?, fecha_resolucion=NOW() WHERE id=? AND estado IN ('pendiente_general','pendiente_coord')",
+		'isi',
+		array($yo, $nota!=='' ? $nota : 'Eliminada', $id_s)
+	);
+	$ok=$ok && acceso_ejecutar("UPDATE tarea SET estado='cancelada', avance=0 WHERE id_tarea=?", 'i', array(intval($fila['id_tarea'])));
+	$ok=$ok && acceso_ejecutar("UPDATE tarea SET estado='cancelada', avance=0 WHERE id_tarea_padre=?", 'i', array(intval($fila['id_tarea'])));
+	if(!$ok || !@mysqli_commit($con))
+	{
+		@mysqli_rollback($con);
+		return 'No se pudo cancelar la tarea.';
+	}
+	crm_aviso_enviar(intval($sol['id_solicita']), 'Listo: tarea eliminada', '“'.$fila['titulo'].'” quedó eliminada.', $url, intval($fila['id_tarea']), 'baja');
+	return '';
 }
 
 function crm_html_orden_tarea()
@@ -1397,8 +1973,52 @@ function crm_tarea_bajas_pendientes_mias()
  */
 function crm_tarea_procesar_post_flujo()
 {
+	if(isset($_POST['solicitar_cambio_fecha']) && isset($_POST['id_tarea']))
+	{
+		if(!function_exists('crm_tarea_extra_csrf_valido') || !crm_tarea_extra_csrf_valido(isset($_POST['csrf_tarea_extra']) ? $_POST['csrf_tarea_extra'] : ''))
+		{
+			$_SESSION['msgtarea']='La sesión expiró o el formulario no es válido. Actualizá la página e intentá nuevamente.';
+			return true;
+		}
+		$msg=crm_tarea_solicitar_cambio_fecha(
+			$_POST['id_tarea'],
+			isset($_POST['fecha_inicio_propuesta']) ? $_POST['fecha_inicio_propuesta'] : '',
+			isset($_POST['fecha_cierre_propuesta']) ? $_POST['fecha_cierre_propuesta'] : '',
+			isset($_POST['motivo_cambio_fecha']) ? $_POST['motivo_cambio_fecha'] : ''
+		);
+		$_SESSION['msgtarea']=$msg==='' ? 'La solicitud de cambio de fecha quedó pendiente de aprobación.' : $msg;
+		return true;
+	}
+	if(isset($_POST['decidir_cambio_fecha']) && isset($_POST['id_solicitud_cambio_fecha']) && isset($_POST['id_tarea']))
+	{
+		if(!function_exists('crm_tarea_extra_csrf_valido') || !crm_tarea_extra_csrf_valido(isset($_POST['csrf_tarea_extra']) ? $_POST['csrf_tarea_extra'] : ''))
+		{
+			$_SESSION['msgtarea']='La sesión expiró o el formulario no es válido. Actualizá la página e intentá nuevamente.';
+			return true;
+		}
+		$decision=isset($_POST['decision_cambio_fecha']) ? strval($_POST['decision_cambio_fecha']) : '';
+		if(!in_array($decision,array('aprobar','rechazar'),true))
+		{
+			$_SESSION['msgtarea']='La decisión indicada no es válida.';
+			return true;
+		}
+		$aprobar=($decision==='aprobar');
+		$msg=crm_tarea_cambio_fecha_decidir(
+			$_POST['id_solicitud_cambio_fecha'],
+			$_POST['id_tarea'],
+			$aprobar,
+			isset($_POST['motivo_rechazo_cambio_fecha']) ? $_POST['motivo_rechazo_cambio_fecha'] : ''
+		);
+		$_SESSION['msgtarea']=$msg==='' ? ($aprobar ? 'La solicitud fue aprobada y se actualizaron las fechas.' : 'La solicitud fue rechazada; las fechas originales se conservaron.') : $msg;
+		return true;
+	}
 	if(isset($_POST['cerrar_crm_aviso']))
 	{
+		if(!function_exists('crm_tarea_extra_csrf_valido') || !crm_tarea_extra_csrf_valido(isset($_POST['csrf_tarea_extra']) ? $_POST['csrf_tarea_extra'] : ''))
+		{
+			$_SESSION['msgtarea']='La sesión expiró o el formulario no es válido. Actualizá la página e intentá nuevamente.';
+			return true;
+		}
 		crm_aviso_extra_ok($_POST['cerrar_crm_aviso']);
 		return true;
 	}
@@ -1415,12 +2035,22 @@ function crm_tarea_procesar_post_flujo()
 	}
 	if(isset($_POST['pedir_baja_tarea']) && isset($_POST['id_tarea']))
 	{
+		if(!function_exists('crm_tarea_extra_csrf_valido') || !crm_tarea_extra_csrf_valido(isset($_POST['csrf_tarea_extra']) ? $_POST['csrf_tarea_extra'] : ''))
+		{
+			$_SESSION['msgtarea']='La sesión expiró o el formulario no es válido. Actualizá la página e intentá nuevamente.';
+			return true;
+		}
 		$msg=crm_tarea_solicitar_baja($_POST['id_tarea'], isset($_POST['motivo_baja']) ? $_POST['motivo_baja'] : '');
 		$_SESSION['msgtarea']=($msg==='') ? 'Pedido enviado. Te avisamos cuando haya novedades.' : $msg;
 		return true;
 	}
 	if(isset($_POST['eliminar_tarea_directo']) && isset($_POST['id_tarea']))
 	{
+		if(!function_exists('crm_tarea_extra_csrf_valido') || !crm_tarea_extra_csrf_valido(isset($_POST['csrf_tarea_extra']) ? $_POST['csrf_tarea_extra'] : ''))
+		{
+			$_SESSION['msgtarea']='La sesión expiró o el formulario no es válido. Actualizá la página e intentá nuevamente.';
+			return true;
+		}
 		$msg=crm_tarea_eliminar_directo($_POST['id_tarea'], isset($_POST['motivo_baja']) ? $_POST['motivo_baja'] : '');
 		$_SESSION['msgtarea']=($msg==='') ? 'Tarea eliminada.' : $msg;
 		return true;
@@ -1433,6 +2063,11 @@ function crm_tarea_procesar_post_flujo()
 	}
 	if(isset($_POST['baja_decidir']) && isset($_POST['id_solicitud_baja']))
 	{
+		if(!function_exists('crm_tarea_extra_csrf_valido') || !crm_tarea_extra_csrf_valido(isset($_POST['csrf_tarea_extra']) ? $_POST['csrf_tarea_extra'] : ''))
+		{
+			$_SESSION['msgtarea']='La sesión expiró o el formulario no es válido. Actualizá la página e intentá nuevamente.';
+			return true;
+		}
 		$ok=(isset($_POST['baja_aceptar']) && strval($_POST['baja_aceptar'])==='1');
 		$msg=crm_tarea_baja_decidir($_POST['id_solicitud_baja'], $ok, isset($_POST['nota_baja']) ? $_POST['nota_baja'] : '');
 		$_SESSION['msgtarea']=($msg==='') ? ($ok ? 'Pedido aceptado.' : 'Pedido rechazado.') : $msg;

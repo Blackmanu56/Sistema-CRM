@@ -6,11 +6,8 @@ $menu_activo='notificaciones';
 $solo=isset($_GET['ver']) && $_GET['ver']=='sin_leer' ? 'sin_leer' : 'todas';
 $orden=isset($_GET['orden']) && $_GET['orden']=='asc' ? 'asc' : 'desc';
 $lista=crm_notificaciones_historial(200);
-$n_sin_leer=0;
-foreach($lista as $n)
-{
-	if(!$n['leida']) { $n_sin_leer++; }
-}
+$notif_csrf=function_exists('crm_tarea_extra_csrf_token') ? crm_tarea_extra_csrf_token() : '';
+$n_sin_leer=crm_notificaciones_contar();
 if($solo=='sin_leer')
 {
 	$lista=array_values(array_filter($lista, function($n) { return !$n['leida']; }));
@@ -68,6 +65,7 @@ if($orden=='asc')
                             <?php if($n_sin_leer>0) { ?>
                             <form method="post" action="" style="display:inline-block; margin:0 0 0 6px;">
                                 <input type="hidden" name="notif_volver" value="<?php echo htmlspecialchars(isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : ''); ?>">
+                                <input type="hidden" name="csrf_tarea_extra" value="<?php echo htmlspecialchars($notif_csrf); ?>">
                                 <button type="submit" name="notif_marcar_todas" value="1" class="btn btn-primary btn-sm"><i class="fa fa-check-square-o"></i> Marcar todas como leídas</button>
                             </form>
                             <?php } ?>
@@ -87,7 +85,7 @@ if($orden=='asc')
                                     <?php if(trim($n['detalle'])!='') { ?><br><span class="muted"><?php echo htmlspecialchars(preg_replace("/\r\n|\n|\r/", ' · ', $n['detalle'])); ?></span><?php } ?>
                                 </td>
                                 <td><?php echo $n['leida'] ? '<span class="muted">Leída</span>' : '<span class="label label-important">Sin leer</span>'; ?></td>
-                                <td><?php if($n['url']!='') { ?><a class="btn btn-white btn-xs" href="<?php echo htmlspecialchars($n['url']); ?>">Abrir</a><?php } ?></td>
+                                <td><?php $url_abrir=isset($n['url_abrir']) ? $n['url_abrir'] : $n['url']; if($url_abrir!='') { ?><a class="btn btn-white btn-xs" href="<?php echo htmlspecialchars($url_abrir); ?>">Abrir</a><?php } ?></td>
                             </tr>
                             <?php } ?>
                             </tbody>

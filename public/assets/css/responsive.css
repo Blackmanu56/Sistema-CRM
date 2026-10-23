@@ -533,7 +533,7 @@
 /* Portrait view of all tablet devices */
 @media only screen and (min-device-width: 768px) and (max-device-width: 1024px) and (orientation: portrait) {
   body {
-    background-color: #1b1e24;
+    background-color: #e5e9ec;
   }
   body.hide-top-content-header .header {
     width: 100%;
