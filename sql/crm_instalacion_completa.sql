@@ -10,8 +10,8 @@
 -- 2. Restricciones de integridad referencial (claves foráneas) e índices.
 -- 3. Restricciones CHECK y columnas generadas (empresa_seguimiento.hito_clave).
 -- 4. Catálogos maestros indispensables (roles, áreas, provincias, localidades,
---    tipos de tareas, configuración de turnos, plantillas de informe, matriz
---    de permisos de informes por área y registro de versiones del esquema).
+--    tipos de tareas, configuración de turnos, salas de reuniones, plantillas de informe,
+--    matriz de permisos de informes por área y registro de versiones del esquema).
 -- 5. Procedimiento seguro para la creación del primer Superadministrador.
 --
 -- INSTRUCCIONES DE USO EN HOSTING:
@@ -31,22 +31,22 @@ SET SQL_MODE = 'NO_AUTO_VALUE_ON_ZERO,STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION
 -- SECCIÓN 1: ESTRUCTURA DE TABLAS (51 TABLAS EN ORDEN TOPOLÓGICO)
 -- ----------------------------------------------------------------------------
 -- Tabla 1/51: `area`
-CREATE TABLE IF NOT EXISTS `area` (\n  `id_area` smallint(5) unsigned NOT NULL AUTO_INCREMENT,\n  `clave` varchar(30) NOT NULL,\n  `nombre` varchar(80) NOT NULL,\n  `activo` tinyint(1) NOT NULL DEFAULT 1,\n  `atiende_clientes` tinyint(1) NOT NULL DEFAULT 0,\n  `puede_clientes` tinyint(1) NOT NULL DEFAULT 0,\n  `recibe_derivaciones` tinyint(1) NOT NULL DEFAULT 0,\n  `recibe_turnos` tinyint(1) NOT NULL DEFAULT 0,\n  `puede_atenciones` tinyint(1) NOT NULL DEFAULT 1,\n  `informes_habilitados` tinyint(1) NOT NULL DEFAULT 1,\n  `asignable_empleado` tinyint(1) NOT NULL DEFAULT 1,\n  `creado_en` timestamp NOT NULL DEFAULT current_timestamp(),\n  PRIMARY KEY (`id_area`),\n  UNIQUE KEY `uq_area_clave` (`clave`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS `area` (\n  `id_area` smallint(5) unsigned NOT NULL AUTO_INCREMENT,\n  `clave` varchar(30) NOT NULL,\n  `nombre` varchar(80) NOT NULL,\n  `activo` tinyint(1) NOT NULL DEFAULT 1,\n  `atiende_clientes` tinyint(1) NOT NULL DEFAULT 0,\n  `puede_clientes` tinyint(1) NOT NULL DEFAULT 0,\n  `recibe_derivaciones` tinyint(1) NOT NULL DEFAULT 0,\n  `recibe_turnos` tinyint(1) NOT NULL DEFAULT 0,\n  `puede_atenciones` tinyint(1) NOT NULL DEFAULT 1,\n  `informes_habilitados` tinyint(1) NOT NULL DEFAULT 1,\n  `asignable_empleado` tinyint(1) NOT NULL DEFAULT 1,\n  `creado_en` timestamp NOT NULL DEFAULT current_timestamp(),\n  `puede_salas_reuniones` tinyint(1) NOT NULL DEFAULT 0,\n  `puede_programas` tinyint(1) NOT NULL DEFAULT 0,\n  `puede_dominios` tinyint(1) NOT NULL DEFAULT 0,\n  PRIMARY KEY (`id_area`),\n  UNIQUE KEY `uq_area_clave` (`clave`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Tabla 2/51: `crm_schema_version`
 CREATE TABLE IF NOT EXISTS `crm_schema_version` (\n  `clave` varchar(60) NOT NULL,\n  `fecha` datetime NOT NULL,\n  PRIMARY KEY (`clave`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Tabla 3/51: `dominio`
-CREATE TABLE IF NOT EXISTS `dominio` (\n  `id_dominio` int(11) NOT NULL AUTO_INCREMENT,\n  `nombre` varchar(150) NOT NULL,\n  `url` varchar(255) DEFAULT NULL,\n  `proveedor` varchar(100) DEFAULT NULL,\n  `responsable` varchar(100) DEFAULT NULL,\n  `fecha_inicio` date DEFAULT NULL,\n  `fecha_vencimiento` date NOT NULL,\n  `notas` text DEFAULT NULL,\n  `activo` tinyint(1) DEFAULT 1,\n  `creado_en` datetime DEFAULT current_timestamp(),\n  `actualizado_en` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),\n  PRIMARY KEY (`id_dominio`),\n  UNIQUE KEY `idx_nombre_activo` (`nombre`,`activo`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE IF NOT EXISTS `dominio` (\n  `id_dominio` int(11) NOT NULL AUTO_INCREMENT,\n  `nombre` varchar(150) NOT NULL,\n  `url` varchar(255) DEFAULT NULL,\n  `proveedor` varchar(100) DEFAULT NULL,\n  `responsable` varchar(100) DEFAULT NULL,\n  `fecha_inicio` date DEFAULT NULL,\n  `fecha_vencimiento` date NOT NULL,\n  `notas` text DEFAULT NULL,\n  `activo` tinyint(1) DEFAULT 1,\n  `creado_en` datetime DEFAULT current_timestamp(),\n  `actualizado_en` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),\n  PRIMARY KEY (`id_dominio`),\n  UNIQUE KEY `idx_nombre_activo` (`nombre`,`activo`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Tabla 4/51: `dominio_renovacion`
-CREATE TABLE IF NOT EXISTS `dominio_renovacion` (\n  `id_renovacion` int(11) NOT NULL AUTO_INCREMENT,\n  `id_dominio` int(11) NOT NULL,\n  `fecha_renovacion` date NOT NULL,\n  `fecha_vencimiento_anterior` date NOT NULL,\n  `fecha_vencimiento_nueva` date NOT NULL,\n  `id_usuario` int(11) DEFAULT NULL,\n  `notas` text DEFAULT NULL,\n  `creado_en` datetime DEFAULT current_timestamp(),\n  PRIMARY KEY (`id_renovacion`),\n  KEY `idx_dominio` (`id_dominio`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE IF NOT EXISTS `dominio_renovacion` (\n  `id_renovacion` int(11) NOT NULL AUTO_INCREMENT,\n  `id_dominio` int(11) NOT NULL,\n  `fecha_renovacion` date NOT NULL,\n  `fecha_vencimiento_anterior` date NOT NULL,\n  `fecha_vencimiento_nueva` date NOT NULL,\n  `id_usuario` int(11) DEFAULT NULL,\n  `notas` text DEFAULT NULL,\n  `creado_en` datetime DEFAULT current_timestamp(),\n  PRIMARY KEY (`id_renovacion`),\n  KEY `idx_dominio` (`id_dominio`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Tabla 5/51: `informe_plantilla`
 CREATE TABLE IF NOT EXISTS `informe_plantilla` (\n  `id_plantilla` smallint(5) unsigned NOT NULL AUTO_INCREMENT,\n  `clave` varchar(40) NOT NULL,\n  `nombre` varchar(120) NOT NULL,\n  `descripcion` varchar(300) DEFAULT NULL,\n  `activo` tinyint(1) NOT NULL DEFAULT 1,\n  PRIMARY KEY (`id_plantilla`),\n  UNIQUE KEY `uq_informe_plantilla` (`clave`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Tabla 6/51: `presentacion_registro_interno`
-CREATE TABLE IF NOT EXISTS `presentacion_registro_interno` (\n  `modulo` varchar(40) NOT NULL,\n  `id_registro` int(10) unsigned NOT NULL,\n  `clasificacion` enum('simulado') NOT NULL DEFAULT 'simulado',\n  `nota` varchar(255) NOT NULL,\n  `actualizado_en` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),\n  PRIMARY KEY (`modulo`,`id_registro`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Control interno de datos simulados de presentacion; no es utilizado por la interfaz del CRM';
+CREATE TABLE IF NOT EXISTS `presentacion_registro_interno` (\n  `modulo` varchar(40) NOT NULL,\n  `id_registro` int(10) unsigned NOT NULL,\n  `clasificacion` enum('simulado') NOT NULL DEFAULT 'simulado',\n  `nota` varchar(255) NOT NULL,\n  `actualizado_en` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),\n  PRIMARY KEY (`modulo`,`id_registro`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Control interno de datos simulados de presentacion; no es utilizado por la interfaz del CRM';
 
 -- Tabla 7/51: `programa`
 CREATE TABLE IF NOT EXISTS `programa` (\n  `id_programa` int(10) unsigned NOT NULL AUTO_INCREMENT,\n  `nombre` varchar(120) NOT NULL,\n  `descripcion` text DEFAULT NULL,\n  `activo` tinyint(1) NOT NULL DEFAULT 1,\n  `creado_en` timestamp NOT NULL DEFAULT current_timestamp(),\n  PRIMARY KEY (`id_programa`),\n  UNIQUE KEY `uq_programa_nombre` (`nombre`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -195,18 +195,18 @@ INSERT INTO `rol` (`id_rol`, `clave`, `nombre`) VALUES (1,'superadmin','Superadm
 (4,'empleado','Empleado'),
 (5,'presidencia','Presidencia'),
 (6,'admin_tareas','Administración de tareas');
-INSERT INTO `area` (`id_area`, `clave`, `nombre`, `activo`, `atiende_clientes`, `puede_clientes`, `recibe_derivaciones`, `recibe_turnos`, `puede_atenciones`, `informes_habilitados`, `asignable_empleado`, `creado_en`) VALUES (1,'recepcion','Recepción',1,1,1,1,1,1,1,1,'2026-10-02 19:05:50'),
-(2,'marketing','Marketing',1,1,1,1,1,1,1,1,'2026-10-02 19:05:50'),
-(3,'empresas','Empresas',1,1,1,1,1,1,1,1,'2026-10-02 19:05:50'),
-(4,'emprendedores','Emprendedores',1,1,1,1,1,1,1,1,'2026-10-02 19:05:50'),
-(5,'comercio','Comercio exterior',1,1,1,1,1,1,1,1,'2026-10-02 19:05:50'),
-(6,'rrhh','Recursos humanos',1,1,1,1,1,1,1,1,'2026-10-02 19:05:50'),
-(7,'vinculaciones','Vinculación académica',1,1,1,1,1,1,1,1,'2026-10-02 19:05:50'),
-(8,'sistemas','Sistemas',1,0,1,0,0,1,1,1,'2026-10-02 19:05:50'),
-(9,'administracion','Administración',1,1,1,1,1,1,1,1,'2026-10-02 19:05:50'),
-(10,'general','Coordinación general',1,0,0,0,0,1,1,0,'2026-10-02 19:05:50'),
-(11,'presidencia','Presidencia',1,0,0,0,0,1,1,0,'2026-10-02 19:05:50'),
-(14,'analista','Analista',1,1,1,1,1,1,1,1,'2026-10-03 14:00:13');
+INSERT INTO `area` (`id_area`, `clave`, `nombre`, `activo`, `atiende_clientes`, `puede_clientes`, `recibe_derivaciones`, `recibe_turnos`, `puede_atenciones`, `informes_habilitados`, `asignable_empleado`, `creado_en`, `puede_salas_reuniones`, `puede_programas`, `puede_dominios`) VALUES (1,'recepcion','Recepción',1,1,1,1,1,1,1,1,'2026-10-02 19:05:50',1,0,0),
+(2,'marketing','Marketing',1,1,1,1,1,1,1,1,'2026-10-02 19:05:50',1,0,0),
+(3,'empresas','Empresas',1,1,1,1,1,1,1,1,'2026-10-02 19:05:50',1,0,0),
+(4,'emprendedores','Emprendedores',1,1,1,1,1,1,1,1,'2026-10-02 19:05:50',1,0,0),
+(5,'comercio','Comercio exterior',1,1,1,1,1,1,1,1,'2026-10-02 19:05:50',1,0,0),
+(6,'rrhh','Recursos humanos',1,1,1,1,1,1,1,1,'2026-10-02 19:05:50',1,1,1),
+(7,'vinculaciones','Vinculación académica',1,1,1,1,1,1,1,1,'2026-10-02 19:05:50',1,0,0),
+(8,'sistemas','Sistemas',1,0,1,0,0,1,1,1,'2026-10-02 19:05:50',1,1,1),
+(9,'administracion','Administración',1,1,1,1,1,1,1,1,'2026-10-02 19:05:50',1,0,0),
+(10,'general','Coordinación general',1,0,0,0,0,1,1,0,'2026-10-02 19:05:50',1,1,0),
+(11,'presidencia','Presidencia',1,0,0,0,0,1,1,0,'2026-10-02 19:05:50',0,0,0),
+(14,'analista','Analista',1,1,1,1,1,1,1,1,'2026-10-03 14:00:13',1,0,0);
 INSERT INTO `provincia` (`id_provincia`, `nombre`) VALUES (1,'Buenos Aires'),
 (2,'CABA'),
 (3,'Catamarca'),
@@ -306,6 +306,7 @@ INSERT INTO `tipo_tarea` (`id_tipo`, `id_area`, `nombre`) VALUES (29,1,'General'
 INSERT INTO `turno_config` (`clave`, `valor`) VALUES ('hora_desde','07:00'),
 ('hora_hasta','19:30'),
 ('turnos_por_dia','16');
+INSERT INTO `sala_reunion` (`id_sala`, `nombre`, `activo`) VALUES (1,'Sala de reuniones',1);
 INSERT INTO `informe_plantilla` (`id_plantilla`, `clave`, `nombre`, `descripcion`, `activo`) VALUES (1,'actividades_tipo_localidad','Actividades por tipo y localidad','Ej. capacitaciones en Posadas',1),
 (2,'actividades_tipo_cliente','Actividades por tipo de cliente','Emprendedor, empresa, municipalidad u organismo',1),
 (3,'rondas_municipalidades','Rondas / actividades para municipalidades','Enfoque municipalidades',1),

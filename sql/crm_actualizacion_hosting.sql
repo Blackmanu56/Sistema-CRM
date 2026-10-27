@@ -41,22 +41,22 @@ SET @crm_schema = DATABASE();
 -- Si una tabla ya existe en el hosting, se preserva íntegramente con sus datos.
 -- ----------------------------------------------------------------------------
 -- Tabla 1/51: `area`
-CREATE TABLE IF NOT EXISTS `area` (\n  `id_area` smallint(5) unsigned NOT NULL AUTO_INCREMENT,\n  `clave` varchar(30) NOT NULL,\n  `nombre` varchar(80) NOT NULL,\n  `activo` tinyint(1) NOT NULL DEFAULT 1,\n  `atiende_clientes` tinyint(1) NOT NULL DEFAULT 0,\n  `puede_clientes` tinyint(1) NOT NULL DEFAULT 0,\n  `recibe_derivaciones` tinyint(1) NOT NULL DEFAULT 0,\n  `recibe_turnos` tinyint(1) NOT NULL DEFAULT 0,\n  `puede_atenciones` tinyint(1) NOT NULL DEFAULT 1,\n  `informes_habilitados` tinyint(1) NOT NULL DEFAULT 1,\n  `asignable_empleado` tinyint(1) NOT NULL DEFAULT 1,\n  `creado_en` timestamp NOT NULL DEFAULT current_timestamp(),\n  PRIMARY KEY (`id_area`),\n  UNIQUE KEY `uq_area_clave` (`clave`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS `area` (\n  `id_area` smallint(5) unsigned NOT NULL AUTO_INCREMENT,\n  `clave` varchar(30) NOT NULL,\n  `nombre` varchar(80) NOT NULL,\n  `activo` tinyint(1) NOT NULL DEFAULT 1,\n  `atiende_clientes` tinyint(1) NOT NULL DEFAULT 0,\n  `puede_clientes` tinyint(1) NOT NULL DEFAULT 0,\n  `recibe_derivaciones` tinyint(1) NOT NULL DEFAULT 0,\n  `recibe_turnos` tinyint(1) NOT NULL DEFAULT 0,\n  `puede_atenciones` tinyint(1) NOT NULL DEFAULT 1,\n  `informes_habilitados` tinyint(1) NOT NULL DEFAULT 1,\n  `asignable_empleado` tinyint(1) NOT NULL DEFAULT 1,\n  `creado_en` timestamp NOT NULL DEFAULT current_timestamp(),\n  `puede_salas_reuniones` tinyint(1) NOT NULL DEFAULT 0,\n  `puede_programas` tinyint(1) NOT NULL DEFAULT 0,\n  `puede_dominios` tinyint(1) NOT NULL DEFAULT 0,\n  PRIMARY KEY (`id_area`),\n  UNIQUE KEY `uq_area_clave` (`clave`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Tabla 2/51: `crm_schema_version`
 CREATE TABLE IF NOT EXISTS `crm_schema_version` (\n  `clave` varchar(60) NOT NULL,\n  `fecha` datetime NOT NULL,\n  PRIMARY KEY (`clave`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Tabla 3/51: `dominio`
-CREATE TABLE IF NOT EXISTS `dominio` (\n  `id_dominio` int(11) NOT NULL AUTO_INCREMENT,\n  `nombre` varchar(150) NOT NULL,\n  `url` varchar(255) DEFAULT NULL,\n  `proveedor` varchar(100) DEFAULT NULL,\n  `responsable` varchar(100) DEFAULT NULL,\n  `fecha_inicio` date DEFAULT NULL,\n  `fecha_vencimiento` date NOT NULL,\n  `notas` text DEFAULT NULL,\n  `activo` tinyint(1) DEFAULT 1,\n  `creado_en` datetime DEFAULT current_timestamp(),\n  `actualizado_en` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),\n  PRIMARY KEY (`id_dominio`),\n  UNIQUE KEY `idx_nombre_activo` (`nombre`,`activo`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE IF NOT EXISTS `dominio` (\n  `id_dominio` int(11) NOT NULL AUTO_INCREMENT,\n  `nombre` varchar(150) NOT NULL,\n  `url` varchar(255) DEFAULT NULL,\n  `proveedor` varchar(100) DEFAULT NULL,\n  `responsable` varchar(100) DEFAULT NULL,\n  `fecha_inicio` date DEFAULT NULL,\n  `fecha_vencimiento` date NOT NULL,\n  `notas` text DEFAULT NULL,\n  `activo` tinyint(1) DEFAULT 1,\n  `creado_en` datetime DEFAULT current_timestamp(),\n  `actualizado_en` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),\n  PRIMARY KEY (`id_dominio`),\n  UNIQUE KEY `idx_nombre_activo` (`nombre`,`activo`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Tabla 4/51: `dominio_renovacion`
-CREATE TABLE IF NOT EXISTS `dominio_renovacion` (\n  `id_renovacion` int(11) NOT NULL AUTO_INCREMENT,\n  `id_dominio` int(11) NOT NULL,\n  `fecha_renovacion` date NOT NULL,\n  `fecha_vencimiento_anterior` date NOT NULL,\n  `fecha_vencimiento_nueva` date NOT NULL,\n  `id_usuario` int(11) DEFAULT NULL,\n  `notas` text DEFAULT NULL,\n  `creado_en` datetime DEFAULT current_timestamp(),\n  PRIMARY KEY (`id_renovacion`),\n  KEY `idx_dominio` (`id_dominio`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE TABLE IF NOT EXISTS `dominio_renovacion` (\n  `id_renovacion` int(11) NOT NULL AUTO_INCREMENT,\n  `id_dominio` int(11) NOT NULL,\n  `fecha_renovacion` date NOT NULL,\n  `fecha_vencimiento_anterior` date NOT NULL,\n  `fecha_vencimiento_nueva` date NOT NULL,\n  `id_usuario` int(11) DEFAULT NULL,\n  `notas` text DEFAULT NULL,\n  `creado_en` datetime DEFAULT current_timestamp(),\n  PRIMARY KEY (`id_renovacion`),\n  KEY `idx_dominio` (`id_dominio`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Tabla 5/51: `informe_plantilla`
 CREATE TABLE IF NOT EXISTS `informe_plantilla` (\n  `id_plantilla` smallint(5) unsigned NOT NULL AUTO_INCREMENT,\n  `clave` varchar(40) NOT NULL,\n  `nombre` varchar(120) NOT NULL,\n  `descripcion` varchar(300) DEFAULT NULL,\n  `activo` tinyint(1) NOT NULL DEFAULT 1,\n  PRIMARY KEY (`id_plantilla`),\n  UNIQUE KEY `uq_informe_plantilla` (`clave`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Tabla 6/51: `presentacion_registro_interno`
-CREATE TABLE IF NOT EXISTS `presentacion_registro_interno` (\n  `modulo` varchar(40) NOT NULL,\n  `id_registro` int(10) unsigned NOT NULL,\n  `clasificacion` enum('simulado') NOT NULL DEFAULT 'simulado',\n  `nota` varchar(255) NOT NULL,\n  `actualizado_en` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),\n  PRIMARY KEY (`modulo`,`id_registro`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Control interno de datos simulados de presentacion; no es utilizado por la interfaz del CRM';
+CREATE TABLE IF NOT EXISTS `presentacion_registro_interno` (\n  `modulo` varchar(40) NOT NULL,\n  `id_registro` int(10) unsigned NOT NULL,\n  `clasificacion` enum('simulado') NOT NULL DEFAULT 'simulado',\n  `nota` varchar(255) NOT NULL,\n  `actualizado_en` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),\n  PRIMARY KEY (`modulo`,`id_registro`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Control interno de datos simulados de presentacion; no es utilizado por la interfaz del CRM';
 
 -- Tabla 7/51: `programa`
 CREATE TABLE IF NOT EXISTS `programa` (\n  `id_programa` int(10) unsigned NOT NULL AUTO_INCREMENT,\n  `nombre` varchar(120) NOT NULL,\n  `descripcion` text DEFAULT NULL,\n  `activo` tinyint(1) NOT NULL DEFAULT 1,\n  `creado_en` timestamp NOT NULL DEFAULT current_timestamp(),\n  PRIMARY KEY (`id_programa`),\n  UNIQUE KEY `uq_programa_nombre` (`nombre`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -223,6 +223,71 @@ UPDATE `area`
    AND `recibe_derivaciones` = 0
    AND `recibe_turnos` = 0
    AND `atiende_clientes` = 1;
+
+-- ---------------------------------------------------------
+-- 2.1.b. Capacidades modulares de área: salas de reuniones, programas y dominios
+-- ---------------------------------------------------------
+-- Se mide el estado PREVIO a la adición de columnas para aplicar semillas únicamente
+-- la primera vez que se crean en la base. Si la columna ya existía, no se sobreescriben
+-- valores configurados previamente por el usuario o administrador (ej. RRHH).
+SET @crm_has_col_salas = (
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = @crm_schema
+    AND TABLE_NAME = 'area'
+    AND COLUMN_NAME = 'puede_salas_reuniones'
+);
+
+SET @crm_has_col_prog = (
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = @crm_schema
+    AND TABLE_NAME = 'area'
+    AND COLUMN_NAME = 'puede_programas'
+);
+
+SET @crm_has_col_dom = (
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = @crm_schema
+    AND TABLE_NAME = 'area'
+    AND COLUMN_NAME = 'puede_dominios'
+);
+
+ALTER TABLE `area`
+  ADD COLUMN IF NOT EXISTS `puede_salas_reuniones` TINYINT(1) NOT NULL DEFAULT 0 AFTER `asignable_empleado`,
+  ADD COLUMN IF NOT EXISTS `puede_programas`       TINYINT(1) NOT NULL DEFAULT 0 AFTER `puede_salas_reuniones`,
+  ADD COLUMN IF NOT EXISTS `puede_dominios`        TINYINT(1) NOT NULL DEFAULT 0 AFTER `puede_programas`;
+
+-- Semilla Sala de reuniones: todas las áreas excepto Presidencia (solo en primer pase)
+SET @crm_seed_salas = IF(
+  @crm_has_col_salas = 0,
+  'UPDATE `area` SET `puede_salas_reuniones` = 1 WHERE `clave` != ''presidencia''',
+  'SELECT 1'
+);
+PREPARE crm_stmt_salas FROM @crm_seed_salas;
+EXECUTE crm_stmt_salas;
+DEALLOCATE PREPARE crm_stmt_salas;
+
+-- Semilla Programas: Sistemas y Coordinación General (solo en primer pase; RRHH se preserva si fue configurado a mano)
+SET @crm_seed_prog = IF(
+  @crm_has_col_prog = 0,
+  'UPDATE `area` SET `puede_programas` = 1 WHERE `clave` IN (''sistemas'', ''general'')',
+  'SELECT 1'
+);
+PREPARE crm_stmt_prog FROM @crm_seed_prog;
+EXECUTE crm_stmt_prog;
+DEALLOCATE PREPARE crm_stmt_prog;
+
+-- Semilla Dominios: Sistemas (solo en primer pase; RRHH se preserva si fue configurado a mano)
+SET @crm_seed_dom = IF(
+  @crm_has_col_dom = 0,
+  'UPDATE `area` SET `puede_dominios` = 1 WHERE `clave` = ''sistemas''',
+  'SELECT 1'
+);
+PREPARE crm_stmt_dom FROM @crm_seed_dom;
+EXECUTE crm_stmt_dom;
+DEALLOCATE PREPARE crm_stmt_dom;
 
 -- ---------------------------------------------------------
 -- 2.2. Tabla `atencion`: canal, estados ampliados, derivaciones y tipo de ingreso
@@ -505,6 +570,10 @@ INSERT IGNORE INTO `turno_config` (`clave`, `valor`) VALUES
   ('hora_hasta', '19:30'),
   ('turnos_por_dia', '16');
 
+-- 3.6.b. Sala de reuniones inicial (solo si la tabla no tiene registros)
+INSERT IGNORE INTO `sala_reunion` (`id_sala`, `nombre`, `activo`) VALUES
+  (1, 'Sala de reuniones', 1);
+
 -- 3.7. Plantillas maestras de informes
 INSERT IGNORE INTO `informe_plantilla` (`id_plantilla`, `clave`, `nombre`, `descripcion`, `activo`) VALUES
 (1, 'actividades_tipo_localidad', 'Actividades por tipo y localidad', 'Ej. capacitaciones en Posadas', 1),
@@ -600,7 +669,10 @@ REPLACE INTO `crm_schema_version` (`clave`, `fecha`) VALUES
   ('20261023_002_evento_creador', NOW()),
   ('20261023_003_empresa_seguimiento_resultado', NOW()),
   ('20261023_004_empresa_seguimiento_seguimientos_manuales', NOW()),
-  ('20261023_005_empresa_seguimiento_manual_sin_atencion', NOW());
+  ('20261023_005_empresa_seguimiento_manual_sin_atencion', NOW()),
+  ('20261027_001_area_puede_programas', NOW()),
+  ('20261027_002_area_puede_dominios', NOW()),
+  ('area_puede_salas_reuniones', NOW());
 
 SET FOREIGN_KEY_CHECKS = 1;
 
