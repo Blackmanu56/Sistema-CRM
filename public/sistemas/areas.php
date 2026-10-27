@@ -6,6 +6,9 @@ crm_proteger_staff('sistemas');
 acceso_exigir_gestion('sistemas');
 if(function_exists('crm_asegurar_area_flags')) { crm_asegurar_area_flags(); }
 $campo_puede_atenciones=crm_columna_existe('area','puede_atenciones') ? 'puede_atenciones' : '1 AS puede_atenciones';
+$campo_puede_salas_reuniones=crm_columna_existe('area','puede_salas_reuniones') ? 'puede_salas_reuniones' : '0 AS puede_salas_reuniones';
+$campo_puede_programas=crm_columna_existe('area','puede_programas') ? 'puede_programas' : '0 AS puede_programas';
+$campo_puede_dominios=crm_columna_existe('area','puede_dominios') ? 'puede_dominios' : '0 AS puede_dominios';
 $campo_informes_habilitados=crm_columna_existe('area','informes_habilitados') ? 'informes_habilitados' : '1 AS informes_habilitados';
 $menu_activo='areas';
 $csrf_modulo_token=function_exists('crm_tarea_extra_csrf_token') ? crm_tarea_extra_csrf_token() : '';
@@ -41,6 +44,9 @@ if(isset($_POST['alta_area']))
 	$cap_deriv=$capacidades_alta['recibe_derivaciones'];
 	$cap_turnos=$capacidades_alta['recibe_turnos'];
 	$cap_atenciones=$capacidades_alta['puede_atenciones'];
+	$cap_salas_reuniones=$capacidades_alta['puede_salas_reuniones'];
+	$cap_programas=$capacidades_alta['puede_programas'];
+	$cap_dominios=$capacidades_alta['puede_dominios'];
 	$asignable=$capacidades_alta['asignable_empleado'];
 	$informes_seleccionados = crm_informes_seleccionados_validar_estricto(isset($_POST['informes_disponibles']) ? $_POST['informes_disponibles'] : array());
 	$informes_habilitados = is_array($informes_seleccionados) && count($informes_seleccionados)>0 ? 1 : 0;
@@ -53,7 +59,7 @@ if(isset($_POST['alta_area']))
 		echo "<script>window.location.href='areas.php'</script>";
 		exit();
 	}
-	$res = crm_area_crear($nombre, $clave, $id_coord, $conf_mov, $atiende, $asignable, $cap_clientes, $cap_deriv, $cap_turnos, $cap_atenciones, $informes_habilitados);
+	$res = crm_area_crear($nombre, $clave, $id_coord, $conf_mov, $atiende, $asignable, $cap_clientes, $cap_deriv, $cap_turnos, $cap_atenciones, $informes_habilitados, $cap_salas_reuniones, $cap_programas, $cap_dominios);
 	if(!$res['ok'] && isset($res['requiere_confirmacion']) && $res['requiere_confirmacion'])
 	{
 		$confirmacion_pendiente = $res['datos_confirmacion'];
@@ -223,7 +229,7 @@ if(isset($_POST['toggle_flag_area']))
 	$id = isset($_POST['id_area']) ? intval($_POST['id_area']) : 0;
 	$flag = isset($_POST['flag']) ? trim($_POST['flag']) : '';
 	$val = isset($_POST['valor']) ? intval($_POST['valor']) : 0;
-	if($id > 0 && in_array($flag, array('puede_clientes', 'recibe_derivaciones', 'recibe_turnos', 'puede_atenciones', 'asignable_empleado'), true))
+	if($id > 0 && in_array($flag, array('puede_clientes', 'recibe_derivaciones', 'recibe_turnos', 'puede_atenciones', 'asignable_empleado', 'puede_salas_reuniones', 'puede_programas', 'puede_dominios'), true))
 	{
 		if(function_exists('crm_asegurar_area_flags')) { crm_asegurar_area_flags(); }
 		acceso_ejecutar("UPDATE area SET {$flag}=? WHERE id_area=?", 'ii', array($val ? 0 : 1, $id));
@@ -238,7 +244,10 @@ if(isset($_POST['toggle_flag_area']))
 			'recibe_derivaciones' => 'Recepción de derivaciones',
 			'recibe_turnos' => 'Recepción de turnos',
 			'puede_atenciones' => 'Módulo de Atenciones',
-			'asignable_empleado' => 'Asignable en el alta'
+			'asignable_empleado' => 'Asignable en el alta',
+			'puede_salas_reuniones' => 'Sala de reuniones',
+			'puede_programas' => 'Programas',
+			'puede_dominios' => 'Dominios'
 		);
 		$_SESSION['msgsis'] = (isset($etq_flag[$flag]) ? $etq_flag[$flag] : 'Capacidad') . ($val ? ' habilitada.' : ' deshabilitada.');
 	}
@@ -247,7 +256,7 @@ if(isset($_POST['toggle_flag_area']))
 }
 
 if(function_exists('crm_asegurar_area_flags')) { crm_asegurar_area_flags(); }
-$areas = acceso_consulta("SELECT id_area, clave, nombre, activo, atiende_clientes, puede_clientes, recibe_derivaciones, recibe_turnos, {$campo_puede_atenciones}, {$campo_informes_habilitados}, asignable_empleado, creado_en FROM area ORDER BY nombre");
+$areas = acceso_consulta("SELECT id_area, clave, nombre, activo, atiende_clientes, puede_clientes, recibe_derivaciones, recibe_turnos, {$campo_puede_atenciones}, {$campo_puede_salas_reuniones}, {$campo_puede_programas}, {$campo_puede_dominios}, {$campo_informes_habilitados}, asignable_empleado, creado_en FROM area ORDER BY nombre");
 $configuracion_informes_areas = crm_informes_area_configuraciones_todas();
 ?>
 <!DOCTYPE html>
@@ -416,6 +425,9 @@ $configuracion_informes_areas = crm_informes_area_configuraciones_todas();
             <input type="hidden" name="recibe_turnos" value="<?php echo intval(isset($confirmacion_pendiente['recibe_turnos']) ? $confirmacion_pendiente['recibe_turnos'] : 0); ?>">
             <input type="hidden" name="puede_atenciones" value="<?php echo intval(isset($confirmacion_pendiente['puede_atenciones']) ? $confirmacion_pendiente['puede_atenciones'] : 0); ?>">
             <input type="hidden" name="asignable_empleado" value="<?php echo intval(isset($confirmacion_pendiente['asignable_empleado']) ? $confirmacion_pendiente['asignable_empleado'] : 1); ?>">
+            <input type="hidden" name="puede_salas_reuniones" value="<?php echo intval(isset($confirmacion_pendiente['puede_salas_reuniones']) ? $confirmacion_pendiente['puede_salas_reuniones'] : 0); ?>">
+            <input type="hidden" name="puede_programas" value="<?php echo intval(isset($confirmacion_pendiente['puede_programas']) ? $confirmacion_pendiente['puede_programas'] : 0); ?>">
+            <input type="hidden" name="puede_dominios" value="<?php echo intval(isset($confirmacion_pendiente['puede_dominios']) ? $confirmacion_pendiente['puede_dominios'] : 0); ?>">
             <?php foreach(crm_informes_seleccionados_validar(isset($confirmacion_pendiente['informes_disponibles']) ? $confirmacion_pendiente['informes_disponibles'] : array()) as $codigo_informe_confirmar) { ?>
             <input type="hidden" name="informes_disponibles[]" value="<?php echo htmlspecialchars($codigo_informe_confirmar, ENT_QUOTES, 'UTF-8'); ?>">
             <?php } ?>
@@ -553,14 +565,32 @@ $configuracion_informes_areas = crm_informes_area_configuraciones_todas();
             <div class="modal-dialog"><div class="modal-content">
               <div class="modal-header"><button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button><h4 class="modal-title">Capacidades del área</h4></div>
               <div class="modal-body">
-                <p class="muted">Elegí qué operaciones estarán disponibles para esta área.</p>
+                <div class="crm-area-create-config-header">
+                  <strong>Funciones esenciales del área</strong>
+                  <p class="muted">Estas funciones están disponibles para todas las áreas y no se configuran desde aquí.</p>
+                </div>
+                <div class="crm-area-config-grid crm-area-essential-grid">
+                  <label class="checkbox"><input type="checkbox" value="1" checked disabled> Inicio / Panel</label>
+                  <label class="checkbox"><input type="checkbox" value="1" checked disabled> Tareas</label>
+                  <label class="checkbox"><input type="checkbox" value="1" checked disabled> Actividades</label>
+                  <label class="checkbox"><input type="checkbox" value="1" checked disabled> Calendario institucional</label>
+                  <label class="checkbox"><input type="checkbox" value="1" checked disabled> Notificaciones y perfil</label>
+                </div>
+                <div class="crm-area-create-config-header" style="margin-top:14px;">
+                  <strong>Capacidades configurables</strong>
+                  <p class="muted">Elegí qué operaciones estarán disponibles para esta área.</p>
+                </div>
                 <div class="crm-area-config-grid">
                   <label class="checkbox"><input form="form_alta_area" type="checkbox" name="puede_clientes" value="1" checked> Gestión de clientes</label>
                   <label class="checkbox"><input form="form_alta_area" type="checkbox" name="recibe_derivaciones" value="1" checked> Recibir derivaciones</label>
                   <label class="checkbox"><input form="form_alta_area" type="checkbox" name="recibe_turnos" value="1" checked> Recibir turnos</label>
                   <label class="checkbox"><input form="form_alta_area" type="checkbox" name="puede_atenciones" value="1" checked> Atenciones</label>
                   <label class="checkbox"><input form="form_alta_area" type="checkbox" name="asignable_empleado" value="1" checked> Asignar colaboradores</label>
+                  <label class="checkbox"><input form="form_alta_area" type="checkbox" name="puede_salas_reuniones" value="1"> Sala de reuniones</label>
+                  <label class="checkbox"><input form="form_alta_area" type="checkbox" name="puede_programas" value="1"> Programas</label>
+                  <label class="checkbox"><input form="form_alta_area" type="checkbox" name="puede_dominios" value="1"> Dominios</label>
                 </div>
+                <p class="muted" style="margin:12px 0 0;">Mapa de eventos y administración de Sistemas dependen del rol del usuario y no se habilitan desde esta configuración.</p>
               </div>
               <div class="modal-footer">
                 <button type="button" class="btn btn-default crm-area-config-cancel">Cancelar</button>
@@ -610,6 +640,9 @@ $configuracion_informes_areas = crm_informes_area_configuraciones_todas();
               $der_a = isset($a['recibe_derivaciones']) ? intval($a['recibe_derivaciones']) : 0;
               $tur_a = isset($a['recibe_turnos']) ? intval($a['recibe_turnos']) : 0;
               $aten_a = isset($a['puede_atenciones']) ? intval($a['puede_atenciones']) : 1;
+              $salas_a = isset($a['puede_salas_reuniones']) ? intval($a['puede_salas_reuniones']) : 0;
+              $programas_a = isset($a['puede_programas']) ? intval($a['puede_programas']) : 0;
+              $dominios_a = isset($a['puede_dominios']) ? intval($a['puede_dominios']) : 0;
               $asig_a = isset($a['asignable_empleado']) ? intval($a['asignable_empleado']) : 1;
               $informes_a = isset($configuracion_informes_areas[intval($a['id_area'])]) ? $configuracion_informes_areas[intval($a['id_area'])] : array_fill_keys(array_keys(crm_informes_codigos_configurables()), false);
               $informes_modulo_habilitado_a = isset($a['informes_habilitados']) ? intval($a['informes_habilitados'])===1 : true;
@@ -618,6 +651,9 @@ $configuracion_informes_areas = crm_informes_area_configuraciones_todas();
               if($der_a) { $capacidades_a_json[]='recibe_derivaciones'; }
               if($tur_a) { $capacidades_a_json[]='recibe_turnos'; }
               if($aten_a) { $capacidades_a_json[]='puede_atenciones'; }
+              if($salas_a) { $capacidades_a_json[]='puede_salas_reuniones'; }
+              if($programas_a) { $capacidades_a_json[]='puede_programas'; }
+              if($dominios_a) { $capacidades_a_json[]='puede_dominios'; }
               if($asig_a) { $capacidades_a_json[]='asignable_empleado'; }
               $cantidad_capacidades_a=count($capacidades_a_json);
               $informes_a_seleccionados=array_keys(array_filter($informes_a));
@@ -712,13 +748,31 @@ $configuracion_informes_areas = crm_informes_area_configuraciones_todas();
           <div class="form-group crm-informes-area-options" id="modal_edit_capacidades_grupo">
             <label><strong>Configuración de capacidades</strong></label>
             <p class="muted">Estas opciones habilitan funcionalidades del área, sin cambiar los roles de sus empleados.</p>
+            <div class="crm-area-create-config-header">
+              <strong>Funciones esenciales del área</strong>
+              <p class="muted">Estas funciones están disponibles para todas las áreas y no se configuran desde aquí.</p>
+            </div>
+            <div class="crm-area-config-grid crm-area-essential-grid">
+              <label class="checkbox"><input type="checkbox" value="1" checked disabled> Inicio / Panel</label>
+              <label class="checkbox"><input type="checkbox" value="1" checked disabled> Tareas</label>
+              <label class="checkbox"><input type="checkbox" value="1" checked disabled> Actividades</label>
+              <label class="checkbox"><input type="checkbox" value="1" checked disabled> Calendario institucional</label>
+              <label class="checkbox"><input type="checkbox" value="1" checked disabled> Notificaciones y perfil</label>
+            </div>
+            <div class="crm-area-create-config-header" style="margin-top:14px;">
+              <strong>Capacidades configurables</strong>
+            </div>
             <div class="crm-area-config-grid">
               <label class="checkbox"><input type="checkbox" name="puede_clientes" id="edit_puede_clientes" value="1"> Gestión de clientes</label>
               <label class="checkbox"><input type="checkbox" name="recibe_derivaciones" id="edit_recibe_derivaciones" value="1"> Recibir derivaciones</label>
               <label class="checkbox"><input type="checkbox" name="recibe_turnos" id="edit_recibe_turnos" value="1"> Recibir turnos</label>
               <label class="checkbox"><input type="checkbox" name="puede_atenciones" id="edit_puede_atenciones" value="1"> Atenciones</label>
               <label class="checkbox"><input type="checkbox" name="asignable_empleado" id="edit_asignable_empleado" value="1"> Asignar colaboradores</label>
+              <label class="checkbox"><input type="checkbox" name="puede_salas_reuniones" id="edit_puede_salas_reuniones" value="1"> Sala de reuniones</label>
+              <label class="checkbox"><input type="checkbox" name="puede_programas" id="edit_puede_programas" value="1"> Programas</label>
+              <label class="checkbox"><input type="checkbox" name="puede_dominios" id="edit_puede_dominios" value="1"> Dominios</label>
             </div>
+            <p class="muted" style="margin:12px 0 0;">Mapa de eventos y administración de Sistemas dependen del rol del usuario y no se habilitan desde esta configuración.</p>
           </div>
 
           <div class="form-group crm-informes-area-options" id="modal_edit_informes_grupo">
@@ -862,7 +916,7 @@ $configuracion_informes_areas = crm_informes_area_configuraciones_todas();
     Array.prototype.forEach.call(checks, function(check) {
       check.checked = informesSeleccionados.indexOf(check.value) !== -1;
     });
-    var checksCapacidades = document.querySelectorAll('#form_modal_editar_area input[name="puede_clientes"], #form_modal_editar_area input[name="recibe_derivaciones"], #form_modal_editar_area input[name="recibe_turnos"], #form_modal_editar_area input[name="puede_atenciones"], #form_modal_editar_area input[name="asignable_empleado"]');
+    var checksCapacidades = document.querySelectorAll('#form_modal_editar_area input[name="puede_clientes"], #form_modal_editar_area input[name="recibe_derivaciones"], #form_modal_editar_area input[name="recibe_turnos"], #form_modal_editar_area input[name="puede_atenciones"], #form_modal_editar_area input[name="asignable_empleado"], #form_modal_editar_area input[name="puede_salas_reuniones"], #form_modal_editar_area input[name="puede_programas"], #form_modal_editar_area input[name="puede_dominios"]');
     Array.prototype.forEach.call(checksCapacidades, function(check) {
       check.checked = capacidadesSeleccionadas.indexOf(check.name) !== -1;
     });
@@ -937,7 +991,7 @@ $configuracion_informes_areas = crm_informes_area_configuraciones_todas();
   function bindResumen(selector, containerId, emptyText, singularText, pluralText) {
     actualizarResumen(containerId, selector, emptyText, singularText, pluralText);
   }
-  bindResumen('#modalCapacidadesAlta input[type="checkbox"]', 'resumen_capacidades_alta', 'Ninguna seleccionada', 'capacidad seleccionada', 'capacidades seleccionadas');
+  bindResumen('#modalCapacidadesAlta input[type="checkbox"][name]', 'resumen_capacidades_alta', 'Ninguna seleccionada', 'capacidad seleccionada', 'capacidades seleccionadas');
   bindResumen('#modalInformesAlta input[name="informes_disponibles[]"]', 'resumen_informes_alta', 'Ninguno seleccionado', 'informe seleccionado', 'informes seleccionados');
 
   function actualizarEstadoCheckboxes(scope) {
@@ -985,7 +1039,7 @@ $configuracion_informes_areas = crm_informes_area_configuraciones_todas();
     });
     actualizarEstadoCheckboxes(modal);
   }
-  configurarModalSeleccion('modalCapacidadesAlta', 'input[type="checkbox"]', 'resumen_capacidades_alta', 'Ninguna seleccionada', 'capacidad seleccionada', 'capacidades seleccionadas');
+  configurarModalSeleccion('modalCapacidadesAlta', 'input[type="checkbox"][name]', 'resumen_capacidades_alta', 'Ninguna seleccionada', 'capacidad seleccionada', 'capacidades seleccionadas');
   configurarModalSeleccion('modalInformesAlta', 'input[name="informes_disponibles[]"]', 'resumen_informes_alta', 'Ninguno seleccionado', 'informe seleccionado', 'informes seleccionados');
 })();
 </script>

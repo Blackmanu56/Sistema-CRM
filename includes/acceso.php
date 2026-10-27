@@ -412,7 +412,7 @@ function clientes_asegurar_columnas()
 
 /**
  * Capacidad puntual de un área (columnas v3 de la tabla area).
- * $cap: 'puede_clientes' | 'recibe_derivaciones' | 'recibe_turnos'
+ * $cap: area capability key, e.g. 'puede_clientes' or 'puede_programas'.
  * Devuelve 1 o 0.
  */
 function area_capacidad($clave, $cap)
@@ -420,7 +420,7 @@ function area_capacidad($clave, $cap)
 	static $permitidas=null;
 	if($permitidas===null)
 	{
-		$permitidas=array('puede_clientes','recibe_derivaciones','recibe_turnos','puede_atenciones');
+		$permitidas=array('puede_clientes','recibe_derivaciones','recibe_turnos','puede_atenciones','puede_salas_reuniones','puede_programas','puede_dominios');
 	}
 	crm_asegurar_area_flags();
 	$clave=trim((string)$clave);
@@ -440,6 +440,23 @@ function area_capacidad($clave, $cap)
 		array($clave)
 	);
 	return ($row && intval($row['v'])===1) ? 1 : 0;
+}
+
+/** Read access to the shared domain catalogue requires both an enabled area capability and existing area access. */
+function acceso_puede_ver_dominios($area=null)
+{
+	if(!is_string($area) || trim($area)==='')
+	{
+		$area=function_exists('acceso_area_activa') ? acceso_area_activa() : '';
+	}
+	$area=trim((string)$area);
+	return $area!=='' && area_capacidad($area, 'puede_dominios')===1 && acceso_puede($area);
+}
+
+/** Legacy Systems-specific domain management access; do not use as a read permission. */
+function acceso_puede_dominios()
+{
+	return area_capacidad('sistemas', 'puede_dominios')===1 && acceso_puede('sistemas');
 }
 
 // Nombre histórico: ¿el área recibe turnos/atenciones? (ahora respeta la columna propia).
@@ -1878,26 +1895,36 @@ function acceso_es_coord_de_area($area='')
 	return false;
 }
 
-/** Acceso global de consulta a la sala: coordinación de cualquier área, Coordinación General o Superadmin. */
+/** Sala de reuniones requiere rol autorizado y capacidad habilitada en el área activa. */
 function acceso_puede_salas_reuniones()
 {
-	if(acceso_es_super() || acceso_es_coord_general())
+	$rol_autorizado=acceso_es_super() || acceso_es_coord_general();
+	if(!$rol_autorizado && ((isset($_SESSION['rol_base']) && $_SESSION['rol_base']==='coordinador')
+		|| (isset($_SESSION['rol_area']) && $_SESSION['rol_area']==='coordinador')))
 	{
-		return true;
+		$rol_autorizado=true;
 	}
-	if((isset($_SESSION['rol_base']) && $_SESSION['rol_base']==='coordinador')
-		|| (isset($_SESSION['rol_area']) && $_SESSION['rol_area']==='coordinador'))
+	if(!$rol_autorizado)
 	{
-		return true;
-	}
-	foreach(acceso_roles_adicionales_sesion() as $extra)
-	{
-		if(isset($extra['rol']) && $extra['rol']==='coordinador')
+		foreach(acceso_roles_adicionales_sesion() as $extra)
 		{
-			return true;
+			if(isset($extra['rol']) && $extra['rol']==='coordinador')
+			{
+				$rol_autorizado=true;
+				break;
+			}
 		}
 	}
-	return false;
+	if(!$rol_autorizado) { return false; }
+
+	$area_activa=function_exists('acceso_area_activa') ? trim((string)acceso_area_activa()) : '';
+	if($area_activa==='' || $area_activa==='general')
+	{
+		// El contexto General no corresponde a una fila de area; conservar allí
+		// únicamente el acceso global que ya tienen Superadmin/Coord. General.
+		return acceso_es_super() || acceso_es_coord_general();
+	}
+	return function_exists('area_capacidad') && area_capacidad($area_activa,'puede_salas_reuniones')===1;
 }
 
 /**
@@ -2211,7 +2238,10 @@ function acceso_puede_ver_informes()
 // Lectura del informe de colaboradores: no concede permisos de edición de RRHH.
 function acceso_puede_ver_informe_colaboradores()
 {
-	return acceso_es_super() || acceso_es_coord_general() || acceso_es_coord_de_area('rrhh');
+	$coord_rrhh_principal=isset($_SESSION['area_base'],$_SESSION['rol_base'])
+		&& $_SESSION['area_base']==='rrhh'
+		&& $_SESSION['rol_base']==='coordinador';
+	return acceso_es_super() || acceso_es_coord_general() || $coord_rrhh_principal || acceso_es_coord_de_area('rrhh');
 }
 
 function acceso_puede_armar_informes()
@@ -4207,7 +4237,7 @@ function acceso_puede_clientes_de_area($area='')
 	}
 	if($area=='recepcion')
 	{
-		return acceso_puede('recepcion');
+		return area_capacidad($area, 'puede_clientes') && acceso_puede('recepcion');
 	}
 	crm_asegurar_area_flags();
 	$row=acceso_consulta_una(
