@@ -250,12 +250,12 @@ if(!$sin_db && acceso_tabla_existe('atencion'))
 		{
 			// Empleado: turnos del área donde trabaja
 			$extra=dash_sql_area_filtro($area_act, $types, $vals);
-			$filtro_estado="at.estado IN ('abierta','en_atencion')";
+			$filtro_estado="at.estado IN ('pendiente','abierta','en_atencion')";
 		}
 		else
 		{
 			$extra=dash_sql_area_filtro($filtro, $types, $vals);
-			$filtro_estado="at.estado IN ('abierta','en_atencion')";
+			$filtro_estado="at.estado IN ('pendiente','abierta','en_atencion')";
 		}
 		$turnos_hoy=acceso_consulta(
 			"SELECT at.id_atencion, at.estado, at.motivo, COALESCE(at.fecha_turno, at.fecha) AS fecha_ref,
@@ -642,9 +642,10 @@ $bajas_pend=function_exists('crm_tarea_bajas_pendientes_mias') ? crm_tarea_bajas
                         <?php if(function_exists('acceso_puede_alta_cliente') && acceso_puede_alta_cliente('sistemas')) { ?>
                         <a class="btn btn-white btn-cons" href="<?php echo url_crm('sistemas/alta-cliente.php'); ?>"><i class="fa fa-user"></i> Nuevo cliente</a>
                         <?php } ?>
-                        <a class="btn btn-white btn-cons" href="<?php echo url_crm('sistemas/dominios.php'); ?>"><i class="fa fa-globe"></i> Dominios</a>
-                        <a class="btn btn-white btn-cons" href="<?php echo url_crm('sistemas/programas.php'); ?>"><i class="fa fa-th-large"></i> Programas</a>
                         <?php } ?>
+
+                        <?php if(function_exists('acceso_puede_ver_dominios') && acceso_puede_ver_dominios($area_act)) { ?><a class="btn btn-white btn-cons" href="<?php echo url_crm('sistemas/dominios.php'); ?>"><i class="fa fa-globe"></i> Dominios</a><?php } ?>
+                        <?php if(function_exists('crm_puede_consultar_programas') && crm_puede_consultar_programas($area_act)) { ?><a class="btn btn-white btn-cons" href="<?php echo url_crm($area_act==='general' ? 'general/programas.php' : 'sistemas/programas.php'); ?>"><i class="fa fa-th-large"></i> Programas</a><?php } ?>
 
                         <a class="btn btn-white btn-cons" href="<?php echo url_crm($area_links.'/nueva-tarea.php'); ?>"><i class="fa fa-plus"></i> Nueva tarea</a>
                         <?php if(function_exists('actividad_puede_crear') && actividad_puede_crear($area_act)) { ?>

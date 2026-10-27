@@ -13,8 +13,8 @@ $reporte=isset($_GET['reporte']) && is_scalar($_GET['reporte']) ? trim((string)$
 $reporte_no_disponible=($reporte!=='' && !in_array($reporte, array('colaboradores','clientes','actividades','tareas','atenciones','dominios'), true));
 if($reporte==='colaboradores' && !$puede_ver_colaboradores)
 {
-    header('Location: '.acceso_destino_login());
-    exit();
+    http_response_code(403);
+    exit('No estas autorizado para consultar este informe.');
 }
 if($reporte==='clientes' && !$puede_ver_clientes)
 {

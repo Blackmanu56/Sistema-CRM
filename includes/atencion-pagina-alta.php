@@ -26,6 +26,23 @@ $menu_activo = 'atenciones';
 $areas_disp = function_exists('recepcion_areas_cliente') ? recepcion_areas_cliente() : array();
 $areas_walkin = $area_cli === 'recepcion' && function_exists('crm_areas_destino_derivacion') ? crm_areas_destino_derivacion('recepcion') : array();
 
+// Reutilizar el padrón de provincias/localidades del alta principal de clientes.
+require_once BASE_PATH.'/includes/provincias.php';
+$provincias_cliente_rapido = provincias_todas();
+$localidades_cliente_rapido = array();
+foreach(acceso_consulta("SELECT id_localidad, nombre, id_provincia FROM localidad ORDER BY nombre") as $fila_localidad)
+{
+	$id_provincia_localidad = intval($fila_localidad['id_provincia']);
+	if(!isset($localidades_cliente_rapido[$id_provincia_localidad]))
+	{
+		$localidades_cliente_rapido[$id_provincia_localidad] = array();
+	}
+	$localidades_cliente_rapido[$id_provincia_localidad][] = array(
+		'id' => intval($fila_localidad['id_localidad']),
+		'nombre' => $fila_localidad['nombre']
+	);
+}
+
 if(!isset($_SESSION['crm_walkin_issued']) || !is_array($_SESSION['crm_walkin_issued'])) { $_SESSION['crm_walkin_issued']=array(); }
 if(!isset($_SESSION['crm_walkin_done']) || !is_array($_SESSION['crm_walkin_done'])) { $_SESSION['crm_walkin_done']=array(); }
 $walkin_token_random=function() {
@@ -144,6 +161,11 @@ if(isset($_POST['guardar_atencion']))
 		'detalle' => $detalle,
 		'id_empleado' => $id_empleado_asig > 0 ? $id_empleado_asig : null
 	);
+	if($area_form !== $area_cli && !$es_walkin_recepcion)
+	{
+		$datos_alta['id_area_origen'] = acceso_id_por_clave('area', $area_cli);
+		$datos_alta['id_empleado_origen'] = crm_id_empleado_sesion();
+	}
 
 	if($modalidad === 'atencion_espontanea')
 	{
@@ -243,6 +265,20 @@ if(isset($_POST['guardar_atencion']))
 // Colaboradores disponibles del área seleccionada
 $id_area_act = acceso_id_por_clave('area', $area_def);
 $colaboradores_disp = ($id_area_act > 0 && function_exists('crm_empleados_de_area_id')) ? crm_empleados_de_area_id($id_area_act) : array();
+$puede_seleccionar_area_atencion = ($area_cli === 'recepcion' || acceso_es_super() || acceso_es_coord_general());
+$puede_asignar_colaborador_atencion = !($area_cli === 'recepcion' && !acceso_es_super() && !acceso_es_coord_general());
+$colaboradores_por_area = array();
+if($puede_seleccionar_area_atencion && $puede_asignar_colaborador_atencion && function_exists('crm_empleados_de_area_id'))
+{
+	foreach($areas_disp as $clave_area_disp => $titulo_area_disp)
+	{
+		$id_area_disp = acceso_id_por_clave('area', $clave_area_disp);
+		if($id_area_disp > 0)
+		{
+			$colaboradores_por_area[$clave_area_disp] = crm_empleados_de_area_id($id_area_disp);
+		}
+	}
+}
 
 // Horarios disponibles para el área y fecha
 $horarios_disp = function_exists('crm_turno_horarios_disponibles') ? crm_turno_horarios_disponibles($area_def, $fecha_def) : array();
@@ -432,7 +468,7 @@ $url_ajax_alta_cliente = url_crm('recepcion/ajax/cliente-rapido.php');
                                         <label style="font-weight:600;"><i class="fa fa-user-circle-o"></i> Colaborador responsable</label>
                                         <?php if($area_cli === 'recepcion' && !acceso_es_super() && !acceso_es_coord_general()) { ?>
                                         <div class="form-control-static" style="color:#64748b;">Recepción deriva la atención al área. El coordinador destinatario asignará al responsable.</div>
-                                        <?php } else if(empty($colaboradores_disp)) { ?>
+                                        <?php } else if(empty($colaboradores_disp) && !$puede_seleccionar_area_atencion) { ?>
                                         <input type="hidden" name="id_empleado" value="">
                                         <div style="background:#fffbeb; border:1px solid #fcd34d; border-radius:6px; padding:8px 12px; font-size:12px; color:#92400e;">
                                             <i class="fa fa-info-circle"></i> Esta área no tiene colaboradores activos. El turno queda <strong>sin asignar</strong> y se coordina después desde Atenciones.
@@ -448,6 +484,7 @@ $url_ajax_alta_cliente = url_crm('recepcion/ajax/cliente-rapido.php');
                                                 <?php echo htmlspecialchars($nom_completo); ?><?php if($es_yo) echo ' (vos)'; ?>
                                             </option>
                                             <?php } ?>
+                                            <?php if(empty($colaboradores_disp)) { ?><option value="" disabled>No hay colaboradores activos en esta área.</option><?php } ?>
                                         </select>
                                         <p class="muted" style="margin-top:4px; font-size:11.5px;">Podés preasignar un colaborador del equipo o dejarlo para coordinar.</p>
                                         <?php } ?>
@@ -564,6 +601,8 @@ $url_ajax_alta_cliente = url_crm('recepcion/ajax/cliente-rapido.php');
         <div class="form-group"><label for="nuevoClienteDni">DNI (opcional)</label><input class="form-control" id="nuevoClienteDni" name="dni" maxlength="30"></div>
         <div class="form-group"><label for="nuevoClienteCuit">CUIL / CUIT (opcional)</label><input class="form-control" id="nuevoClienteCuit" name="cuil_cuit" maxlength="30"></div>
         <div class="form-group"><label for="nuevoClienteDireccion">Dirección (opcional)</label><input class="form-control" id="nuevoClienteDireccion" name="address" maxlength="180"></div>
+        <div class="form-group"><label for="nuevoClienteProvincia">Provincia *</label><select class="form-control" id="nuevoClienteProvincia" name="id_provincia" required><option value="">Elegir provincia</option><?php foreach($provincias_cliente_rapido as $provincia) { ?><option value="<?php echo intval($provincia['id_provincia']); ?>"><?php echo htmlspecialchars($provincia['nombre'], ENT_QUOTES, 'UTF-8'); ?></option><?php } ?></select></div>
+        <div class="form-group"><label for="nuevoClienteLocalidad">Localidad *</label><select class="form-control" id="nuevoClienteLocalidad" name="id_localidad" required disabled><option value="">Elegir localidad</option></select></div>
         <input type="hidden" name="gender" value="m"><input type="hidden" name="origen" value="presencial">
       </div>
       <div class="modal-footer"><button type="button" class="btn btn-white" data-dismiss="modal">Cancelar</button><button type="submit" id="guardarClienteRapido" class="btn btn-primary"><i class="fa fa-save"></i> Guardar cliente</button></div>
@@ -577,7 +616,24 @@ $url_ajax_alta_cliente = url_crm('recepcion/ajax/cliente-rapido.php');
 var urlBuscarCli = <?php echo json_encode($url_ajax_clientes, JSON_UNESCAPED_UNICODE); ?>;
 var urlHorariosAjax = <?php echo json_encode($url_ajax_horarios, JSON_UNESCAPED_UNICODE); ?>;
 var urlAltaClienteRapido = <?php echo json_encode($url_ajax_alta_cliente, JSON_UNESCAPED_UNICODE); ?>;
+var localidadesClienteRapidoPorProvincia = <?php echo json_encode($localidades_cliente_rapido, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+var colaboradoresPorAreaTurno = <?php echo json_encode($colaboradores_por_area, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 var timerBuscar = null;
+
+function actualizarLocalidadesClienteRapido(idProvincia) {
+    var $localidad = $('#nuevoClienteLocalidad');
+    $localidad.empty().append($('<option>').val('').text('Elegir localidad'));
+    $localidad.prop('disabled', true);
+    var localidades = localidadesClienteRapidoPorProvincia[idProvincia] || [];
+    for(var i = 0; i < localidades.length; i++) {
+        $localidad.append($('<option>').val(localidades[i].id).text(localidades[i].nombre));
+    }
+    $localidad.prop('disabled', localidades.length === 0);
+}
+
+$('#nuevoClienteProvincia').on('change', function() {
+    actualizarLocalidadesClienteRapido(this.value);
+});
 
 function seleccionarModalidad(mod) {
     var areaTurnoWrap = document.getElementById('area_turno_wrap');
@@ -632,7 +688,7 @@ $('#formNuevoClienteRapido').on('submit', function(e) {
     $button.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Guardando…');
     $.ajax({
         url: urlAltaClienteRapido,
-        method: 'POST',
+        type: 'POST',
         data: $(form).serialize(),
         dataType: 'json'
     }).done(function(r) {
@@ -643,6 +699,7 @@ $('#formNuevoClienteRapido').on('submit', function(e) {
         elegirCliente({id: r.id, nombre: r.nombre});
         $('#nuevoClienteModal').modal('hide');
         form.reset();
+        actualizarLocalidadesClienteRapido('');
     }).fail(function() {
         $('#nuevoClienteError').text('No se pudo guardar el cliente. Revisá la conexión e intentá nuevamente.').show();
     }).always(function() {
@@ -738,7 +795,30 @@ function cargarHorariosDisponibles() {
 }
 
 function actualizarAreaYHorarios() {
+    actualizarColaboradoresDelArea();
     cargarHorariosDisponibles();
+}
+
+function actualizarColaboradoresDelArea() {
+    var select = document.getElementById('id_empleado');
+    var area = document.getElementById('area_turno');
+    if(!select || !area || area.tagName.toLowerCase() !== 'select') return;
+    var valorAnterior = select.value;
+    var lista = colaboradoresPorAreaTurno[area.value] || [];
+    select.innerHTML = '';
+    var sinAsignar = document.createElement('option');
+    sinAsignar.value = '';
+    sinAsignar.textContent = '(Sin asignar / Por asignar en el área)';
+    select.appendChild(sinAsignar);
+    var conservaAnterior = false;
+    for(var i = 0; i < lista.length; i++) {
+        var opcion = document.createElement('option');
+        opcion.value = String(lista[i].id_empleado);
+        opcion.textContent = lista[i].name || (lista[i].nombres + ' ' + lista[i].apellido);
+        if(opcion.value === valorAnterior) conservaAnterior = true;
+        select.appendChild(opcion);
+    }
+    select.value = conservaAnterior ? valorAnterior : '';
 }
 
 function validarFormulario() {

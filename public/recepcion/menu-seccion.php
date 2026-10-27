@@ -14,5 +14,5 @@ if(!isset($menu_activo)) { $menu_activo='tareas'; }
 	<a href="<?php echo url_crm('recepcion/atenciones.php'); ?>" class="btn <?php echo ($menu_activo=='atenciones' ? 'btn-primary' : 'btn-white'); ?>">Atenciones</a>
 	<?php } ?>
 	<?php } ?>
-<?php crm_menu_seccion_sala_reuniones(); ?>
+<?php crm_menu_seccion_capacidades_area('recepcion'); crm_menu_seccion_sala_reuniones(); ?>
 </div>

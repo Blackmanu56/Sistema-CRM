@@ -12,5 +12,5 @@ if(!isset($menu_activo)) { $menu_activo='tareas'; }
 	<?php if(area_capacidad('vinculaciones', 'puede_atenciones')) { ?>
 	<a href="<?php echo htmlspecialchars(url_crm('vinculaciones/atenciones.php'), ENT_QUOTES, 'UTF-8'); ?>" class="btn <?php echo ($menu_activo=='atenciones' ? 'btn-primary' : 'btn-white'); ?>">Atenciones</a>
 	<?php } ?>
-	<?php crm_menu_seccion_sala_reuniones(); ?>
+<?php crm_menu_seccion_capacidades_area('vinculaciones'); crm_menu_seccion_sala_reuniones(); ?>
 </div>

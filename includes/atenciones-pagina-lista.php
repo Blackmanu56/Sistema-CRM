@@ -26,6 +26,19 @@ $colab_filtro=isset($_GET['colaborador']) ? intval($_GET['colaborador']) : 0;
 
 $id_area_act=acceso_id_por_clave('area', $area_cli);
 $colaboradores_area=($id_area_act>0 && function_exists('crm_empleados_de_area_id')) ? crm_empleados_de_area_id($id_area_act) : array();
+$mostrar_filtro_hoy=area_capacidad($area_cli, 'puede_atenciones');
+$accion_fecha_hoy='';
+if($mostrar_filtro_hoy)
+{
+	if($fecha_filtro==='hoy')
+	{
+		$accion_fecha_hoy='<a href="atenciones.php" class="btn btn-white btn-xs" style="margin-left: 8px;"><i class="fa fa-list"></i> Ver todas las atenciones</a>';
+	}
+	else
+	{
+		$accion_fecha_hoy='<a href="atenciones.php?fecha=hoy" class="btn btn-info btn-xs" style="margin-left: 8px;"><i class="fa fa-calendar"></i> Ver solo atenciones de hoy</a>';
+	}
+}
 
 $etq=acceso_etiquetas_area();
 $nombre_area=isset($etq[$area_cli]) ? $etq[$area_cli] : $area_cli;
@@ -132,17 +145,17 @@ $lista=crm_atenciones_listado($area_cli, array(
                 </form>
 
                 <?php if($tipo_filtro==='recibidas') { ?>
-                <p class="muted">Derivaciones que otras áreas derivaron hacia <strong><?php echo texto_mostrar($nombre_area); ?></strong> para su atención o seguimiento.</p>
+                <p class="muted">Derivaciones que otras áreas derivaron hacia <strong><?php echo texto_mostrar($nombre_area); ?></strong> para su atención o seguimiento.<?php echo $accion_fecha_hoy; ?></p>
                 <?php } else if($tipo_filtro==='enviadas') { ?>
-                <p class="muted">Derivaciones que <strong><?php echo texto_mostrar($nombre_area); ?></strong> envió a otras áreas operativas y su estado actual en destino.</p>
+                <p class="muted">Derivaciones que <strong><?php echo texto_mostrar($nombre_area); ?></strong> envió a otras áreas operativas y su estado actual en destino.<?php echo $accion_fecha_hoy; ?></p>
                 <?php } else if($area_cli=='recepcion') { ?>
                     <?php if($fecha_filtro==='hoy') { ?>
-                    <p class="muted">Mostrando los turnos registrados para hoy. <a href="atenciones.php" class="btn btn-white btn-xs" style="margin-left: 8px;"><i class="fa fa-list"></i> Ver todas las atenciones</a></p>
+                    <p class="muted">Mostrando los turnos registrados para hoy.<?php echo $accion_fecha_hoy; ?></p>
                     <?php } else { ?>
-                    <p class="muted">Atenciones y turnos registrados desde recepción. <a href="atenciones.php?fecha=hoy" class="btn btn-info btn-xs" style="margin-left: 8px;"><i class="fa fa-calendar"></i> Ver solo atenciones de hoy</a></p>
+                    <p class="muted">Atenciones y turnos registrados desde recepción.<?php echo $accion_fecha_hoy; ?></p>
                     <?php } ?>
                 <?php } else { ?>
-                <p class="muted">Atenciones registradas en esta área y seguimiento de atenciones derivadas.</p>
+                <p class="muted">Atenciones registradas en esta área y seguimiento de atenciones derivadas.<?php echo $accion_fecha_hoy; ?></p>
                 <?php } ?>
                 <?php echo crm_html_busqueda_clientes(); ?>
 

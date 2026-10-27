@@ -897,6 +897,8 @@ function crm_atencion_abrir($datos)
 		}
 	}
 	$origen=isset($datos['id_origen']) ? intval($datos['id_origen']) : 0;
+	$id_area_origen=isset($datos['id_area_origen']) ? intval($datos['id_area_origen']) : 0;
+	$id_empleado_origen=isset($datos['id_empleado_origen']) ? intval($datos['id_empleado_origen']) : 0;
 	$estado_ini=isset($datos['estado']) ? $datos['estado'] : 'abierta';
 	$ok_est=array('pendiente','abierta','en_atencion','cerrada','derivada','cancelada');
 	if(!in_array($estado_ini, $ok_est, true))
@@ -912,33 +914,33 @@ function crm_atencion_abrir($datos)
 	if($tipo_ingreso_disponible && $origen>0)
 	{
 		$id=acceso_insertar(
-			"INSERT INTO atencion (id_cliente, id_area, id_empleado, motivo, canal, detalle, estado, id_atencion_origen, fecha_turno, tipo_ingreso) VALUES (?,?,?,?,?,?,?,?,?,?)",
-			'iiissssiss',
-			array($id_cliente, $id_area, $id_empleado > 0 ? $id_empleado : null, $motivo, $canal, $detalle, $estado_ini, $origen, $fecha_turno, $tipo_ingreso)
+			"INSERT INTO atencion (id_cliente, id_area, id_empleado, id_area_origen, id_empleado_origen, motivo, canal, detalle, estado, id_atencion_origen, fecha_turno, tipo_ingreso) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+			'iiiiissssiss',
+			array($id_cliente, $id_area, $id_empleado > 0 ? $id_empleado : null, $id_area_origen > 0 ? $id_area_origen : null, $id_empleado_origen > 0 ? $id_empleado_origen : null, $motivo, $canal, $detalle, $estado_ini, $origen, $fecha_turno, $tipo_ingreso)
 		);
 	}
 	else if($tipo_ingreso_disponible)
 	{
 		$id=acceso_insertar(
-			"INSERT INTO atencion (id_cliente, id_area, id_empleado, motivo, canal, detalle, estado, fecha_turno, tipo_ingreso) VALUES (?,?,?,?,?,?,?,?,?)",
-			'iiissssss',
-			array($id_cliente, $id_area, $id_empleado > 0 ? $id_empleado : null, $motivo, $canal, $detalle, $estado_ini, $fecha_turno, $tipo_ingreso)
+			"INSERT INTO atencion (id_cliente, id_area, id_empleado, id_area_origen, id_empleado_origen, motivo, canal, detalle, estado, fecha_turno, tipo_ingreso) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+			'iiiiissssss',
+			array($id_cliente, $id_area, $id_empleado > 0 ? $id_empleado : null, $id_area_origen > 0 ? $id_area_origen : null, $id_empleado_origen > 0 ? $id_empleado_origen : null, $motivo, $canal, $detalle, $estado_ini, $fecha_turno, $tipo_ingreso)
 		);
 	}
 	else if($origen>0)
 	{
 		$id=acceso_insertar(
-			"INSERT INTO atencion (id_cliente, id_area, id_empleado, motivo, canal, detalle, estado, id_atencion_origen, fecha_turno) VALUES (?,?,?,?,?,?,?,?,?)",
-			'iiissssis',
-			array($id_cliente, $id_area, $id_empleado > 0 ? $id_empleado : null, $motivo, $canal, $detalle, $estado_ini, $origen, $fecha_turno)
+			"INSERT INTO atencion (id_cliente, id_area, id_empleado, id_area_origen, id_empleado_origen, motivo, canal, detalle, estado, id_atencion_origen, fecha_turno) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+			'iiiiiisssss',
+			array($id_cliente, $id_area, $id_empleado > 0 ? $id_empleado : null, $id_area_origen > 0 ? $id_area_origen : null, $id_empleado_origen > 0 ? $id_empleado_origen : null, $motivo, $canal, $detalle, $estado_ini, $origen, $fecha_turno)
 		);
 	}
 	else
 	{
 		$id=acceso_insertar(
-			"INSERT INTO atencion (id_cliente, id_area, id_empleado, motivo, canal, detalle, estado, fecha_turno) VALUES (?,?,?,?,?,?,?,?)",
-			'iiisssss',
-			array($id_cliente, $id_area, $id_empleado > 0 ? $id_empleado : null, $motivo, $canal, $detalle, $estado_ini, $fecha_turno)
+			"INSERT INTO atencion (id_cliente, id_area, id_empleado, id_area_origen, id_empleado_origen, motivo, canal, detalle, estado, fecha_turno) VALUES (?,?,?,?,?,?,?,?,?,?)",
+			'iiiiisssss',
+			array($id_cliente, $id_area, $id_empleado > 0 ? $id_empleado : null, $id_area_origen > 0 ? $id_area_origen : null, $id_empleado_origen > 0 ? $id_empleado_origen : null, $motivo, $canal, $detalle, $estado_ini, $fecha_turno)
 		);
 	}
 	if($id<=0)

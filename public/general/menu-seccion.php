@@ -16,7 +16,7 @@ if(!isset($menu_activo)) { $menu_activo='tareas'; }
 	<?php if(acceso_es_coord_general() || acceso_es_super()) { ?>
 	<a href="<?php echo htmlspecialchars(crm_navegacion_general_url('general/provincias.php'), ENT_QUOTES, 'UTF-8'); ?>" class="btn <?php echo ($menu_activo=='provincias' ? 'btn-primary' : 'btn-white'); ?>">Provincias y localidades</a>
 	<?php } ?>
-	<?php if(crm_puede_gestionar_programas()) { ?>
+	<?php if(function_exists('crm_puede_consultar_programas') && crm_puede_consultar_programas('general')) { ?>
 	<a href="<?php echo htmlspecialchars(crm_navegacion_general_url('general/programas.php'), ENT_QUOTES, 'UTF-8'); ?>" class="btn <?php echo ($menu_activo=='programas' ? 'btn-primary' : 'btn-white'); ?>">Programas</a>
 	<?php } ?>
 	<?php if(acceso_es_coord_general() || acceso_es_super()) { ?>

@@ -7,7 +7,7 @@ if(!isset($menu_activo)) { $menu_activo='tareas'; }
 	<a href="<?php echo htmlspecialchars(url_crm('sistemas/dashboard.php'), ENT_QUOTES, 'UTF-8'); ?>" class="btn <?php echo (in_array($menu_activo, array('inicio','dashboard'), true) ? 'btn-primary' : 'btn-white'); ?>">Inicio</a>
 	<a href="<?php echo url_crm('sistemas/tareas.php'); ?>" class="btn <?php echo ($menu_activo=='tareas' ? 'btn-primary' : 'btn-white'); ?>">Tareas</a>
 	<a href="<?php echo url_crm('sistemas/actividades.php'); ?>" class="btn <?php echo ($menu_activo=='Actividades' ? 'btn-primary' : 'btn-white'); ?>">Actividades</a>
-	<?php if(crm_puede_gestionar_programas()) { ?>
+	<?php if(function_exists('crm_puede_consultar_programas') && crm_puede_consultar_programas('sistemas')) { ?>
 	<a href="<?php echo url_crm('sistemas/programas.php'); ?>" class="btn <?php echo ($menu_activo=='programas' ? 'btn-primary' : 'btn-white'); ?>">Programas</a>
 	<?php } ?>
 	<?php if(acceso_puede_clientes_de_area('sistemas')) { ?>
@@ -16,7 +16,9 @@ if(!isset($menu_activo)) { $menu_activo='tareas'; }
 	<?php if(area_capacidad('sistemas', 'puede_atenciones') && (acceso_puede_clientes_de_area('sistemas') || crm_area_ve_todo('sistemas') || acceso_puede('sistemas'))) { ?>
 	<a href="<?php echo url_crm('sistemas/atenciones.php'); ?>" class="btn <?php echo ($menu_activo=='atenciones' ? 'btn-primary' : 'btn-white'); ?>">Atenciones</a>
 	<?php } ?>
+	<?php if(function_exists('acceso_puede_ver_dominios') && acceso_puede_ver_dominios('sistemas')) { ?>
 	<a href="<?php echo url_crm('sistemas/dominios.php'); ?>" class="btn <?php echo ($menu_activo=='dominios' ? 'btn-primary' : 'btn-white'); ?>">Dominios</a>
+	<?php } ?>
 	<?php crm_menu_seccion_sala_reuniones(); ?>
 	<?php if(acceso_puede_gestionar('sistemas')) { ?>
 	<a href="<?php echo url_crm('sistemas/accesos.php'); ?>" class="btn <?php echo ($menu_activo=='accesos' ? 'btn-primary' : 'btn-white'); ?>">Accesos</a>

@@ -730,12 +730,15 @@ body.crm-dominios-page .dominios-main-layout .dom-upcoming-panel {
 		<!-- Breadcrumbs -->
 		<ul class="breadcrumb">
 			<li><p>ESTÁS AQUÍ</p></li>
-			<li><a href="<?php echo url_crm('sistemas/tareas.php'); ?>"><?php echo htmlspecialchars($nombre_area); ?></a></li>
+			<li><a href="<?php echo is_file(BASE_PATH.'/public/'.$dominios_area_activa.'/tareas.php') ? url_crm($dominios_area_activa.'/tareas.php') : url_crm('dashboard.php'); ?>"><?php echo htmlspecialchars($nombre_area); ?></a></li>
 			<li><a href="#" class="active">Dominios</a></li>
 		</ul>
 
-		<!-- Sub-navigation section menu for Sistemas -->
-		<?php include("menu-seccion.php"); ?>
+		<!-- Sub-navigation for the active area -->
+		<?php
+		$menu_seccion_dominios=BASE_PATH.'/public/'.$dominios_area_activa.'/menu-seccion.php';
+		if(is_file($menu_seccion_dominios)) { include $menu_seccion_dominios; }
+		?>
 
 		<!-- Page Header Title & Action Button -->
 		<div class="page-title crm-compact-heading" style="margin-bottom:15px;">

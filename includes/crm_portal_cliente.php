@@ -471,6 +471,10 @@ function crm_cliente_solicitar_turno($motivo, $detalle='', $fecha_pref='')
 	{
 		return 'No está configurada el área Recepción.';
 	}
+	if(!area_capacidad('recepcion', 'puede_atenciones') || !acceso_area_atiende_clientes('recepcion'))
+	{
+		return 'Recepción no está habilitada para recibir turnos en este momento.';
+	}
 	$ya=acceso_consulta_una(
 		"SELECT id_atencion FROM atencion WHERE id_cliente=? AND id_area=? AND estado='pendiente' LIMIT 1",
 		'ii',

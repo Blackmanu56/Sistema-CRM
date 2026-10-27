@@ -18,5 +18,5 @@ if(!isset($menu_activo)) { $menu_activo='tareas'; }
 	<?php if(empresa_seguimiento_puede_ver_area('empresas')) { ?>
 	<a href="<?php echo htmlspecialchars(url_crm('empresas/seguimientos.php'), ENT_QUOTES, 'UTF-8'); ?>" class="btn <?php echo ($menu_activo==='seguimientos' ? 'btn-primary' : 'btn-white'); ?>">Seguimientos</a>
 	<?php } ?>
-<?php crm_menu_seccion_sala_reuniones(); ?>
+<?php crm_menu_seccion_capacidades_area('empresas'); crm_menu_seccion_sala_reuniones(); ?>
 </div>

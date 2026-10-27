@@ -68,6 +68,7 @@ if(!$rw || !crm_cliente_puede_ver($id, $area_cli))
 	exit();
 }
 $clientes_solo_lectura=crm_cliente_area_solo_lectura($area_cli);
+$puede_abrir_turno_en_area=area_capacidad($area_cli, 'puede_atenciones') && area_capacidad($area_cli, 'recibe_turnos');
 if(($clientes_solo_lectura || $modo_ficha_solo_lectura) && isset($_SERVER['REQUEST_METHOD']) && strtoupper($_SERVER['REQUEST_METHOD'])==='POST')
 {
 	http_response_code(403);
@@ -133,24 +134,34 @@ if(isset($_POST['anotar_programa']) && function_exists('crm_puede_anotar_program
 }
 if(isset($_POST['nueva_atencion']))
 {
-	unset($_SESSION['msgrecepcion']);
-	$id_atencion_nueva=crm_atencion_abrir(array(
-		'id_cliente'=>$id,
-		'area'=>$area_cli,
-		'motivo'=>isset($_POST['motivo']) ? $_POST['motivo'] : 'consulta',
-		'canal'=>isset($_POST['canal']) ? $_POST['canal'] : 'presencial',
-		'detalle'=>isset($_POST['detalle_atencion']) ? $_POST['detalle_atencion'] : ''
-	));
-	if($id_atencion_nueva>0)
+	if(!$puede_abrir_turno_en_area)
 	{
-		$_SESSION['msgcliente']='Atención abierta. El área quedó avisada.';
-		echo "<script>window.location.href='editar-cliente.php?id=".$id."'</script>";
-		exit();
+		http_response_code(403);
+		$cliente_modal_abierto='turno';
+		$cliente_modal_error='Esta área no tiene habilitados los turnos y las atenciones.';
+		$cliente_modal_valores=$_POST;
 	}
-	$cliente_modal_abierto='turno';
-	$cliente_modal_error=(isset($_SESSION['msgrecepcion']) && trim((string)$_SESSION['msgrecepcion'])!=='') ? $_SESSION['msgrecepcion'] : 'No se pudo abrir el turno. Revisá los datos e intentá nuevamente.';
-	unset($_SESSION['msgrecepcion']);
-	$cliente_modal_valores=$_POST;
+	else
+	{
+		unset($_SESSION['msgrecepcion']);
+		$id_atencion_nueva=crm_atencion_abrir(array(
+			'id_cliente'=>$id,
+			'area'=>$area_cli,
+			'motivo'=>isset($_POST['motivo']) ? $_POST['motivo'] : 'consulta',
+			'canal'=>isset($_POST['canal']) ? $_POST['canal'] : 'presencial',
+			'detalle'=>isset($_POST['detalle_atencion']) ? $_POST['detalle_atencion'] : ''
+		));
+		if($id_atencion_nueva>0)
+		{
+			$_SESSION['msgcliente']='Atención abierta. El área quedó avisada.';
+			echo "<script>window.location.href='editar-cliente.php?id=".$id."'</script>";
+			exit();
+		}
+		$cliente_modal_abierto='turno';
+		$cliente_modal_error=(isset($_SESSION['msgrecepcion']) && trim((string)$_SESSION['msgrecepcion'])!=='') ? $_SESSION['msgrecepcion'] : 'No se pudo abrir el turno. Revisá los datos e intentá nuevamente.';
+		unset($_SESSION['msgrecepcion']);
+		$cliente_modal_valores=$_POST;
+	}
 }
 
 if(isset($_POST['derivar_cliente_directo']))
@@ -556,9 +567,10 @@ function valid()
                         $destinos_disp = $puede_derivar_area ? crm_areas_destino_derivacion($area_cli) : array();
                         ?>
                         <div class="cliente-acciones-operativas">
-                            <button type="button" class="btn btn-white" data-toggle="modal" data-target="#modalAbrirTurno"><i class="fa fa-calendar"></i> Abrir turno en esta área</button>
+                            <?php if($puede_abrir_turno_en_area) { ?><button type="button" class="btn btn-white" data-toggle="modal" data-target="#modalAbrirTurno"><i class="fa fa-calendar"></i> Abrir turno en esta área</button><?php } ?>
                             <?php if(count($destinos_disp)>0) { ?><button type="button" class="btn btn-primary" data-toggle="modal" data-target="#modalDerivarCliente"><i class="fa fa-share"></i> Derivar cliente a otra área</button><?php } ?>
                         </div>
+                        <?php if($puede_abrir_turno_en_area || $cliente_modal_abierto==='turno') { ?>
                         <div class="modal fade" id="modalAbrirTurno" tabindex="-1" role="dialog" aria-labelledby="modalAbrirTurnoTitulo" aria-hidden="true">
                             <div class="modal-dialog" role="document"><div class="modal-content">
                                 <form method="post" action="editar-cliente.php?id=<?php echo intval($id); ?>">
@@ -597,6 +609,7 @@ function valid()
                                 </form>
                             </div></div>
                         </div>
+                        <?php } ?>
 
                         <?php if(count($destinos_disp)>0) { ?>
                         <div class="modal fade" id="modalDerivarCliente" tabindex="-1" role="dialog" aria-labelledby="modalDerivarClienteTitulo" aria-hidden="true">

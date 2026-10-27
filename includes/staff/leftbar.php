@@ -343,8 +343,8 @@ $left_profile_url=url_crm('perfil-empleado.php');
       <li class="<?php echo ($crm_cur_script === 'alta-usuario.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('rrhh/alta-usuario.php'); ?>"><span class="fa fa-user"></span>&nbsp;&nbsp;Alta de colaborador</a></li>
       <li class="<?php echo in_array($crm_cur_script, array('empleados.php','editar-empleado.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm('rrhh/empleados.php'); ?>"><span class="fa fa-users"></span>&nbsp;&nbsp;Colaboradores</a></li>
       <?php } ?>
-      <?php if($left_area_act === 'sistemas' && crm_puede_gestionar_programas()) { ?>
-      <li class="<?php echo ($crm_cur_script === 'programas.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('sistemas/programas.php'); ?>"><span class="fa fa-th-large"></span>&nbsp;&nbsp;Programas</a></li>
+      <?php if(function_exists('crm_puede_consultar_programas') && crm_puede_consultar_programas($left_area_act)) { ?>
+      <li class="<?php echo ($crm_cur_script === 'programas.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm($left_area_act==='general' ? 'general/programas.php' : 'sistemas/programas.php'); ?>"><span class="fa fa-th-large"></span>&nbsp;&nbsp;Programas</a></li>
       <?php } ?>
       <?php if(acceso_es_super() && !$crm_area_muestra_clientes) { ?>
       <li class="<?php echo ($crm_cur_script === 'manage-users.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('admin/manage-users.php'); ?>"><span class="fa fa-users"></span>&nbsp;&nbsp;Clientes</a></li>
@@ -361,15 +361,13 @@ $left_profile_url=url_crm('perfil-empleado.php');
       <?php } elseif(acceso_puede_clientes_de_area($left_area_act) && is_file(BASE_PATH.'/public/'.$left_area_act.'/clientes.php')) { ?>
       <li class="<?php echo in_array($crm_cur_script, array('clientes.php','alta-cliente.php','editar-cliente.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm($left_area_act.'/clientes.php'); ?>"><span class="fa fa-users"></span>&nbsp;&nbsp;Clientes</a></li>
       <?php } ?>
-      <?php if(area_capacidad($left_area_act, 'puede_atenciones') && ($left_area_act === 'recepcion' || $left_area_act === 'vinculaciones' || in_array($left_area_act, array('comercio','emprendedores','empresas','marketing','analista','administracion'), true) || $left_area_act === 'sistemas') && (acceso_puede_clientes_de_area($left_area_act) || crm_area_ve_todo($left_area_act) || acceso_puede($left_area_act))) { ?>
+      <?php if(area_capacidad($left_area_act, 'puede_atenciones') && is_file(BASE_PATH.'/public/'.$left_area_act.'/atenciones.php') && (acceso_puede_clientes_de_area($left_area_act) || crm_area_ve_todo($left_area_act) || acceso_puede($left_area_act))) { ?>
       <li class="<?php echo in_array($crm_cur_script, array('atenciones.php','nueva-atencion.php','atencion.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm($left_area_act.'/atenciones.php'); ?>"><span class="fa fa-clock-o"></span>&nbsp;&nbsp;Atenciones</a></li>
-      <?php } elseif($left_area_act === 'rrhh' && area_capacidad('rrhh', 'puede_atenciones')) { ?>
-      <li class="<?php echo in_array($crm_cur_script, array('atenciones.php','nueva-atencion.php','atencion.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm('rrhh/atenciones.php'); ?>"><span class="fa fa-clock-o"></span>&nbsp;&nbsp;Atenciones</a></li>
       <?php } ?>
       <?php if($left_area_act === 'empresas' && acceso_puede('empresas') && acceso_puede_clientes_de_area('empresas') && is_file(BASE_PATH.'/public/empresas/seguimientos.php')) { ?>
       <li class="<?php echo ($crm_cur_script === 'seguimientos.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('empresas/seguimientos.php'); ?>"><span class="fa fa-line-chart"></span>&nbsp;&nbsp;Seguimientos</a></li>
       <?php } ?>
-      <?php if($left_area_act === 'sistemas') { ?>
+      <?php if(function_exists('acceso_puede_ver_dominios') && acceso_puede_ver_dominios($left_area_act)) { ?>
       <li class="<?php echo ($crm_cur_script === 'dominios.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('sistemas/dominios.php'); ?>"><span class="fa fa-globe"></span>&nbsp;&nbsp;Dominios</a></li>
       <?php } ?>
       <?php if(acceso_puede_salas_reuniones()) { ?><li class="<?php echo ($crm_cur_script === 'salas-reuniones.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('salas-reuniones.php'); ?>"><span class="fa fa-calendar"></span>&nbsp;&nbsp;Sala de reuniones</a></li><?php } ?>
@@ -388,7 +386,7 @@ $left_profile_url=url_crm('perfil-empleado.php');
       <?php if(acceso_es_coord_general() || acceso_es_super()) { ?>
       <li class="<?php echo in_array($crm_cur_script, array('provincias.php','localidades.php'), true) ? 'active' : ''; ?>"><a href="<?php echo url_crm('general/provincias.php'); ?>"><span class="fa fa-globe"></span>&nbsp;&nbsp;Provincias y localidades</a></li>
       <?php } ?>
-      <?php if(crm_puede_gestionar_programas()) { ?>
+      <?php if(function_exists('crm_puede_consultar_programas') && crm_puede_consultar_programas('general')) { ?>
       <li class="<?php echo ($crm_cur_script === 'programas.php') ? 'active' : ''; ?>"><a href="<?php echo url_crm('general/programas.php'); ?>"><span class="fa fa-th-large"></span>&nbsp;&nbsp;Programas</a></li>
       <?php } ?>
       <?php if(acceso_es_coord_general() || acceso_es_super()) { ?>

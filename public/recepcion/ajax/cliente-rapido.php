@@ -11,10 +11,21 @@ if($_SERVER['REQUEST_METHOD'] !== 'POST')
 	exit();
 }
 
-$area_act = acceso_area_pantalla();
+$area_act = acceso_area_activa();
 if(!function_exists('acceso_puede_alta_cliente') || !acceso_puede_alta_cliente($area_act))
 {
 	echo json_encode(array('ok' => false, 'error' => 'No tenés permiso para dar de alta clientes en esta área.'));
+	exit();
+}
+
+$id_provincia = isset($_POST['id_provincia']) && is_scalar($_POST['id_provincia']) ? intval($_POST['id_provincia']) : 0;
+$id_localidad = isset($_POST['id_localidad']) && is_scalar($_POST['id_localidad']) ? intval($_POST['id_localidad']) : 0;
+$localidad_valida = $id_provincia > 0 && $id_localidad > 0
+	? acceso_consulta_una('SELECT id_localidad FROM localidad WHERE id_localidad=? AND id_provincia=? LIMIT 1', 'ii', array($id_localidad, $id_provincia))
+	: null;
+if(!$localidad_valida)
+{
+	echo json_encode(array('ok' => false, 'error' => 'Elegí una provincia y una localidad válida.'));
 	exit();
 }
 
