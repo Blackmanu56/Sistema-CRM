@@ -73,7 +73,14 @@ function salas_reuniones_areas_disponibles()
 	$permitidas=array();
 	if(acceso_es_super() || acceso_es_coord_general())
 	{
-		return $etiquetas;
+		foreach($etiquetas as $area=>$etiqueta)
+		{
+			if(function_exists('area_capacidad') && area_capacidad($area,'puede_salas_reuniones')===1)
+			{
+				$permitidas[$area]=$etiqueta;
+			}
+		}
+		return $permitidas;
 	}
 	$base=isset($_SESSION['area_base']) ? $_SESSION['area_base'] : '';
 	if(isset($etiquetas[$base]))
@@ -93,12 +100,24 @@ function salas_reuniones_areas_disponibles()
 	{
 		$permitidas[$activa]=$etiquetas[$activa];
 	}
-	return $permitidas;
+	$habilitadas=array();
+	foreach($permitidas as $area=>$etiqueta)
+	{
+		if(function_exists('area_capacidad') && area_capacidad($area,'puede_salas_reuniones')===1)
+		{
+			$habilitadas[$area]=$etiqueta;
+		}
+	}
+	return $habilitadas;
 }
 
 function salas_reuniones_area_valida_para_reservar($area)
 {
 	$area=trim((string)$area);
+	if($area==='' || !function_exists('area_capacidad') || area_capacidad($area,'puede_salas_reuniones')!==1)
+	{
+		return false;
+	}
 	$permitidas=salas_reuniones_areas_disponibles();
 	return isset($permitidas[$area]);
 }
@@ -186,14 +205,14 @@ function salas_reuniones_reserva_por_id($id_reserva)
 
 function salas_reuniones_puede_gestionar_area($area)
 {
+	$area=trim((string)$area);
+	if($area==='' || !function_exists('area_capacidad') || area_capacidad($area,'puede_salas_reuniones')!==1)
+	{
+		return false;
+	}
 	if(acceso_es_super() || acceso_es_coord_general())
 	{
 		return true;
-	}
-	$area=trim((string)$area);
-	if($area==='')
-	{
-		return false;
 	}
 	if(isset($_SESSION['rol_base'], $_SESSION['area_base']) && $_SESSION['rol_base']==='coordinador' && $_SESSION['area_base']===$area)
 	{
@@ -216,7 +235,7 @@ function salas_reuniones_puede_crear()
 
 function salas_reuniones_puede_gestionar($reserva)
 {
-	if(!$reserva || !isset($reserva['area_clave']))
+	if(!$reserva || !isset($reserva['area_clave']) || !salas_reuniones_puede_gestionar_area($reserva['area_clave']))
 	{
 		return false;
 	}
@@ -229,7 +248,7 @@ function salas_reuniones_puede_gestionar($reserva)
 	{
 		return false;
 	}
-	return salas_reuniones_puede_gestionar_area($reserva['area_clave']);
+	return true;
 }
 
 function salas_reuniones_hay_superposicion($id_sala, $fecha, $hora_inicio, $hora_fin, $excepto_id=0, $bloquear=false)
