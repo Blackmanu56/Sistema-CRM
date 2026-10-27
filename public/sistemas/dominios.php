@@ -326,6 +326,12 @@ if (isset($_GET['ajax_cal']) && $_GET['ajax_cal'] == '1')
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion']))
 {
 	if (!headers_sent()) header('Content-Type: application/json; charset=utf-8');
+	if (!crm_tarea_extra_csrf_valido(isset($_POST['csrf_tarea_extra']) ? $_POST['csrf_tarea_extra'] : ''))
+	{
+		http_response_code(403);
+		echo json_encode(array('ok' => false, 'error' => 'La sesión del formulario venció. Volvé a cargar la página e intentá de nuevo.'));
+		exit;
+	}
 
 	if (!$puede_gestionar)
 	{
@@ -939,6 +945,7 @@ body.crm-dominios-page .dominios-main-layout .dom-upcoming-panel {
 			<form id="formGuardarDominio" onsubmit="crmSubmitGuardarDominio(event)">
 				<input type="hidden" id="guardar_id_dominio" name="id_dominio" value="0">
 				<input type="hidden" name="accion" value="guardar">
+				<input type="hidden" name="csrf_tarea_extra" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
 				<div class="modal-body">
 					<div id="alertGuardarDominio" class="alert alert-danger" style="display:none;"></div>
 					<div class="form-group">
@@ -1105,6 +1112,7 @@ body.crm-dominios-page .dominios-main-layout .dom-upcoming-panel {
 			<form id="formRenovarDominio" onsubmit="crmSubmitRenovarDominio(event)">
 				<input type="hidden" id="renovar_id_dominio" name="id_dominio" value="0">
 				<input type="hidden" name="accion" value="renovar">
+				<input type="hidden" name="csrf_tarea_extra" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
 				<div class="modal-body">
 					<div id="alertRenovarDominio" class="alert alert-danger" style="display:none;"></div>
 					
@@ -1479,6 +1487,7 @@ function crmBajaDominio(id) {
 	var formData = new FormData();
 	formData.append('accion', 'baja');
 	formData.append('id_dominio', id);
+	formData.append('csrf_tarea_extra', document.querySelector('#formGuardarDominio input[name="csrf_tarea_extra"]').value);
 
 	fetch('dominios.php', { method: 'POST', body: formData })
 		.then(function(res) { return res.json(); })
