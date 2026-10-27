@@ -2,10 +2,18 @@
 require_once __DIR__ . '/../_init.php';
 require_once BASE_PATH . '/includes/sistemas_dominios.php';
 
-crm_proteger_staff('sistemas');
+crm_proteger_staff(null, true);
+$dominios_area_activa=function_exists('acceso_area_activa') ? acceso_area_activa() : '';
+if(!function_exists('acceso_puede_ver_dominios') || !acceso_puede_ver_dominios($dominios_area_activa))
+{
+	http_response_code(403);
+	exit('El módulo de Dominios está deshabilitado para esta área.');
+}
+$csrf_token = crm_tarea_extra_csrf_token();
 $menu_activo = 'dominios';
-$nombre_area = 'Sistemas';
-$puede_gestionar = acceso_puede_gestionar('sistemas');
+$etiquetas_area_dominios=acceso_etiquetas_area();
+$nombre_area=isset($etiquetas_area_dominios[$dominios_area_activa]) ? $etiquetas_area_dominios[$dominios_area_activa] : $dominios_area_activa;
+$puede_gestionar = ($dominios_area_activa==='sistemas' && acceso_puede_dominios() && acceso_puede_gestionar('sistemas'));
 
 // -------------------------------------------------------------
 // AJAX ENDPOINT: DOMAIN DETAILS & RENEWAL HISTORY (READ-ONLY)

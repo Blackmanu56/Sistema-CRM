@@ -7,8 +7,20 @@ if(function_exists('crm_sembrar_programas_emprendedores'))
 }
 if(!isset($menu_activo)) { $menu_activo='programas'; }
 $area_prog=acceso_area_pantalla();
+$area_prog=function_exists('acceso_area_activa') ? acceso_area_activa() : $area_prog;
+$puede_gestionar=!empty($programas_puede_gestionar);
 $etq=acceso_etiquetas_area();
 $nombre_area=isset($etq[$area_prog]) ? $etq[$area_prog] : $area_prog;
+
+$acciones_catalogo=array('alta_objetivo','sumar_areas_objetivo','alta_tarea','editar_tarea_modelo','eliminar_tarea_modelo','alta_programa','agregar_items','quitar_item');
+foreach($acciones_catalogo as $accion_catalogo)
+{
+	if(isset($_POST[$accion_catalogo]) && !$puede_gestionar)
+	{
+		http_response_code(403);
+		exit('No tenés permisos para administrar el catálogo de Programas.');
+	}
+}
 
 if(isset($_POST['alta_objetivo']))
 {
@@ -199,11 +211,14 @@ $titulo_pag=$id_ver>0
             <div class="content">
                 <ul class="breadcrumb">
                     <li><p>ESTÁS AQUÍ</p></li>
-                    <li><a href="<?php echo tareas_link('tareas.php'); ?>"><?php echo texto_mostrar($nombre_area); ?></a></li>
+                    <li><a href="<?php echo is_file(BASE_PATH.'/public/'.$area_prog.'/tareas.php') ? url_crm($area_prog.'/tareas.php') : url_crm('dashboard.php'); ?>"><?php echo texto_mostrar($nombre_area); ?></a></li>
                     <li><a href="programas.php" class="<?php echo $id_ver>0 ? '' : 'active'; ?>">Programas</a></li>
                     <?php if($id_ver>0) { ?><li><a href="#" class="active"><?php echo htmlspecialchars($prog_actual['nombre']); ?></a></li><?php } ?>
                 </ul>
-                <?php include("menu-seccion.php"); ?>
+                <?php
+                $menu_seccion_programas=BASE_PATH.'/public/'.$area_prog.'/menu-seccion.php';
+                if(is_file($menu_seccion_programas)) { include $menu_seccion_programas; }
+                ?>
                 <?php if(isset($_SESSION['msgprog']) && $_SESSION['msgprog']!='') { ?>
                 <div class="alert alert-info"><?php echo htmlspecialchars($_SESSION['msgprog']); $_SESSION['msgprog']=''; ?></div>
                 <?php } ?>
@@ -239,17 +254,17 @@ $titulo_pag=$id_ver>0
                         <?php foreach($listaObj as $it) { ?>
                         <div class="crm-prog-item">
                             <span><?php echo htmlspecialchars($it['titulo']); ?></span>
-                            <form method="post" onsubmit="return confirm('¿Quitar esta tarea del programa?');">
+                            <?php if($puede_gestionar) { ?><form method="post" onsubmit="return confirm('¿Quitar esta tarea del programa?');">
                                 <input type="hidden" name="id_programa" value="<?php echo intval($id_ver); ?>">
                                 <input type="hidden" name="id_item" value="<?php echo intval($it['id']); ?>">
                                 <button type="submit" name="quitar_item" value="1" class="btn btn-white btn-xs">Quitar</button>
-                            </form>
+                            </form><?php } ?>
                         </div>
                         <?php } } } } ?>
                     </div>
                 </div>
 
-                <div class="grid simple">
+                <?php if($puede_gestionar) { ?><div class="grid simple">
                     <div class="grid-title no-border"><h4>Agregar tareas al programa</h4></div>
                     <div class="grid-body no-border">
                         <form method="post">
@@ -282,7 +297,7 @@ $titulo_pag=$id_ver>0
                             <?php } ?>
                         </form>
                     </div>
-                </div>
+                </div><?php } ?>
 
                 <div class="grid simple">
                     <div class="grid-title no-border"><h4>Anotar cliente</h4></div>
@@ -308,13 +323,13 @@ $titulo_pag=$id_ver>0
 <?php } else { ?>
                 <div class="crm-programas-listado">
                 <div class="page-title"><h3>Programas</h3></div>
-                <p class="muted crm-programas-descripcion">Catálogo de objetivos y tareas · armá programas · al entrar a uno gestionás sus tareas y anotás clientes.</p>
+                <p class="muted crm-programas-descripcion"><?php echo $puede_gestionar ? 'Catálogo de objetivos y tareas · armá programas · al entrar a uno gestionás sus tareas y anotás clientes.' : 'Consulta de programas y tareas disponibles para las áreas involucradas.'; ?></p>
 
                 <div class="grid simple">
                     <div class="grid-title no-border"><h4>Programas</h4></div>
                     <div class="grid-body no-border crm-prog-lista">
                         <?php if(count($programas)==0) { ?>
-                        <p class="muted">No hay programas. Creá uno más abajo.</p>
+                        <p class="muted">No hay programas disponibles.</p>
                         <?php } foreach($programas as $p) {
                         	$n=count(crm_programa_items(intval($p['id_programa'])));
                         ?>
@@ -328,7 +343,7 @@ $titulo_pag=$id_ver>0
                 </div>
                 </div>
 
-                <div class="grid simple">
+                <?php if($puede_gestionar) { ?><div class="grid simple">
                     <div class="grid-title no-border"><h4>Catálogo · Objetivos</h4></div>
                     <div class="grid-body no-border">
                         <form method="post">
@@ -374,9 +389,9 @@ $titulo_pag=$id_ver>0
                         </div>
                         <?php } } ?>
                     </div>
-                </div>
+                </div><?php } ?>
 
-                <div class="grid simple">
+                <?php if($puede_gestionar) { ?><div class="grid simple">
                     <div class="grid-title no-border"><h4>Catálogo · Tareas por objetivo y área</h4></div>
                     <div class="grid-body no-border">
                         <?php if(count($objetivos)==0) { ?>
@@ -425,9 +440,9 @@ $titulo_pag=$id_ver>0
                         </ul>
                         <?php } } } ?>
                     </div>
-                </div>
+                </div><?php } ?>
 
-                <div class="grid simple">
+                <?php if($puede_gestionar) { ?><div class="grid simple">
                     <div class="grid-title no-border"><h4>Nuevo programa</h4></div>
                     <div class="grid-body no-border">
                         <form method="post">
@@ -455,7 +470,7 @@ $titulo_pag=$id_ver>0
                             <p style="margin-top:12px;"><button type="submit" name="alta_programa" value="1" class="btn btn-primary">Crear programa</button></p>
                         </form>
                     </div>
-                </div>
+                </div><?php } ?>
 <?php } ?>
             </div>
         </div>

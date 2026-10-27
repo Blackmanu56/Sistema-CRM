@@ -3058,14 +3058,61 @@ function crm_tarea_asignar_responsable($id_tarea, $id_empleado)
 	return '';
 }
 
-function crm_puede_gestionar_programas()
+function crm_puede_consultar_programas($area_capacidad=null)
 {
+	$area_capacidad=is_string($area_capacidad) ? trim($area_capacidad) : '';
+	if($area_capacidad==='' && function_exists('acceso_area_activa'))
+	{
+		$area_capacidad=acceso_area_activa();
+	}
+	if($area_capacidad==='' || !function_exists('area_capacidad') || area_capacidad($area_capacidad, 'puede_programas')!==1)
+	{
+		return false;
+	}
+	return (acceso_es_super() || acceso_es_coord_general() || (function_exists('acceso_puede') && acceso_puede($area_capacidad)));
+}
+
+function crm_menu_seccion_capacidades_area($area=null)
+{
+	$area=is_string($area) ? trim($area) : '';
+	if($area==='' && function_exists('acceso_area_activa')) { $area=acceso_area_activa(); }
+	if($area==='' || $area==='general' || $area==='admin') { return; }
+	if(function_exists('acceso_area_activa') && acceso_area_activa()!==$area) { return; }
+	if(function_exists('crm_puede_consultar_programas') && crm_puede_consultar_programas($area))
+	{
+		$activo=isset($GLOBALS['menu_activo']) && $GLOBALS['menu_activo']==='programas';
+		echo '<a href="'.htmlspecialchars(url_crm('sistemas/programas.php'), ENT_QUOTES, 'UTF-8').'" class="btn '.($activo ? 'btn-primary' : 'btn-white').'">Programas</a>';
+	}
+	if(function_exists('acceso_puede_ver_dominios') && acceso_puede_ver_dominios($area))
+	{
+		$activo=isset($GLOBALS['menu_activo']) && $GLOBALS['menu_activo']==='dominios';
+		echo '<a href="'.htmlspecialchars(url_crm('sistemas/dominios.php'), ENT_QUOTES, 'UTF-8').'" class="btn '.($activo ? 'btn-primary' : 'btn-white').'">Dominios</a>';
+	}
+}
+
+function crm_puede_gestionar_programas($area_capacidad=null)
+{
+	// La disponibilidad por área no sustituye la autorización vigente del módulo.
+	$area_capacidad=is_string($area_capacidad) ? trim($area_capacidad) : '';
+	if($area_capacidad==='' && function_exists('acceso_area_pantalla'))
+	{
+		$area_capacidad=acceso_area_pantalla();
+	}
+	if($area_capacidad==='' && function_exists('acceso_area_activa'))
+	{
+		$area_capacidad=acceso_area_activa();
+	}
+	if($area_capacidad==='' || !function_exists('area_capacidad') || area_capacidad($area_capacidad, 'puede_programas')!==1)
+	{
+		return false;
+	}
 	// Armar / editar catálogo de programas (pantalla Sistemas / General).
 	if(acceso_es_super() || acceso_es_coord_general())
 	{
 		return true;
 	}
-	return (acceso_area()=='sistemas' || acceso_area_pantalla()=='general');
+	return ($area_capacidad==='sistemas' && acceso_area()==='sistemas')
+		|| ($area_capacidad==='general' && acceso_area_pantalla()==='general');
 }
 
 function crm_puede_anotar_programa()

@@ -544,7 +544,7 @@ function crm_dominio_historial_renovaciones($id_dominio)
  */
 function crm_dominio_guardar($datos, $id_dominio = 0)
 {
-	if (!acceso_puede_gestionar('sistemas'))
+	if (!acceso_puede_dominios() || !acceso_puede_gestionar('sistemas'))
 	{
 		return 'No tenés permisos para gestionar dominios.';
 	}
@@ -639,7 +639,7 @@ function crm_dominio_guardar($datos, $id_dominio = 0)
  */
 function crm_dominio_renovar($id_dominio, $fecha_renovacion, $fecha_vencimiento_nueva, $notas = '')
 {
-	if (!acceso_puede_gestionar('sistemas'))
+	if (!acceso_puede_dominios() || !acceso_puede_gestionar('sistemas'))
 	{
 		return 'No tenés permisos para renovar dominios.';
 	}
@@ -726,7 +726,7 @@ function crm_dominio_renovar($id_dominio, $fecha_renovacion, $fecha_vencimiento_
  */
 function crm_dominio_baja($id_dominio)
 {
-	if (!acceso_puede_gestionar('sistemas'))
+	if (!acceso_puede_dominios() || !acceso_puede_gestionar('sistemas'))
 	{
 		return 'No tenés permisos para dar de baja dominios.';
 	}
